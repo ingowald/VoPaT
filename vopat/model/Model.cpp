@@ -14,26 +14,13 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include "vopat/common.h"
+#include "vopat/model/Model.h"
 
 namespace vopat {
 
-  struct ModelMeta {
-    typedef std::shared_ptr<ModelMeta> SP;
-
-    ModelMeta(const std::string &fileName);
+  ModelMeta::ModelMeta(const std::string &fileName)
+    : fileName(fileName)
+  {
+  }
     
-    static SP load(const std::string &fileName)
-    { return std::make_shared<ModelMeta>(fileName); }
-
-    std::string fileName;
-    vec3i numBlocks = { 2,2,1 };
-  };
-  
-  struct RankData {
-    typedef std::shared_ptr<RankData> SP;
-  };
-
 }

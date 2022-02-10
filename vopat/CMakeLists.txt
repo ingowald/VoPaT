@@ -18,6 +18,9 @@ find_package(MPI REQUIRED)
 
 add_executable(vopatViewer
   viewer.cpp
+
+  model/Model.cpp
+  
   render/Renderer.cpp
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
