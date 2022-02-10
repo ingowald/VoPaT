@@ -15,12 +15,47 @@
 // ======================================================================== //
 
 #include "vopat/model/Model.h"
+#include <fstream>
 
 namespace vopat {
 
   ModelMeta::ModelMeta(const std::string &fileName)
     : fileName(fileName)
   {
+    std::ifstream in(fileName);
+    in >> numCells.x >> numCells.y >> numCells.z;
+    //    in >> numBlocks.x >> numBlocks.y >> numBlocks.z;
   }
+
+  Brick::SP Brick::load(ModelMeta::SP meta,
+                        const vec3i &blockIdx)
+  {
+    std::ifstream in(meta->fileName);
+
+    Brick::SP brick = std::make_shared<Brick>();
+    brick->voxelRange.lower = blockIdx * meta->numVoxels / meta->numBricks;
+    brick->voxelRange.upper
+      = min((blockIdx + vec3i(1)) * meta->numVoxels / meta->numBricks + vec3i(1),
+            meta->numVoxels);
+    brick->spaceRange.lower = vec3f(brick->voxelRange.lower) / vec3f(meta->numVoxels - 1);
+    brick->spaceRange.upper = vec3f(brick->voxelRange.upper) / vec3f(meta->numVoxels - 1);
     
+    brick->numVoxels = brick->voxelRange.size();
+    brick->numCells  = brick->voxelRange.size() - vec3i(1);
+
+    brick->voxels.resize(volume(brick->numVoxels));
+    for (int iz=0;iz<brick->numVoxels.z;iz++)
+      for (int iy=0;iy<brick->numVoxels.y;iy++) {
+        size_t idxOfs
+          = (brick->voxelRange.lower.z+iz) * size_t(meta->numVoxels.x) * size_t(meta->numVoxels.y)
+          + (brick->voxelRange.lower.y+iy) * size_t(meta->numVoxels.x);
+        in.seekg(idxOfs*sizeof(float),std::ios::beg);
+        in.read((char *)(brick->voxels.data()
+                         + iz * size_t(meta->numVoxels.x) * size_t(meta->numVoxels.y)
+                         + iy * size_t(meta->numVoxels.x)),
+                brick->numVoxels.x * sizeof(float));
+      }
+    return brick;
+  }
+
 }
