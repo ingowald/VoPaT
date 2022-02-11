@@ -232,13 +232,14 @@ namespace vopat {
         inFileBase = inFileBase+"_";
       // MasterScene::SP masterScene = MasterScene::load(inFileBase+"master.summ");
       MPIBackend mpiBackend(argc,argv,1);
-      ModelMeta::SP modelMeta = ModelMeta::load(inFileBase+".meta");
-        
+      Model::SP model = Model::load(inFileBase+".vopat");
+      if (model->bricks.size() != mpiBackend.workersSize)
+        throw std::runtime_error("incompatible number of bricks and workers");
+      
       const bool isMaster = mpiBackend.isMaster;
-
       if (!isMaster) {
         const int myRank = mpiBackend.worker.withinIsland->rank;
-        RankData::SP rankData = {};
+        Brick::SP rankData = model->bricks[myRank];
           // = scene::PartialScene::loadRank(inFileBase,myRank);
         // localScene->selfCheck();
         // char partString[100];
@@ -252,7 +253,7 @@ namespace vopat {
         //                                    scene::NodeMask::singleRank(myRank));
         // assert(localScene);
         Renderer *renderer
-          = new OptixRenderer(&mpiBackend,modelMeta,rankData,cmdline.spp);
+          = new OptixRenderer(&mpiBackend,model,cmdline.spp);
         
         MPIWorker worker(mpiBackend,renderer);
         worker.run();

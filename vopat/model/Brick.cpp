@@ -19,36 +19,52 @@
 
 namespace vopat {
 
-  Brick::SP Brick::loadRegionRAW(const std::string rawFileName,
-                                 /*! size of the raw volume in that file */
-                                 const vec3i &numVoxels,
-                                 /*! region to load */
-                                 const box3i &desiredCellRange)
+  Brick::Brick(/*! total num voxels in the *entire* model */
+          const vec3i &numVoxelsTotal,
+          /*! desired range of *cells* (not voxels) to load from this
+            volume, *including* the lower coordinates but *excluding* the
+            upper. 
+            
+            Eg, for a volume of 10x10 voxels (ie, 9x9 cells) the
+            range {(2,2),(4,4)} would span cells (2,2),(3,2),(3,2) and
+            (3,3); and to do that wouldread the voxels from (2,2) to
+            including (4,4) (ie, the brick would have 2x2 cells and 3x3
+            voxels. */
+          const box3i &desiredCellRange)
   {
-    std::ifstream in(meta->fileName);
-
-    Brick::SP brick = std::make_shared<Brick>();
-    brick->cellRange = desiredCellRange;
-    brick->voxelRange = {desiredCellRange.lower,desiredCellRange.upper+vec3i(1)};
-    brick->spaceRange.lower = vec3f(brick->voxelRange.lower) / vec3f(numVoxels - 1);
-    brick->spaceRange.upper = vec3f(brick->voxelRange.upper) / vec3f(numVoxels - 1);
+    this->cellRange = desiredCellRange;
+    this->voxelRange = {desiredCellRange.lower,desiredCellRange.upper+vec3i(1)};
+    this->spaceRange.lower = vec3f(this->voxelRange.lower) / vec3f(numVoxelsTotal-1);
+    this->spaceRange.upper = vec3f(this->voxelRange.upper-1) / vec3f(numVoxelsTotal-1);
     
-    brick->numVoxels = brick->voxelRange.size();
-    brick->numCells  = brick->voxelRange.size() - vec3i(1);
-    
-    brick->voxels.resize(volume(brick->numVoxels));
-    for (int iz=0;iz<brick->numVoxels.z;iz++)
-      for (int iy=0;iy<brick->numVoxels.y;iy++) {
+    this->numVoxels = this->voxelRange.size();
+    this->numCells  = this->voxelRange.size() - vec3i(1);
+    this->numVoxelsParent = numVoxelsTotal;
+  }
+  
+  std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
+  {
+    std::ifstream in(rawFileName);
+    std::vector<float> voxels(volume(numVoxelsParent));
+    for (int iz=0;iz<numVoxels.z;iz++)
+      for (int iy=0;iy<numVoxels.y;iy++) {
         size_t idxOfs
-          = (brick->voxelRange.lower.z+iz) * size_t(meta->numVoxels.x) * size_t(meta->numVoxels.y)
-          + (brick->voxelRange.lower.y+iy) * size_t(meta->numVoxels.x);
+          = (voxelRange.lower.z+iz) * size_t(numVoxelsParent.x) * size_t(numVoxelsParent.y)
+          + (voxelRange.lower.y+iy) * size_t(numVoxelsParent.x);
         in.seekg(idxOfs*sizeof(float),std::ios::beg);
-        in.read((char *)(brick->voxels.data()
-                         + iz * size_t(meta->numVoxels.x) * size_t(meta->numVoxels.y)
-                         + iy * size_t(meta->numVoxels.x)),
-                brick->numVoxels.x * sizeof(float));
+        in.read((char *)(voxels.data()
+                         + iz * size_t(numVoxelsParent.x) * size_t(numVoxelsParent.y)
+                         + iy * size_t(numVoxelsParent.x)),
+                numVoxels.x * sizeof(float));
       }
-    return brick;
+    return voxels;
+  }
+
+  std::string Brick::toString() const
+  {
+    std::stringstream ss;
+    ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << "}";
+    return ss.str();
   }
 
 }

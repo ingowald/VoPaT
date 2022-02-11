@@ -23,8 +23,7 @@ namespace vopat {
 
   struct OptixRenderer : public Renderer {
     OptixRenderer(CommBackend *comm,
-                  ModelMeta::SP meta,
-                  RankData::SP rankData,
+                  Model::SP model,
                   int numSPP)
       : Renderer(comm,numSPP)
     { PING; }

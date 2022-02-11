@@ -16,39 +16,21 @@
 
 #pragma once
 
-#include "vopat/common.h"
+#include "vopat/model/Brick.h"
 
 namespace vopat {
 
-  struct ModelMeta {
-    typedef std::shared_ptr<ModelMeta> SP;
+  /*! a model made up of multiple bricks; usually one per rank */
+  struct Model {
+    typedef std::shared_ptr<Model> SP;
 
-    ModelMeta(const std::string &fileName);
+    static SP create() { return std::make_shared<Model>(); }
+    static SP load(const std::string &fileName);
     
-    static SP load(const std::string &fileName)
-    { return std::make_shared<ModelMeta>(fileName); }
-
-    std::string      fileName;
-    vec3i            numCells;
-    vec3i            numVoxels;
-    vec3i            numBricks;
-    std::vector<int> brickOwner;
-  };
-
-  struct Brick {
-    typedef std::shared_ptr<Brick> SP;
-
-    SP load(ModelMeta::SP meta, const vec3i &brickIdx);
-
-    box3i voxelRange;
-    box3f spaceRange;
-    vec3i numVoxels;
-    vec3i numCells;
-    std::vector<float> voxels;
-  };
-  
-  struct RankData {
-    typedef std::shared_ptr<RankData> SP;
+    void save(const std::string &fileName);
+    
+    std::vector<Brick::SP> bricks;
+    vec3i                  numVoxelsTotal;
   };
 
 }

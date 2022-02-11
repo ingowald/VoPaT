@@ -19,6 +19,8 @@ find_package(MPI REQUIRED)
 # ==================================================================
 add_library(vopat_model
   common.h
+  model/Brick.h
+  model/Brick.cpp
   model/Model.h
   model/Model.cpp
   )

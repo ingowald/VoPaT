@@ -20,31 +20,43 @@
 
 namespace vopat {
 
+  /*! a "brick" refers to a sub-region of a larger (structured)
+    volume, such that the entirety of all bricks conver all of the
+    input volume's cells, and as such all share one "boundary"
+    layer of voxels */
   struct Brick {
     typedef std::shared_ptr<Brick> SP;
+    
+    static SP create() { return std::make_shared<Brick>(); }
+    static SP create(const vec3i &numVoxelsTotal,
+                     const box3i &desiredCellRange)
+    { return std::make_shared<Brick>(numVoxelsTotal,desiredCellRange); }
+    
+    Brick() {};
+    Brick(/*! total num voxels in the *entire* model */
+          const vec3i &numVoxelsTotal,
+          /*! desired range of *cells* (not voxels) to load from this
+            volume, *including* the lower coordinates but *excluding* the
+            upper. 
+            
+            Eg, for a volume of 10x10 voxels (ie, 9x9 cells) the
+            range {(2,2),(4,4)} would span cells (2,2),(3,2),(3,2) and
+            (3,3); and to do that wouldread the voxels from (2,2) to
+            including (4,4) (ie, the brick would have 2x2 cells and 3x3
+            voxels. */
+          const box3i &desiredCellRange);
 
-    /*! given a RAW file of given size, load the specified region of
-      cells out of that RAW file, and create a brick from it.
-      
-      \param desiredCellRange the range of *cells* (not voxels) to
-      load from this volume, *including* the lower coordinates but
-      *excluding* the upper. Eg, for a volume of 10x10 voxels (ie, 9x9
-      cells) the range {(2,2),(4,4)} would span cells
-      (2,2),(3,2),(3,2) and (3,3); and to do that wouldread the voxels
-      from (2,2) to including (4,4) (ie, the brick would have 2x2
-      cells and 3x3 voxels.
-    */
-    static Brick::SP loadRegionRAW(const std::string rawFileName,
-                                   /*! size of the raw volume in that file */
-                                   const vec3i &numVoxels,
-                                   /*! region to load */
-                                   const box3i &desiredCellRange)
+    std::string toString() const;
+    
+    /*! loads this brick's voxels from a raw file */
+    std::vector<float> loadRegionRAW(const std::string &rawFileName);
+    
     box3i voxelRange;
     box3i cellRange;
     box3f spaceRange;
     vec3i numVoxels;
     vec3i numCells;
-    std::vector<float> voxels;
+    vec3i numVoxelsParent;
   };
   
 }
