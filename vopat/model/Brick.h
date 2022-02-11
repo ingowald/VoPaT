@@ -27,13 +27,15 @@ namespace vopat {
   struct Brick {
     typedef std::shared_ptr<Brick> SP;
     
-    static SP create() { return std::make_shared<Brick>(); }
-    static SP create(const vec3i &numVoxelsTotal,
+    static SP create(int ID) { return std::make_shared<Brick>(ID); }
+    static SP create(int ID,
+                     const vec3i &numVoxelsTotal,
                      const box3i &desiredCellRange)
-    { return std::make_shared<Brick>(numVoxelsTotal,desiredCellRange); }
+    { return std::make_shared<Brick>(ID,numVoxelsTotal,desiredCellRange); }
     
-    Brick() {};
-    Brick(/*! total num voxels in the *entire* model */
+    Brick(int ID) : ID(ID) {};
+    Brick(int ID,
+          /*! total num voxels in the *entire* model */
           const vec3i &numVoxelsTotal,
           /*! desired range of *cells* (not voxels) to load from this
             volume, *including* the lower coordinates but *excluding* the
@@ -49,8 +51,11 @@ namespace vopat {
     std::string toString() const;
     
     /*! loads this brick's voxels from a raw file */
+    template<typename T>
     std::vector<float> loadRegionRAW(const std::string &rawFileName);
-    
+
+    /*! linear numbering of this brick, relative to all bricks in the parent model */
+    const int ID;
     box3i voxelRange;
     box3i cellRange;
     box3f spaceRange;

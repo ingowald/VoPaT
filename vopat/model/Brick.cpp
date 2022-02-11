@@ -19,18 +19,20 @@
 
 namespace vopat {
 
-  Brick::Brick(/*! total num voxels in the *entire* model */
-          const vec3i &numVoxelsTotal,
-          /*! desired range of *cells* (not voxels) to load from this
-            volume, *including* the lower coordinates but *excluding* the
-            upper. 
-            
-            Eg, for a volume of 10x10 voxels (ie, 9x9 cells) the
-            range {(2,2),(4,4)} would span cells (2,2),(3,2),(3,2) and
-            (3,3); and to do that wouldread the voxels from (2,2) to
-            including (4,4) (ie, the brick would have 2x2 cells and 3x3
-            voxels. */
-          const box3i &desiredCellRange)
+  Brick::Brick(int ID,
+               /*! total num voxels in the *entire* model */
+               const vec3i &numVoxelsTotal,
+               /*! desired range of *cells* (not voxels) to load from this
+                 volume, *including* the lower coordinates but *excluding* the
+                 upper. 
+                 
+                 Eg, for a volume of 10x10 voxels (ie, 9x9 cells) the
+                 range {(2,2),(4,4)} would span cells (2,2),(3,2),(3,2) and
+                 (3,3); and to do that wouldread the voxels from (2,2) to
+                 including (4,4) (ie, the brick would have 2x2 cells and 3x3
+                 voxels. */
+               const box3i &desiredCellRange)
+    : ID(ID)
   {
     this->cellRange = desiredCellRange;
     this->voxelRange = {desiredCellRange.lower,desiredCellRange.upper+vec3i(1)};
@@ -42,20 +44,22 @@ namespace vopat {
     this->numVoxelsParent = numVoxelsTotal;
   }
   
+  template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
     std::ifstream in(rawFileName);
-    std::vector<float> voxels(volume(numVoxelsParent));
+    std::vector<float> voxels(volume(numVoxels));
+    std::vector<T> line(numVoxels.x);
     for (int iz=0;iz<numVoxels.z;iz++)
       for (int iy=0;iy<numVoxels.y;iy++) {
         size_t idxOfs
           = (voxelRange.lower.z+iz) * size_t(numVoxelsParent.x) * size_t(numVoxelsParent.y)
           + (voxelRange.lower.y+iy) * size_t(numVoxelsParent.x);
         in.seekg(idxOfs*sizeof(float),std::ios::beg);
-        in.read((char *)(voxels.data()
-                         + iz * size_t(numVoxelsParent.x) * size_t(numVoxelsParent.y)
-                         + iy * size_t(numVoxelsParent.x)),
-                numVoxels.x * sizeof(float));
+        in.read((char *)line.data(),
+                numVoxels.x * sizeof(T));
+        for (int ix=0;ix<numVoxels.x;ix++)
+          voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = float(line[ix]);
       }
     return voxels;
   }
@@ -67,4 +71,6 @@ namespace vopat {
     return ss.str();
   }
 
+  template std::vector<float> Brick::loadRegionRAW<float>(const std::string &rawFileName);
+  template std::vector<float> Brick::loadRegionRAW<uint8_t>(const std::string &rawFileName);   
 }

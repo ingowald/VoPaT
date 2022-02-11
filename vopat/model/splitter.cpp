@@ -15,15 +15,16 @@
 // ======================================================================== //
 
 #include "vopat/model/Model.h"
-#include <fstream>
+#include "vopat/model/IO.h"
 
 namespace vopat {
 
   Brick::SP kdCreateBrick(int rank, int numRanks, const vec3i &inputSize)
   {
+    const int inputRank = rank;
     box3i region{vec3i(0),inputSize-vec3i(1)};
     while (1) {
-      if (numRanks == 1) return Brick::create(inputSize,region);
+      if (numRanks == 1) return Brick::create(inputRank,inputSize,region);
       
       int lCount = numRanks / 2;
       int rCount = numRanks - lCount;
@@ -50,6 +51,11 @@ namespace vopat {
 
   void usage(const std::string &error)
   {
+    if (!error.empty())
+      std::cerr << OWL_TERMINAL_RED
+                << "Error: " << error
+                << OWL_TERMINAL_DEFAULT
+                << std::endl << std::endl;;
     std::cout << "./umeshSplitRaw inFileName.raw <args>\n";
     std::cout << "\n";
     std::cout << "-o <outpath>        : specifies common base part of output file names\n";
@@ -67,6 +73,7 @@ int main(int ac, char **av)
   vec3i inputSize = 0;
   std::string outFileBase;
   std::string inFileName;
+  std::string inFormat;
   
   for (int i=1;i<ac;i++) {
     const std::string arg = av[i];
@@ -78,6 +85,8 @@ int main(int ac, char **av)
       inputSize.z = std::stoi(av[++i]);
     } else if (arg == "-o") {
       outFileBase = av[++i];
+    } else if (arg == "-if" || arg == "--input-format") {
+      inFormat = av[++i];
     } else if (arg == "-n" || arg == "-nr" || arg == "--num-bricks" || arg == "-nb" || arg == "--num-ranks") {
       numBricks = std::stoi(av[++i]);
     } else {
@@ -87,11 +96,37 @@ int main(int ac, char **av)
   if (numBricks < 1) usage("invalid or not-specified number of bricks");
   if (reduce_min(inputSize) <= 0) usage("invalid or not-specified input model size");
   if (inFileName.empty()) usage("invalid or not-specified input file name");
-
+  if (inFormat == "") usage("input format not specified");
+  if (inFormat != "int8" && inFormat != "float") usage("unknown input format (allowed 'int8' 'float')");
   Model::SP model = Model::create();
   for (int brickID=0;brickID<numBricks;brickID++) {
     model->bricks.push_back(kdCreateBrick(brickID,numBricks,inputSize));
     std::cout << "... created brick " << model->bricks.back()->toString() << std::endl;
   }
+  std::cout << "saving meta..." << std::endl;
   model->save(outFileBase+".vopat");
+
+  int timeStep = 0;
+  std::string variable = "unknown";
+  for (auto brick : model->bricks) {
+    std::vector<float> scalars;
+    std::cout << "extracting var '" << variable << "', time step " << timeStep << ", brick " << brick->ID << std::endl;
+    if (inFormat == "float")
+      scalars = brick->loadRegionRAW<float>(inFileName);
+    else if (inFormat == "int8")
+      scalars = brick->loadRegionRAW<uint8_t>(inFileName);
+    else
+      throw std::runtime_error("unsupported raw format");
+    char ts[100];
+    sprintf(ts,"%05i",timeStep);
+    char bid[100];
+    sprintf(bid,"%05i",brick->ID);
+    std::string outFileName = outFileBase+"__"+variable+"__t"+ts+".b"+bid+".brick";
+    std::ofstream out(outFileName,std::ios::binary);
+    write(out,scalars);
+    std::cout << OWL_TERMINAL_GREEN
+              << " -> " << outFileName
+              << OWL_TERMINAL_DEFAULT << std::endl;
+  }
+  
 }

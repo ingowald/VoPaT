@@ -51,7 +51,7 @@ namespace vopat {
     read(in,model->numVoxelsTotal);
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
-      Brick::SP brick = Brick::create();
+      Brick::SP brick = Brick::create(i);
       read(in,brick->voxelRange);
       read(in,brick->cellRange);
       read(in,brick->spaceRange);
