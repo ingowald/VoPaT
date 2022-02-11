@@ -16,20 +16,37 @@
 
 find_package(MPI REQUIRED)
 
+# ==================================================================
+add_library(vopat_model
+  common.h
+  model/Model.h
+  model/Model.cpp
+  )
+target_include_directories(vopat_model PUBLIC ${PROJECT_SOURCE_DIR})
+target_link_libraries(vopat_model PUBLIC
+  owl::owl
+  )
+
+# ==================================================================
+add_executable(vopatSplitRaw
+  model/splitter.cpp
+  )
+target_link_libraries(vopatSplitRaw
+  vopat_model
+  )
+
+# ==================================================================
 add_executable(vopatViewer
   viewer.cpp
 
-  model/Model.cpp
-  
   render/Renderer.cpp
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp
   )
-target_include_directories(vopatViewer PUBLIC ${PROJECT_SOURCE_DIR})
 target_link_libraries(vopatViewer
   PUBLIC
-  owl::owl
+  vopat_model
   owl_viewer
   MPI::MPI_CXX
   )

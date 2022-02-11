@@ -14,17 +14,37 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/model/Model.h"
-#include <fstream>
+#pragma once
+
+#include "vopat/common.h"
 
 namespace vopat {
 
-  ModelMeta::ModelMeta(const std::string &fileName)
-    : fileName(fileName)
-  {
-    std::ifstream in(fileName);
-    in >> numCells.x >> numCells.y >> numCells.z;
-    //    in >> numBlocks.x >> numBlocks.y >> numBlocks.z;
-  }
+  struct Brick {
+    typedef std::shared_ptr<Brick> SP;
 
+    /*! given a RAW file of given size, load the specified region of
+      cells out of that RAW file, and create a brick from it.
+      
+      \param desiredCellRange the range of *cells* (not voxels) to
+      load from this volume, *including* the lower coordinates but
+      *excluding* the upper. Eg, for a volume of 10x10 voxels (ie, 9x9
+      cells) the range {(2,2),(4,4)} would span cells
+      (2,2),(3,2),(3,2) and (3,3); and to do that wouldread the voxels
+      from (2,2) to including (4,4) (ie, the brick would have 2x2
+      cells and 3x3 voxels.
+    */
+    static Brick::SP loadRegionRAW(const std::string rawFileName,
+                                   /*! size of the raw volume in that file */
+                                   const vec3i &numVoxels,
+                                   /*! region to load */
+                                   const box3i &desiredCellRange)
+    box3i voxelRange;
+    box3i cellRange;
+    box3f spaceRange;
+    vec3i numVoxels;
+    vec3i numCells;
+    std::vector<float> voxels;
+  };
+  
 }

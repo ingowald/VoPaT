@@ -19,12 +19,38 @@
 
 namespace vopat {
 
-  ModelMeta::ModelMeta(const std::string &fileName)
-    : fileName(fileName)
+  box3i kdComputeRankRegion(int rank, int numRanks,
+                            box3i region)
   {
-    std::ifstream in(fileName);
-    in >> numCells.x >> numCells.y >> numCells.z;
-    //    in >> numBlocks.x >> numBlocks.y >> numBlocks.z;
+    while (1) {
+      if (numRanks == 1) return region;
+      
+      int lCount = numRanks / 2;
+      int rCount = numRanks - lCount;
+      
+      float relSplit = lCount / float(numRanks);
+      
+      int dim = arg_max(region.size());
+      box3i lRegion = region; 
+      box3i rRegion = region;
+      lRegion.upper[dim] = rRegion.lower[dim] =
+        int(region.lower[dim] + relSplit * region.size()[dim]);
+      if (rank >= lCount) {
+        region   =  rRegion;
+        rank     -= lCount;
+        numRanks -= lCount;
+      } else {
+        region   =  lRegion;
+        rank     -= 0;
+        numRanks -= rCount;
+      }
+    }
   }
+  
+}
 
+using namespace vopat;
+
+int main(int ac, char **av)
+{
 }
