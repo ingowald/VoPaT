@@ -105,7 +105,6 @@ namespace vopat {
     /*! gets called whenever the viewer needs us to re-render out widget */
     virtual void render() override
     {
-      PING; PRINT(fbSize);
       if (fbSize.x < 0) return;
       
       static double t_last = -1;

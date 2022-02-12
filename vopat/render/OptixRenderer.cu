@@ -61,22 +61,17 @@ namespace vopat {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
     if (ix == 0 && iy == 0)
-      printf("*******************************************************\n");
-      // printf("render %i %i ptr %lx\n",
-      //        globals.fbSize.x,globals.fbSize.y,
-      //        globals.fbPointer);
+      printf("render %i %i ptr %lx\n",
+             globals.fbSize.x,globals.fbSize.y,
+             globals.fbPointer);
   }
   
   void OptixRenderer::renderLocal()
   {
-    PING; fflush(0);
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
-    PING;
-    // renderFrame<<<numBlocks,blockSize>>>(globals);
-    PING;
+    renderFrame<<<numBlocks,blockSize>>>(globals);
     CUDA_SYNC_CHECK();
-    PING;
   }
   
   // void OptixRenderer::render(uint32_t *appFB)

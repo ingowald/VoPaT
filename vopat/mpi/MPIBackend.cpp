@@ -227,12 +227,6 @@ namespace vopat {
                                        const size_t blockSize,
                                        const size_t numBlocks)
   {
-    std::cout << OWL_TERMINAL_RED;
-    PING; PRINT(numBlocks); PRINT(blockSize);
-    PRINT(recvBuffer);
-    std::cout << OWL_TERMINAL_DEFAULT;
-    fflush(0);
-    
     if (numBlocks == 0)
       return;
 
@@ -243,9 +237,7 @@ namespace vopat {
                      blockSize,MPI_BYTE,MPI_ANY_SOURCE,tag,
                      comm,&requests[i]));
     }
-    PING; fflush(0);
     MPI_CALL(Waitall(numBlocks,requests.data(),MPI_STATUSES_IGNORE));
-    PING; fflush(0);
   }
 
   
