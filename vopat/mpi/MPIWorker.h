@@ -25,6 +25,8 @@ namespace vopat {
   {
     MPIWorker(MPIBackend &mpi, Renderer *optix);
 
+    int myRank() const { return mpi.myRank(); }
+    
     /*! the 'main loop' that receives and executes cmmands sent by the master */
     void run();
 

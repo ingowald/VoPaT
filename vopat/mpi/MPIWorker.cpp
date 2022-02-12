@@ -25,7 +25,9 @@ namespace vopat {
   MPIWorker::MPIWorker(MPIBackend &mpi, Renderer *renderer)
     : mpi(mpi),
       renderer(renderer)
-  {}
+  {
+    PING; PRINT(renderer);
+  }
 
   void MPIWorker::cmd_terminate()
   {
@@ -162,7 +164,11 @@ namespace vopat {
   {
     while (1) {
       int cmd;
+      printf("(%i) waiting for command\n",myRank()); fflush(0);
+      
       MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+      printf("(%i) GOT command %i\n",myRank(),cmd); fflush(0);
+      PING; PRINT(cmd);
       switch(cmd) {
       case SET_CAMERA:
         cmd_setCamera();

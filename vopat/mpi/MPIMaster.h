@@ -26,7 +26,7 @@ namespace vopat {
   struct MPIMaster : public MPICommon {
     MPIMaster(MPIBackend &mpi, Renderer   *renderer);
 
-    void resize(const vec2i &newSize);
+    // void resize(const vec2i &newSize);
     void screenShot();
     void resetAccumulation();
     void terminate();
@@ -41,21 +41,21 @@ namespace vopat {
         buffer */
     // void collectRankResults(uint32_t *fbPointer);
   
-    const uint32_t *getFB() const
-    {
-// #if USE_APP_FB
-      return appFB;
-// #else
-//       return fullyAssembledFrame.data();
-// #endif
-    }
+//     const uint32_t *getFB() const
+//     {
+// // #if USE_APP_FB
+//       return appFB;
+// // #else
+// //       return fullyAssembledFrame.data();
+// // #endif
+//     }
 
     Renderer   *renderer = nullptr;
     MPIBackend &mpi;
-    vec2i fbSize { -1,-1 };
+    // vec2i fbSize { -1,-1 };
 
 // #if USE_APP_FB
-    uint32_t *appFB = nullptr;
+    // uint32_t *appFB = nullptr;
 // #else
 //     std::vector<uint32_t> fullyAssembledFrame;
 // #endif

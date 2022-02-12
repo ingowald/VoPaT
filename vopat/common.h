@@ -59,6 +59,7 @@ namespace vopat {
 
   
 #define CUDA_CALL(a) OWL_CUDA_CALL(a)
+#define CUDA_SYNC_CHECK() OWL_CUDA_SYNC_CHECK()
 
 
   struct small_vec3f { half x, y, z; };

@@ -22,7 +22,9 @@ namespace vopat {
   
   Renderer::Renderer(CommBackend *comm)
     : comm(comm)
-  {}
+  {
+    cudaFree(0);
+  }
 
 
   /*! the CUDA "parallel_for" variant */
@@ -61,6 +63,7 @@ namespace vopat {
                                          const small_vec3f *inputs,
                                          int islandSize)
   {
+    PING; fflush(0);
     vec2i tileSize = 32;
     const vec2i numTiles = divRoundUp(ourRegionSize,tileSize);
     // const int islandSize = comm->worker.withinIsland->size;
@@ -73,79 +76,101 @@ namespace vopat {
   
   void AddWorkersRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
+    PING;
     Renderer::resizeFrameBuffer(newSize);
-    // ==================================================================
-    // this upper part should be per node, shared among all threads
-    // ==================================================================
-    const int numIslands = comm->worker.numIslands;
-    const int islandIdx  = comm->worker.islandIdx;
-    const int islandRank = comm->worker.withinIsland->rank;
-    const int islandSize = comm->worker.withinIsland->size;
-    
-    // ------------------------------------------------------------------
-    // resize the full frame buffer - only the master needs the final
-    // frame buffer, but we need it to compute our local island frame
-    // buffer, as well as compositing buffer sizes
-    // ------------------------------------------------------------------
-    fullFbSize = newSize;
-    
-    // ------------------------------------------------------------------
-    // compute size of our island's frame buffer sub-set, and allocate
-    // local accum buffer of that size
-    // ------------------------------------------------------------------
-    
-    islandFbSize.x = fullFbSize.x;
-    islandFbSize.y
-      = (fullFbSize.y / numIslands)
-      + (islandIdx < (fullFbSize.y % numIslands));
-    
-    // ... and resize the local accum buffer
-    // if (localAccumBuffer)
-    //   CUDA_CALL(FreeMPI(localAccumBuffer));
-    // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
-    // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
-    localFB.resize(islandFbSize.x*islandFbSize.y);
 
-    // ------------------------------------------------------------------
-    // compute mem required for compositing, and allocate
-    // ------------------------------------------------------------------
-    const int ourCompLineBegin
-      = (islandFbSize.y * (islandRank+0)) / islandSize;
-    const int ourCompLineEnd
-      = (islandFbSize.y * (islandRank+1)) / islandSize;
-
-    // ------------------------------------------------------------------
-    // how many lines we'll *produce* during compositing, and mem for
-    // it
-    // ------------------------------------------------------------------
-    const int ourCompLineCount = ourCompLineEnd-ourCompLineBegin;
-    compResultMemory.resize(ourCompLineCount);
-    // if (compResultMemory)
-    //   CUDA_CALL(FreeMPI(compResultMemory));
-    // CUDA_CALL(MallocMPI(&compResultMemory,
-    //                     1+ourCompLineCount*islandFbSize.x*sizeof(uint32_t)));
+    if (comm->isMaster) {
+    } else {
+      // ==================================================================
+      // this upper part should be per node, shared among all threads
+      // ==================================================================
+      const int numIslands = comm->worker.numIslands;
+      const int islandIdx  = comm->worker.islandIdx;
+      const int islandRank = comm->worker.withinIsland->rank;
+      const int islandSize = comm->worker.withinIsland->size;
     
-    // ------------------------------------------------------------------
-    // how many lines we'll *receive* for compositing, and mem for it
-    // ------------------------------------------------------------------
-    const int numCompInputs = ourCompLineCount * islandSize;
-    compInputsMemory.resize(numCompInputs);
-    // if (compInputsMemory)
-    //   CUDA_CALL(FreeMPI(compInputsMemory));
-    // CUDA_CALL(MallocMPI(&compInputsMemory,
-    //                     1+numCompInputs*islandFbSize.x*sizeof(*compInputsMemory)));
+      // ------------------------------------------------------------------
+      // resize the full frame buffer - only the master needs the final
+      // frame buffer, but we need it to compute our local island frame
+      // buffer, as well as compositing buffer sizes
+      // ------------------------------------------------------------------
+      fullFbSize = newSize;
+    
+      // ------------------------------------------------------------------
+      // compute size of our island's frame buffer sub-set, and allocate
+      // local accum buffer of that size
+      // ------------------------------------------------------------------
+    
+      islandFbSize.x = fullFbSize.x;
+      islandFbSize.y
+        = (fullFbSize.y / numIslands)
+        + (islandIdx < (fullFbSize.y % numIslands));
+    
+      // ... and resize the local accum buffer
+      // if (localAccumBuffer)
+      //   CUDA_CALL(FreeMPI(localAccumBuffer));
+      // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
+      // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
+      PING; PRINT(islandFbSize);
+      localFB.resize(islandFbSize.x*islandFbSize.y);
+      PRINT(localFB.get());
+    
+      // ------------------------------------------------------------------
+      // compute mem required for compositing, and allocate
+      // ------------------------------------------------------------------
+      const int ourCompLineBegin
+        = (islandFbSize.y * (islandRank+0)) / islandSize;
+      const int ourCompLineEnd
+        = (islandFbSize.y * (islandRank+1)) / islandSize;
+
+      // ------------------------------------------------------------------
+      // how many lines we'll *produce* during compositing, and mem for
+      // it
+      // ------------------------------------------------------------------
+      const int ourCompLineCount = ourCompLineEnd-ourCompLineBegin;
+      compResultMemory.resize(ourCompLineCount);
+      PRINT(compResultMemory.get());
+      // if (compResultMemory)
+      //   CUDA_CALL(FreeMPI(compResultMemory));
+      // CUDA_CALL(MallocMPI(&compResultMemory,
+      //                     1+ourCompLineCount*islandFbSize.x*sizeof(uint32_t)));
+    
+      // ------------------------------------------------------------------
+      // how many lines we'll *receive* for compositing, and mem for it
+      // ------------------------------------------------------------------
+      const int numCompInputs = ourCompLineCount * islandSize;
+      compInputsMemory.resize(numCompInputs*islandFbSize.x);
+      PRINT(compInputsMemory.get());
+      // if (compInputsMemory)
+      //   CUDA_CALL(FreeMPI(compInputsMemory));
+      // CUDA_CALL(MallocMPI(&compInputsMemory,
+      //                     1+numCompInputs*islandFbSize.x*sizeof(*compInputsMemory)));
+    }
   }
   
   void AddWorkersRenderer::render(uint32_t *fbPointer)
   {
+    PING; fflush(0);
     Renderer::render(fbPointer);
     if (isMaster()) {
+      PING; fflush(0);
+      PRINT(fbPointer);
+      PRINT(fbSize);
       /* nothing to do on master yet, wait for workers to render... */
+      assert(fbPointer);
+      assert(fbSize.x > 0);
+      assert(fbSize.y > 0);
+      PING; fflush(0);
+      PRINT(fbPointer);
+      PRINT(fbSize);fflush(0);
+      CUDAArray<uint32_t> bakFB; bakFB.resize(fbSize.x*fbSize.y);
       comm->master.toWorkers->indexedGather
-        (fbPointer,
+        (bakFB.get(),//fbPointer,
          fbSize.x*sizeof(uint32_t),
          fbSize.y);
+      PING; fflush(0);
     } else {
+      PING; fflush(0);
       // ------------------------------------------------------------------
       // step 0: clients render into their owl local frame buffers
       // ------------------------------------------------------------------
@@ -161,7 +186,7 @@ namespace vopat {
       const int ourLineEnd
         = (islandFbSize.y * (islandRank+1)) / islandSize;
       const int ourLineCount = ourLineEnd-ourLineBegin;
-      
+      PRINT(ourLineCount);
       // ------------------------------------------------------------------
       // step 1: exchage accum buffer regions w/ island peers
       // ------------------------------------------------------------------
@@ -171,6 +196,7 @@ namespace vopat {
       std::vector<int> recvOffsets(islandSize);
       for (int i=0;i<islandSize;i++) {
         const size_t sizeOfLine = islandFbSize.x*sizeof(*localFB);
+        PING; PRINT(sizeOfLine);
         
         // in:
         recvCounts[i] = ourLineCount*sizeOfLine;
@@ -186,6 +212,17 @@ namespace vopat {
         sendOffsets[i] = hisLineBegin*sizeOfLine;
       }
 
+      PRINT(islandSize);
+      PRINT(compInputsMemory.get());
+      PRINT(localFB.get());
+
+      PRINT(recvCounts[0]);
+      PRINT(recvOffsets[0]);
+
+      PRINT(sendCounts[0]);
+      PRINT(sendOffsets[0]);
+      PRINT(localFB.numBytes());
+      PRINT(compInputsMemory.numBytes());
       comm->worker.withinIsland->allToAll
         (localFB.get(), //const void *sendBuf,
          sendCounts.data(),//const int *sendCounts,
@@ -194,7 +231,8 @@ namespace vopat {
          recvCounts.data(),//const int *recvCounts,
          recvOffsets.data()//const int *recvOffsets) 
          );
-    
+
+      PING; fflush(0);
       // ------------------------------------------------------------------
       // step 2: compose locally (optix backend uses cuda)
       // ------------------------------------------------------------------
@@ -211,6 +249,7 @@ namespace vopat {
                     // accumID,
                     islandSize
                     );
+      CUDA_SYNC_CHECK();
     
       // ------------------------------------------------------------------
       // step 3: send to master ...
@@ -224,11 +263,19 @@ namespace vopat {
         blockTags[iy] = global_y;
         blockPointers[iy] = ((char *)compResultMemory.get())+iy*sizeOfLine;
       }
+      CUDA_SYNC_CHECK();
+      PING;fflush(0);
+      PRINT(ourRegionSize);
+      PRINT(blockTags.data());
+      PRINT(blockTags.size());
+      PRINT(blockPointers.data());
+      PRINT(blockPointers.size());
       comm->worker.toMaster->indexedGatherSend
         (ourRegionSize.y,
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
+      PING;fflush(0);
     }
   }
 

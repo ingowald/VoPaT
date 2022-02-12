@@ -64,19 +64,21 @@ namespace vopat {
     virtual void barrierAll() = 0;
     int numWorkers() const
     { return workersSize; }
+    int myRank() const
+    { return workersRank; }
     
-    int worldRank;
-    int worldSize;
-    int workersRank;
-    int workersSize;
+    int worldRank = -1;
+    int worldSize = -1;
+    int workersRank = -1;
+    int workersSize = -1;
     bool isMaster, isWorker;
-    int numRanksPerIsland;
+    int numRanksPerIsland = -1;
     struct {
       ToMasterComm *toMaster = nullptr;
       IntraIslandComm *withinIsland = nullptr;
-      int numIslands;
-      int islandIdx;
-      int gpuID;
+      int numIslands = -1;
+      int islandIdx = -1;
+      int gpuID = -1;
       std::string gpuName;
     } worker;
     struct {

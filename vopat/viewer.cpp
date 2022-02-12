@@ -59,12 +59,14 @@ namespace vopat {
     
     void screenShot()
     {
+      PING; fflush(0);
       master.screenShot();
     }
     
     // /*! this function gets called whenever the viewer widget changes camera settings */
     virtual void cameraChanged() override 
     {
+      PING; fflush(0);
       inherited::cameraChanged();
       auto &camera = inherited::getCamera();
 
@@ -81,6 +83,7 @@ namespace vopat {
     /*! window notifies us that we got resized */
     virtual void resize(const vec2i &newSize) override
     {
+      PING; fflush(0);
       this->fbSize = newSize;
       cudaDeviceSynchronize();
       master.resizeFrameBuffer(newSize);
@@ -102,6 +105,7 @@ namespace vopat {
     /*! gets called whenever the viewer needs us to re-render out widget */
     virtual void render() override
     {
+      PING; PRINT(fbSize);
       if (fbSize.x < 0) return;
       
       static double t_last = -1;
@@ -134,6 +138,7 @@ namespace vopat {
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
     {
+      PING; fflush(0);
       switch (key) {
       case '!':
         screenShot();
@@ -258,15 +263,17 @@ namespace vopat {
         // assert(localScene);
         Renderer *renderer
           = new OptixRenderer(&mpiBackend,model,cmdline.spp);
-        
+
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
       }
 
+      PING; fflush(0);
       Renderer *renderer
         = new OptixRenderer(&mpiBackend,model,cmdline.spp);
         
       // OptixMaster *optix = new OptixMaster(&mpiBackend);
+      PING; fflush(0);
       MPIMaster master(mpiBackend,renderer);
     
       // owl::viewer::GlutWindow::initGlut(argc,argv);
@@ -295,6 +302,7 @@ namespace vopat {
                                     /*fovy(deg)*/cmdline.camera.fovy);
       }
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
+      PING; fflush(0);
       viewer.showAndRun();
 
     } catch (std::exception &e) {

@@ -23,15 +23,21 @@ namespace vopat {
   template<typename T>
   struct CUDAArray {
 
-    void resize(size_t N)
+    void resize(int64_t N)
     {
+      if (N < 0)
+        throw std::runtime_error("invalid array size!?");
+      
       if (this->N == N) return;
       this->N = N;
       if (devMem) CUDA_CALL(Free(devMem));
       devMem = 0;
-      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+      CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
+      // CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+      assert(devMem);
     }
 
+    inline size_t numBytes() const { return N * sizeof(T); }
     inline T operator*() const { return *devMem; }
     inline operator bool() const { return devMem; }
     

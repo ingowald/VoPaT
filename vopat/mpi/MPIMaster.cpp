@@ -28,6 +28,7 @@ namespace vopat {
 
   void MPIMaster::screenShot()
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -63,6 +64,7 @@ namespace vopat {
     
   void MPIMaster::resetAccumulation()
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -72,11 +74,12 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    // optix->resetAccumulation();
+    renderer->resetAccumulation();
   }
 
   void MPIMaster::terminate()
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -92,6 +95,7 @@ namespace vopat {
     
   void MPIMaster::renderFrame(uint32_t *fbPointer)
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -107,6 +111,7 @@ namespace vopat {
 
   void MPIMaster::resizeFrameBuffer(const vec2i &newSize)
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -116,14 +121,16 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    fbSize = newSize;
-    this->resize(fbSize);
+    // fbSize = newSize;
+    // this->resize(fbSize);
+    renderer->resizeFrameBuffer(newSize);
 
     mpi.barrierAll();
   }
 
   void MPIMaster::setCamera(const Camera &camera)
   {
+    PING;
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
@@ -180,16 +187,16 @@ namespace vopat {
 // // #endif
 //   }
   
-  void MPIMaster::resize(const vec2i &newSize)
-  {
-    fbSize = newSize;
-// #if USE_APP_FB
-// #else
-//     cudaDeviceSynchronize();
-//     fullyAssembledFrame.resize(area(fbSize));
-//     cudaDeviceSynchronize();
-// #endif
-  }
+//   void MPIMaster::resize(const vec2i &newSize)
+//   {
+//     fbSize = newSize;
+// // #if USE_APP_FB
+// // #else
+// //     cudaDeviceSynchronize();
+// //     fullyAssembledFrame.resize(area(fbSize));
+// //     cudaDeviceSynchronize();
+// // #endif
+//   }
 
 
 } // ::vopat
