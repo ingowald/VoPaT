@@ -128,7 +128,7 @@ namespace vopat {
       // it
       // ------------------------------------------------------------------
       const int ourCompLineCount = ourCompLineEnd-ourCompLineBegin;
-      compResultMemory.resize(ourCompLineCount);
+      compResultMemory.resize(ourCompLineCount*islandFbSize.x);
       PRINT(compResultMemory.get());
       // if (compResultMemory)
       //   CUDA_CALL(FreeMPI(compResultMemory));
@@ -270,6 +270,10 @@ namespace vopat {
       PRINT(blockTags.size());
       PRINT(blockPointers.data());
       PRINT(blockPointers.size());
+      for (int i=0;i<5;i++) {
+        PRINT(blockTags[i]);
+        PRINT((int*)blockPointers[i]);
+      }
       comm->worker.toMaster->indexedGatherSend
         (ourRegionSize.y,
          ourRegionSize.x*sizeof(uint32_t),
