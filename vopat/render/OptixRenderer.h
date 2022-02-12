@@ -21,24 +21,6 @@
 
 namespace vopat {
 
-  template<typename T>
-  struct CUDAArray {
-
-    void resize(size_t N)
-    {
-      if (this->N == N) return;
-      this->N = N;
-      if (devMem) CUDA_CALL(Free(devMem));
-      devMem = 0;
-      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
-    }
-    
-    T *get() const { return devMem; }
-    
-    T     *devMem = 0;
-    size_t N      = 0;
-  };
-
   struct Globals {
     int          sampleID;
     Camera       camera;
@@ -47,22 +29,33 @@ namespace vopat {
     int         *tallies;
   };
 
-  struct OptixRenderer : public Renderer {
+  struct OptixRenderer : public AddWorkersRenderer {
     OptixRenderer(CommBackend *comm,
                   Model::SP model,
                   int numSPP);
-    void render()  override;
+
+    // ==================================================================
+    // main things we NEED to implement
+    // ==================================================================
+    
+    /*! asks the _workers_ to render locally; will not get called on
+        master, but assumes that all workers render their local frame
+        buffer(s) that we'll then merge */
+    void renderLocal() override;
+    void screenShot() override;
+
+    // ==================================================================
+    // things we intercept to know what to do
+    // ==================================================================
+    
     void resizeFrameBuffer(const vec2i &newSize)  override;
-    void resetAccumulation()  override;
-    void setCamera(const Camera &camera)  override;
+    // void resetAccumulation()  override;
+    // void setCamera(const Camera &camera)  override;
 
-    void composeRegion(const vec2i &ourRegionSize,
-                       const small_vec3f *compInputs,
-                       uint32_t *compOutputs);
-
-    vec2i fbSize;
-    CUDAArray<small_vec3f> localFB;
-    CUDAArray<uint32_t>    compOutputs;
+    // void composeRegion(const vec2i &ourRegionSize,
+    //                    const small_vec3f *compInputs,
+    //                    uint32_t *compOutputs);
+    
     CUDAArray<int>         tallies;
     Globals globals;
   };

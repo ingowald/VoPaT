@@ -22,8 +22,8 @@
 
 namespace vopat {
   
-  MPIMaster::MPIMaster(MPIBackend &mpi)
-    : mpi(mpi)
+  MPIMaster::MPIMaster(MPIBackend &mpi, Renderer   *renderer)
+    : mpi(mpi), renderer(renderer)
   {}
 
   void MPIMaster::screenShot()
@@ -33,7 +33,10 @@ namespace vopat {
     // ------------------------------------------------------------------
     int cmd = SCREEN_SHOT;
     MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
-      
+
+#if 1
+    renderer->screenShot();
+#else
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
@@ -55,6 +58,7 @@ namespace vopat {
     stbi_write_png(fileName,fbSize.x,fbSize.y,4,
                    pixels.data(),fbSize.x*sizeof(uint32_t));
     std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
+#endif
   }
     
   void MPIMaster::resetAccumulation()
@@ -97,7 +101,8 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    this->collectRankResults(fbPointer);
+    renderer->render(fbPointer);//Frame(fbPointer);
+    // this->collectRankResults(fbPointer);
   }
 
   void MPIMaster::resizeFrameBuffer(const vec2i &newSize)
@@ -158,31 +163,32 @@ namespace vopat {
   //   // optix->setNodeSelection(nodeSelection);
   // }
 
-  void MPIMaster::collectRankResults(uint32_t *fbPointer)
-  {
-#if USE_APP_FB
-    this->appFB = fbPointer;
-#endif
-    mpi.master.toWorkers->indexedGather
-      ((uint32_t*)getFB(),
-       fbSize.x*sizeof(uint32_t),
-       fbSize.y);
-#if USE_APP_FB
-#else
-    memcpy(fbPointer,fullyAssembledFrame.data(),
-           fullyAssembledFrame.size()*sizeof(fullyAssembledFrame[0]));
-#endif
-  }
+//   void MPIMaster::collectRankResults(uint32_t *fbPointer)
+//   {
+//     PING;
+// // #if USE_APP_FB
+//     this->appFB = fbPointer;
+// // #endif
+// //     mpi.master.toWorkers->indexedGather
+// //       ((uint32_t*)getFB(),
+// //        fbSize.x*sizeof(uint32_t),
+// //        fbSize.y);
+// // #if USE_APP_FB
+// // #else
+// //     memcpy(fbPointer,fullyAssembledFrame.data(),
+// //            fullyAssembledFrame.size()*sizeof(fullyAssembledFrame[0]));
+// // #endif
+//   }
   
   void MPIMaster::resize(const vec2i &newSize)
   {
     fbSize = newSize;
-#if USE_APP_FB
-#else
-    cudaDeviceSynchronize();
-    fullyAssembledFrame.resize(area(fbSize));
-    cudaDeviceSynchronize();
-#endif
+// #if USE_APP_FB
+// #else
+//     cudaDeviceSynchronize();
+//     fullyAssembledFrame.resize(area(fbSize));
+//     cudaDeviceSynchronize();
+// #endif
   }
 
 

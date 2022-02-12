@@ -50,7 +50,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->render();
+    renderer->render(0);
 
     // throw std::runtime_error("HARD EXIT FOR DEBUG");
   }
@@ -129,32 +129,33 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    const vec2i fbSize = renderer->fbSize;
-    vec3f *fb = renderer->getLocalAccumBuffer();
+    renderer->screenShot();
+    // const vec2i fbSize = renderer->fbSize;
+    // vec3f *fb = renderer->getLocalAccumBuffer();
       
-    char fileName[10000];
-    sprintf(fileName,"%s-rank%02i.png",
-            Renderer::screenShotFileName.c_str(),
-            renderer->myRank());
+    // char fileName[10000];
+    // sprintf(fileName,"%s-rank%02i.png",
+    //         Renderer::screenShotFileName.c_str(),
+    //         renderer->myRank());
       
-    std::vector<uint32_t> pixels;
-    for (int y=0;y<fbSize.y;y++) {
-      const vec3f *line = fb + (fbSize.y-1-y)*fbSize.x;
-      for (int x=0;x<fbSize.x;x++) {
-        vec3f col = sqrt(line[x] / renderer->accumID);
-        int r = int(min(255.f,255.f*col.x));
-        int g = int(min(255.f,255.f*col.y));
-        int b = int(min(255.f,255.f*col.z));
+    // std::vector<uint32_t> pixels;
+    // for (int y=0;y<fbSize.y;y++) {
+    //   const vec3f *line = fb + (fbSize.y-1-y)*fbSize.x;
+    //   for (int x=0;x<fbSize.x;x++) {
+    //     vec3f col = sqrt(line[x] / renderer->accumID);
+    //     int r = int(min(255.f,255.f*col.x));
+    //     int g = int(min(255.f,255.f*col.y));
+    //     int b = int(min(255.f,255.f*col.z));
           
-        pixels.push_back((r << 0) |
-                         (g << 8) |
-                         (b << 16) |
-                         (0xff << 24));
-      }
-    }
-    stbi_write_png(fileName,fbSize.x,fbSize.y,4,
-                   pixels.data(),fbSize.x*sizeof(uint32_t));
-    std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
+    //     pixels.push_back((r << 0) |
+    //                      (g << 8) |
+    //                      (b << 16) |
+    //                      (0xff << 24));
+    //   }
+    // }
+    // stbi_write_png(fileName,fbSize.x,fbSize.y,4,
+    //                pixels.data(),fbSize.x*sizeof(uint32_t));
+    // std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
   }
     
   void MPIWorker::run()

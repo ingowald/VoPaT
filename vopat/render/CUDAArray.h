@@ -14,61 +14,31 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/render/OptixRenderer.h"
+#pragma once
+
+#include "vopat/common.h"
 
 namespace vopat {
-
-  OptixRenderer::OptixRenderer(CommBackend *comm,
-                               Model::SP model,
-                               int numSPP)
-    : AddWorkersRenderer(comm)
-  {
-    tallies.resize(comm->numWorkers());
-    globals.tallies = tallies.get();
-  }
   
-  void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
-  {
-    if (isMaster()) {
-    } else {
-      // localFB.resize(newSize.x*newSize.y);
-      globals.fbPointer = localAccumBuffer.get();
-      globals.fbSize    = fbSize;
+  template<typename T>
+  struct CUDAArray {
+
+    void resize(size_t N)
+    {
+      if (this->N == N) return;
+      this->N = N;
+      if (devMem) CUDA_CALL(Free(devMem));
+      devMem = 0;
+      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
     }
-  }
-  
-  // void OptixRenderer::resetAccumulation()
-  // {
-  //   globals.sampleID = -1;
-  // }
-  
-  // void OptixRenderer::setCamera(const Camera &camera)
-  // {
-  //   globals.camera = camera;
-  // }
 
+    inline T operator*() const { return *devMem; }
+    inline operator bool() const { return devMem; }
+    
+    T *get() const { return devMem; }
+    
+    T     *devMem = 0;
+    size_t N      = 0;
+  };
 
-  __global__ void render(Globals &globals)
-  {
-  }
-  
-  
-  // void OptixRenderer::render(uint32_t *appFB)
-  // {
-  //   globals.sampleID++;
-  //   if (isMaster()) {
-  //     PING;
-  //     PRINT(globals.fbPointer);
-  //     PRINT(globals.fbSize);
-  //   } else {
-  //     workerRender();
-  //   }
-  // }
-
-  void OptixRenderer::screenShot()
-  {
-    PING;
-  }
-
-  
 }

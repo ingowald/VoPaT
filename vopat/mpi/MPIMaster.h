@@ -21,10 +21,10 @@
 
 namespace vopat {
 
-#define USE_APP_FB 1
+// #define USE_APP_FB 1
   
   struct MPIMaster : public MPICommon {
-    MPIMaster(MPIBackend &mpi);
+    MPIMaster(MPIBackend &mpi, Renderer   *renderer);
 
     void resize(const vec2i &newSize);
     void screenShot();
@@ -33,31 +33,32 @@ namespace vopat {
     void renderFrame(uint32_t *fbPointer);
     void resizeFrameBuffer(const vec2i &newSize);
     void setCamera(const Camera &camera);
-    void setShadeMode(int shadeMode);
-    void setNodeSelection(int nodeSelection);
+    // void setShadeMode(int shadeMode);
+    // void setNodeSelection(int nodeSelection);
 
     /*! collect the individual ranks partial (but fully composited)
         results and put them back together into a single frmae
         buffer */
-    void collectRankResults(uint32_t *fbPointer);
+    // void collectRankResults(uint32_t *fbPointer);
   
     const uint32_t *getFB() const
     {
-#if USE_APP_FB
+// #if USE_APP_FB
       return appFB;
-#else
-      return fullyAssembledFrame.data();
-#endif
+// #else
+//       return fullyAssembledFrame.data();
+// #endif
     }
 
+    Renderer   *renderer = nullptr;
     MPIBackend &mpi;
     vec2i fbSize { -1,-1 };
 
-#if USE_APP_FB
+// #if USE_APP_FB
     uint32_t *appFB = nullptr;
-#else
-    std::vector<uint32_t> fullyAssembledFrame;
-#endif
+// #else
+//     std::vector<uint32_t> fullyAssembledFrame;
+// #endif
   };
   
 } // ::vopat
