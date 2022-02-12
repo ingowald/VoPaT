@@ -14,29 +14,31 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include "vopat/render/Renderer.h"
-#include "vopat/model/Model.h"
+#include "vopat/render/OptixRenderer.h"
 
 namespace vopat {
 
-  struct Globals {
-    Camera camera;
-  };
+  OptixRenderer::OptixRenderer(CommBackend *comm,
+                               Model::SP model,
+                               int numSPP)
+    : Renderer(comm,numSPP)
+  { PING; }
   
-  struct OptixRenderer : public Renderer {
-    OptixRenderer(CommBackend *comm,
-                  Model::SP model,
-                  int numSPP);
-    void render()  override;
-    void resizeFrameBuffer(const vec2i &newSize)  override;
-    void resetAccumulation()  override;
-    void setCamera(const Camera &camera)  override;
-    void composeRegion(const vec2i &ourRegionSize,
-                       const small_vec3f *compInputs,
-                       uint32_t *compOutputs);
-    Globals globals;
-  };
+  void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
+  {
+    PING;
+  }
+  
+  void OptixRenderer::resetAccumulation()  { PING; }
+  
+  void OptixRenderer::setCamera(const Camera &camera)
+  {
+    globals.camera = camera;
+  }
+  
+  void OptixRenderer::render()
+  {
+    PING;
+  }
   
 }

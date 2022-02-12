@@ -30,6 +30,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include "cuda_fp16.h"
 
 #define NOTIMPLEMENTED throw std::runtime_error(std::string(__PRETTY_FUNCTION__)+" not implemented")
 
@@ -55,7 +56,30 @@ namespace vopat {
     inline int iDivUp(int a, int b) { return (a+b-1)/b; }
   }
 
+
+  
 #define CUDA_CALL(a) OWL_CUDA_CALL(a)
+
+
+  struct small_vec3f { half x, y, z; };
+  
+  inline __both__ float from_half(half h) { return (float)h; }
+
+  inline __both__ vec3f from_half(small_vec3f v)
+  {
+    return { from_half(v.x),from_half(v.y),from_half(v.z) };
+  }
+
+  inline __both__ half to_half(float f)
+  {
+    half h = f;
+    return h;
+  }
+
+  inline __both__ small_vec3f to_half(vec3f v)
+  {
+    return { to_half(v.x),to_half(v.y),to_half(v.z) };
+  }
   
 } // ::mini
 
