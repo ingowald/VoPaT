@@ -32,7 +32,7 @@ namespace vopat {
     if (isMaster()) {
     } else {
       // localFB.resize(newSize.x*newSize.y);
-      globals.fbPointer = localAccumBuffer.get();
+      globals.fbPointer = localFB.get();
       globals.fbSize    = fbSize;
     }
   }
@@ -52,6 +52,9 @@ namespace vopat {
   {
   }
   
+  void OptixRenderer::renderLocal()
+  {
+  }
   
   // void OptixRenderer::render(uint32_t *appFB)
   // {

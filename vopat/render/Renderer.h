@@ -102,7 +102,7 @@ namespace vopat {
 // #else
 //     vec3f *localAccumBuffer = nullptr;
 // #endif
-    CUDAArray<small_vec3f> localAccumBuffer;
+    CUDAArray<small_vec3f> localFB;
     
     /*! "temporary" buffer where current node receives all the lines
         that it has to compose */

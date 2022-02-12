@@ -24,11 +24,53 @@ namespace vopat {
     : comm(comm)
   {}
 
-    static void composeRegion(uint32_t *results,
-                              const vec2i &ourRegionSize,
-                              const small_vec3f *inputs,
-                              int numRanks);
 
+  /*! the CUDA "parallel_for" variant */
+  __global__ void cudaComposeRegion(const small_vec3f *compInputs,
+                                    const vec2i ourRegionSize,
+                                    const int numInputsPerPixel,
+                                    // const int numSamplesPerPixel,
+                                    uint32_t *compOutputs,
+                                    bool doToneMapping)
+  {
+    const int our_y = threadIdx.y+blockIdx.y*blockDim.y;
+    if (our_y >= ourRegionSize.y) return;
+    const int our_x = threadIdx.x+blockIdx.x*blockDim.x;
+    if (our_x >= ourRegionSize.x) return;
+
+    vec3f sum = 0.f;
+    for (int i=0;i<numInputsPerPixel;i++) {
+      const int iy = our_y + i * ourRegionSize.y;
+      vec3f in = from_half(compInputs[our_x + iy * ourRegionSize.x]);
+      sum += in;
+    }
+    if (doToneMapping) {
+      const float rate = .7f;
+      sum.x = powf(sum.x,rate);
+      sum.y = powf(sum.y,rate);
+      sum.z = powf(sum.z,rate);
+    }
+              
+    compOutputs[our_x+our_y*ourRegionSize.x]
+      = make_rgba(sum);
+  }
+  
+  
+  void AddWorkersRenderer::composeRegion(uint32_t *results,
+                                         const vec2i &ourRegionSize,
+                                         const small_vec3f *inputs,
+                                         int islandSize)
+  {
+    vec2i tileSize = 32;
+    const vec2i numTiles = divRoundUp(ourRegionSize,tileSize);
+    // const int islandSize = comm->worker.withinIsland->size;
+    if (area(numTiles) > 0)
+      cudaComposeRegion<<<tileSize,numTiles>>>
+        (inputs,ourRegionSize,islandSize,
+         results,
+         false);
+  }
+  
   void AddWorkersRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
     Renderer::resizeFrameBuffer(newSize);
@@ -62,7 +104,7 @@ namespace vopat {
     //   CUDA_CALL(FreeMPI(localAccumBuffer));
     // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
     // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
-    localAccumBuffer.resize(islandFbSize.x*islandFbSize.y);
+    localFB.resize(islandFbSize.x*islandFbSize.y);
 
     // ------------------------------------------------------------------
     // compute mem required for compositing, and allocate
@@ -128,7 +170,7 @@ namespace vopat {
       std::vector<int> recvCounts(islandSize);
       std::vector<int> recvOffsets(islandSize);
       for (int i=0;i<islandSize;i++) {
-        const size_t sizeOfLine = islandFbSize.x*sizeof(*localAccumBuffer);
+        const size_t sizeOfLine = islandFbSize.x*sizeof(*localFB);
         
         // in:
         recvCounts[i] = ourLineCount*sizeOfLine;
@@ -145,7 +187,7 @@ namespace vopat {
       }
 
       comm->worker.withinIsland->allToAll
-        (localAccumBuffer.get(), //const void *sendBuf,
+        (localFB.get(), //const void *sendBuf,
          sendCounts.data(),//const int *sendCounts,
          sendOffsets.data(),//const int *sendOffsets,
          compInputsMemory.get(),//void *recvBuf,
