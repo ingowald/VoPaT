@@ -62,7 +62,9 @@ namespace vopat {
   struct CommBackend {
     
     virtual void barrierAll() = 0;
-
+    int numWorkers() const
+    { return workersSize; }
+    
     int worldRank;
     int worldSize;
     int workersRank;

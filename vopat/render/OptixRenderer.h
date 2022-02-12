@@ -21,10 +21,32 @@
 
 namespace vopat {
 
-  struct Globals {
-    Camera camera;
+  template<typename T>
+  struct CUDAArray {
+
+    void resize(size_t N)
+    {
+      if (this->N == N) return;
+      this->N = N;
+      if (devMem) CUDA_CALL(Free(devMem));
+      devMem = 0;
+      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+    }
+    
+    T *get() const { return devMem; }
+    
+    T     *devMem = 0;
+    size_t N      = 0;
   };
-  
+
+  struct Globals {
+    int          sampleID;
+    Camera       camera;
+    vec2i        fbSize;
+    small_vec3f *fbPointer;
+    int         *tallies;
+  };
+
   struct OptixRenderer : public Renderer {
     OptixRenderer(CommBackend *comm,
                   Model::SP model,
@@ -33,9 +55,15 @@ namespace vopat {
     void resizeFrameBuffer(const vec2i &newSize)  override;
     void resetAccumulation()  override;
     void setCamera(const Camera &camera)  override;
+
     void composeRegion(const vec2i &ourRegionSize,
                        const small_vec3f *compInputs,
                        uint32_t *compOutputs);
+
+    vec2i fbSize;
+    CUDAArray<small_vec3f> localFB;
+    CUDAArray<uint32_t>    compOutputs;
+    CUDAArray<int>         tallies;
     Globals globals;
   };
   

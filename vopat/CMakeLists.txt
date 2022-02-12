@@ -44,7 +44,7 @@ add_executable(vopatViewer
   render/Renderer.h
   render/Renderer.cpp
   render/OptixRenderer.h
-  render/OptixRenderer.cpp
+  render/OptixRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp

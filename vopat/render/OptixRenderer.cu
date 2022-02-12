@@ -22,14 +22,21 @@ namespace vopat {
                                Model::SP model,
                                int numSPP)
     : Renderer(comm,numSPP)
-  { PING; }
+  {
+    tallies.resize(comm->numWorkers());
+    globals.tallies = tallies.get();
+  }
   
   void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
-    PING;
+    fbSize = newSize;
+    localFB.resize(newSize.x*newSize.y);
   }
   
-  void OptixRenderer::resetAccumulation()  { PING; }
+  void OptixRenderer::resetAccumulation()
+  {
+    globals.sampleID = -1;
+  }
   
   void OptixRenderer::setCamera(const Camera &camera)
   {
@@ -38,6 +45,7 @@ namespace vopat {
   
   void OptixRenderer::render()
   {
+    globals.sampleID++;
     PING;
   }
   
