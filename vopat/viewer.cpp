@@ -232,10 +232,10 @@ namespace vopat {
       // ******************************************************************
       // all input loaded, and all parameters parsed ... set-up comms
       // ******************************************************************
-      if (inFileBase[inFileBase.size()-1] != '_')
-        inFileBase = inFileBase+"_";
+      // if (inFileBase[inFileBase.size()-1] != '_')
+      //   inFileBase = inFileBase+"_";
       // MasterScene::SP masterScene = MasterScene::load(inFileBase+"master.summ");
-      MPIBackend mpiBackend(argc,argv,1);
+      MPIBackend mpiBackend(argc,argv,0);
       Model::SP model = Model::load(inFileBase+".vopat");
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");

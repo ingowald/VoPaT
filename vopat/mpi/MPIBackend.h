@@ -56,9 +56,17 @@ namespace vopat {
   };
 
 
+  /*! implements a "CommsBackend" through MPI; using specified number
+      of ranks pre island (by default it creates a single island */
   struct MPIBackend : public CommBackend {
+
     
-    MPIBackend(int &ac, char **&av, int numRanksPerIsland);
+    MPIBackend(int &ac, char **&av,
+               /*! number of ranks to use per island; implicitly
+                   defines the number of islands. For
+                   numRanksPerIsland <= 0 we create one island with
+                   all ranks but rank 0 */
+               int numRanksPerIsland=-1);
     
     void barrierAll() override;
     void finalize();

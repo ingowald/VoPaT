@@ -48,6 +48,9 @@ namespace vopat {
     Model::SP model = std::make_shared<Model>();
     
     std::ifstream in(fileName);
+    if (!in.good())
+      throw std::runtime_error("could not open '"+fileName+"'");
+    
     read(in,model->numVoxelsTotal);
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {

@@ -26,7 +26,6 @@ namespace vopat {
   MPIBackend::MPIBackend(int &ac, char **&av, int numRanksPerIsland)
   {
     MPI_CALL(Init(&ac,&av));
-    this->numRanksPerIsland = numRanksPerIsland;
     // ------------------------------------------------------------------
     // setup global comm among all ranks - we'll need this to exchange
     // further info on who does what
@@ -37,6 +36,10 @@ namespace vopat {
     MPI_CALL(Comm_size(worldComm,&worldSize));
     isMaster = (worldRank == 0);
     isWorker = !isMaster;
+
+    if (numRanksPerIsland <= 0)
+      numRanksPerIsland = worldSize -1;
+    this->numRanksPerIsland = numRanksPerIsland;
     
     // ------------------------------------------------------------------
     // construct intercomm to master
@@ -67,6 +70,7 @@ namespace vopat {
                                 &toMaster->comm));
       MPI_CALL(Comm_rank(workersComm,&workersRank));
       MPI_CALL(Comm_size(workersComm,&workersSize));
+      PING; PRINT(workersRank); PRINT(workersSize);
     }
 
     if (isWorker) {
@@ -131,6 +135,8 @@ namespace vopat {
     // ------------------------------------------------------------------
     if (isWorker) {
       worker.numIslands = workersSize / numRanksPerIsland;
+      PRINT(worker.numIslands);
+      PRINT(numRanksPerIsland);
       if (worker.numIslands < 1)
         throw std::runtime_error("not enough workers for this model's number of partitions ...");
       if (workersSize % worker.numIslands)
@@ -140,9 +146,11 @@ namespace vopat {
       // ------------------------------------------------------------------
       // and construct island comm
       // ------------------------------------------------------------------
-      MPI_CALL(Comm_split(workersComm,worker.islandIdx,0,&intraIsland->comm));
+      MPI_CALL(Comm_split(workersComm,worker.islandIdx,workersRank,&intraIsland->comm));
       MPI_CALL(Comm_rank(intraIsland->comm,&intraIsland->rank));
       MPI_CALL(Comm_size(intraIsland->comm,&intraIsland->size));
+      PING; PRINT(intraIsland->rank);
+      PRINT(intraIsland->size);
 
       printf("#vopat.mpi: workers rank #%i is local rank %i on island %i, local GPU id %i\n",
              workersRank,intraIsland->rank,worker.islandIdx,worker.gpuID);

@@ -78,6 +78,7 @@ namespace vopat {
     Renderer::resizeFrameBuffer(newSize);
 
     if (comm->isMaster) {
+      masterFB.resize(newSize.x*newSize.y);
     } else {
       // ==================================================================
       // this upper part should be per node, shared among all threads
@@ -151,9 +152,13 @@ namespace vopat {
       assert(fbSize.x > 0);
       assert(fbSize.y > 0);
       comm->master.toWorkers->indexedGather
-        (fbPointer,
+        (masterFB.get(),//fbPointer,
          fbSize.x*sizeof(uint32_t),
          fbSize.y);
+      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fbSize.x*fbSize.y*sizeof(*masterFB),
+                       cudaMemcpyDefault));
+      CUDA_SYNC_CHECK();
+      PING; PRINT(fbPointer[0]);
     } else {
       // ------------------------------------------------------------------
       // step 0: clients render into their owl local frame buffers

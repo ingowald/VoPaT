@@ -15,23 +15,45 @@
 // ======================================================================== //
 
 #include "vopat/render/OptixRenderer.h"
+#include "3rdParty/stb_image//stb/stb_image_write.h"
+#include "3rdParty/stb_image//stb/stb_image.h"
+#include "owl/owl_device.h"
 
 namespace vopat {
+
+  inline __both__ uint32_t make_8bit(const float f)
+  {
+    return min(255,max(0,int(f*256.f)));
+  }
+
+  inline __both__ uint32_t make_rgba(const vec3f color)
+  {
+    return
+      (make_8bit(color.x) << 0) +
+      (make_8bit(color.y) << 8) +
+      (make_8bit(color.z) << 16) +
+      (0xffU << 24);
+  }
+  inline __both__ uint32_t make_rgba(const vec4f color)
+  {
+    return
+      (make_8bit(color.x) << 0) +
+      (make_8bit(color.y) << 8) +
+      (make_8bit(color.z) << 16) +
+      (make_8bit(color.w) << 24);
+  }
 
   OptixRenderer::OptixRenderer(CommBackend *comm,
                                Model::SP model,
                                int numSPP)
     : AddWorkersRenderer(comm)
   {
-    PING; fflush(0);
-    PRINT(comm);
-    PRINT(comm->numWorkers());
     if (isMaster()) {
     } else {
       const int numWorkers = comm->numWorkers();
 
       globals.myRank   = myRank();
-      globals.numRanks = numWorkers;
+      globals.numWorkers = numWorkers;
       perRankSendCounts.resize(numWorkers);
       perRankSendOffsets.resize(numWorkers);
       globals.perRankSendOffsets = perRankSendOffsets.get();
@@ -40,11 +62,13 @@ namespace vopat {
       // ------------------------------------------------------------------
       // upload per-rank boxes
       // ------------------------------------------------------------------
-      std::vector<box3f> localRankBoxes;
+      std::vector<box3f> hostRankBoxes;
       for (auto brick : model->bricks)
-        localRankBoxes.push_back(brick->spaceRange);
-      rankBoxes.resize(numWorkers);
-      rankBoxes.upload(localRankBoxes);
+        hostRankBoxes.push_back(brick->spaceRange);
+      if (hostRankBoxes.size() != numWorkers)
+        throw std::runtime_error("invalid rank boxes!?");
+      rankBoxes.upload(hostRankBoxes);
+      globals.rankBoxes = rankBoxes.get();
     }
   }
 
@@ -71,7 +95,7 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      // localFB.resize(newSize.x*newSize.y);
+      localFB.resize(newSize.x*newSize.y);
       globals.fbPointer = localFB.get();
       globals.fbSize    = fbSize;
 
@@ -125,7 +149,7 @@ namespace vopat {
   {
     int closest = -1;
     float t_min = CUDART_INF;
-    for (int i=0;i<globals.numRanks;i++) {
+    for (int i=0;i<globals.numWorkers;i++) {
       if (boxTest(globals.rankBoxes[i],ray,t_min))
         closest = i;
     }
@@ -136,13 +160,11 @@ namespace vopat {
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    
     int myRank = globals.myRank;
-    // if (ix == 0 && iy == 0)
-    //   printf("render %i %i ptr %lx\n",
-    //          globals.fbSize.x,globals.fbSize.y,
-    //          globals.fbPointer);
-    Ray ray = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
-    int dest = computeInitialRank(globals,ray);
+    Ray ray    = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
+    int dest   = computeInitialRank(globals,ray);
+
     if (dest < 0) {
       if (myRank == 0)
         globals.fbPointer[ray.pixelID] = to_half(vec3f(1.f));
@@ -153,10 +175,21 @@ namespace vopat {
     globals.rayQueueIn[queuePos] = ray;
     
     globals.fbPointer[ray.pixelID] = to_half(randomColor(myRank));
+
+    if (ix == 512 && iy == 512) {
+      printf("(%i) fb %f %f %f\n",myRank,
+             from_half(globals.fbPointer[ray.pixelID]).x,
+             from_half(globals.fbPointer[ray.pixelID]).y,
+             from_half(globals.fbPointer[ray.pixelID]).z);
+    }
   }
   
   void OptixRenderer::renderLocal()
   {
+    if (isMaster()) {
+      PING; return;
+    }
+
     perRankSendCounts.bzero();
     localFB.bzero();
     
@@ -166,21 +199,35 @@ namespace vopat {
     CUDA_SYNC_CHECK();
   }
   
-  // void OptixRenderer::render(uint32_t *appFB)
-  // {
-  //   globals.sampleID++;
-  //   if (isMaster()) {
-  //     PING;
-  //     PRINT(globals.fbPointer);
-  //     PRINT(globals.fbSize);
-  //   } else {
-  //     workerRender();
-  //   }
-  // }
-
   void OptixRenderer::screenShot()
   {
-    PING;
+    std::string fileName = Renderer::screenShotFileName;
+    std::vector<uint32_t> pixels;
+    if (isMaster()) {
+      fileName = fileName + "_master.png";
+      pixels = masterFB.download();
+      return;
+    } else {
+      char suff[100];
+      sprintf(suff,"_island%03i_rank%05i.png",
+              comm->worker.islandIdx,comm->worker.withinIsland->rank);
+      fileName = fileName + suff;
+      
+      std::vector<small_vec3f> hostFB;
+      hostFB = localFB.download();
+      for (int y=0;y<fbSize.y;y++) {
+        const small_vec3f *line = hostFB.data() + (fbSize.y-1-y)*fbSize.x;
+        for (int x=0;x<fbSize.x;x++) {
+          vec3f col = from_half(line[x]);
+          pixels.push_back(make_rgba(col) | (0xffu << 24));
+        }
+      }
+    }
+    
+    stbi_write_png(fileName.c_str(),fbSize.x,fbSize.y,4,
+                   pixels.data(),fbSize.x*sizeof(uint32_t));
+    std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
+
   }
 
   

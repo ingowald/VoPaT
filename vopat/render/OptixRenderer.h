@@ -29,7 +29,7 @@ namespace vopat {
   };
   
   struct Globals {
-    int          myRank, numRanks;
+    int          myRank, numWorkers;
     int          sampleID;
     Camera       camera;
     vec2i        fbSize;

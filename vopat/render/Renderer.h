@@ -96,12 +96,11 @@ namespace vopat {
         buffer(s) that we'll then merge */
     virtual void renderLocal() = 0;
 
-//     /*! *local* accumulation buffer, one vec3f per pixel in *island* */ 
-// #if FB_IS_HALF
-//     small_vec3f *localAccumBuffer = nullptr;
-// #else
-//     vec3f *localAccumBuffer = nullptr;
-// #endif
+    /*! on workres, this is the result of 'renderLocal()', and is
+        supposed to contain what each workers wants to contribute to
+        the final image (the final image is the *addition* of all
+        these local fbs). On the master this isn't used at all, as the
+        master directly gathers final results into masterFB */
     CUDAArray<small_vec3f> localFB;
     
     /*! "temporary" buffer where current node receives all the lines
@@ -115,5 +114,7 @@ namespace vopat {
     CUDAArray<uint32_t> compResultMemory;
     vec2i           islandFbSize;
     vec2i           fullFbSize;
+
+    CUDAArray<uint32_t> masterFB;
   };
 }
