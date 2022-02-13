@@ -15,15 +15,13 @@
 // ======================================================================== //
 
 #include "vopat/mpi/MPIMaster.h"
-#include "vopat/render/Renderer.h"
-// #define STB_IMAGE_WRITE_IMPLEMENTATION 1
-#include "3rdParty/stb_image//stb/stb_image_write.h"
-#include "3rdParty/stb_image//stb/stb_image.h"
 
 namespace vopat {
   
-  MPIMaster::MPIMaster(MPIBackend &mpi, Renderer   *renderer)
-    : mpi(mpi), renderer(renderer)
+  MPIMaster::MPIMaster(MPIBackend &mpi,
+                       MPIRenderer *renderer)
+    : mpi(mpi),
+      renderer(renderer)
   {}
 
   void MPIMaster::screenShot()
@@ -34,31 +32,10 @@ namespace vopat {
     int cmd = SCREEN_SHOT;
     MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
 
-#if 1
-    renderer->screenShot();
-#else
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    const uint32_t *fb
-      = this->getFB();
-      
-    char fileName[10000];
-    sprintf(fileName,"%s-master.png",
-            Renderer::screenShotFileName.c_str());
-    PRINT(fileName);
-      
-    std::vector<uint32_t> pixels;
-    for (int y=0;y<fbSize.y;y++) {
-      const uint32_t *line = fb + (fbSize.y-1-y)*fbSize.x;
-      for (int x=0;x<fbSize.x;x++) {
-        pixels.push_back(line[x] | (0xff << 24));
-      }
-    }
-    stbi_write_png(fileName,fbSize.x,fbSize.y,4,
-                   pixels.data(),fbSize.x*sizeof(uint32_t));
-    std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
-#endif
+    renderer->screenShot();
   }
     
   void MPIMaster::resetAccumulation()
@@ -101,8 +78,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    renderer->render(fbPointer);//Frame(fbPointer);
-    // this->collectRankResults(fbPointer);
+    renderer->render(fbPointer);
   }
 
   void MPIMaster::resizeFrameBuffer(const vec2i &newSize)
@@ -116,81 +92,30 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    // fbSize = newSize;
-    // this->resize(fbSize);
     renderer->resizeFrameBuffer(newSize);
 
     mpi.barrierAll();
   }
 
-  void MPIMaster::setCamera(const Camera &camera)
+  void MPIMaster::setCamera(const vec3f &from,
+                            const vec3f &at,
+                            const vec3f &up,
+                            const float fovy)
   {
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
     int cmd = SET_CAMERA;
     MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
+    // MPI_Bcast((void*)&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&from,sizeof(from),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&at,sizeof(at),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&up,sizeof(up),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&fovy,sizeof(fovy),MPI_BYTE,0,MPI_COMM_WORLD);
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
+    renderer->setCamera(from,at,up,fovy);
   }
-
-  // void MPIMaster::setShadeMode(int shadeMode)
-  // {
-  //   // ------------------------------------------------------------------
-  //   // send request....
-  //   // ------------------------------------------------------------------
-  //   int cmd = SET_SHADE_MODE;
-  //   MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
-  //   MPI_Bcast((void*)&shadeMode,sizeof(shadeMode),MPI_BYTE,0,MPI_COMM_WORLD);
-  //   // ------------------------------------------------------------------
-  //   // and do our own....
-  //   // ------------------------------------------------------------------
-  // }
-
-  // void MPIMaster::setNodeSelection(int nodeSelection)
-  // {
-  //   // ------------------------------------------------------------------
-  //   // send request....
-  //   // ------------------------------------------------------------------
-  //   int cmd = SET_NODE_SELECTION;
-  //   MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
-  //   MPI_Bcast((void*)&nodeSelection,sizeof(nodeSelection),MPI_BYTE,0,MPI_COMM_WORLD);
-      
-  //   // ------------------------------------------------------------------
-  //   // and do our own....
-  //   // ------------------------------------------------------------------
-  //   // optix->setNodeSelection(nodeSelection);
-  // }
-
-//   void MPIMaster::collectRankResults(uint32_t *fbPointer)
-//   {
-//     PING;
-// // #if USE_APP_FB
-//     this->appFB = fbPointer;
-// // #endif
-// //     mpi.master.toWorkers->indexedGather
-// //       ((uint32_t*)getFB(),
-// //        fbSize.x*sizeof(uint32_t),
-// //        fbSize.y);
-// // #if USE_APP_FB
-// // #else
-// //     memcpy(fbPointer,fullyAssembledFrame.data(),
-// //            fullyAssembledFrame.size()*sizeof(fullyAssembledFrame[0]));
-// // #endif
-//   }
-  
-//   void MPIMaster::resize(const vec2i &newSize)
-//   {
-//     fbSize = newSize;
-// // #if USE_APP_FB
-// // #else
-// //     cudaDeviceSynchronize();
-// //     fullyAssembledFrame.resize(area(fbSize));
-// //     cudaDeviceSynchronize();
-// // #endif
-//   }
-
 
 } // ::vopat

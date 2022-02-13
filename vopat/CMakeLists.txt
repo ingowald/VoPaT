@@ -41,10 +41,10 @@ target_link_libraries(vopatSplitRaw
 add_executable(vopatViewer
   viewer.cpp
 
-  render/Renderer.h
-  render/Renderer.cu
-  render/OptixRenderer.h
-  render/OptixRenderer.cu
+  render/DistributedRendererBase.h
+  render/DistributedRendererBase.cu
+  render/VopatRenderer.h
+  render/VopatRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp

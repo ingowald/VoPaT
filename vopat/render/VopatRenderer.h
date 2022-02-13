@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "vopat/render/Renderer.h"
+#include "vopat/render/DistributedRendererBase.h"
 #include "vopat/model/Model.h"
 
 namespace vopat {
@@ -42,8 +42,8 @@ namespace vopat {
     Ray         *rayQueueOut;
   };
 
-  struct OptixRenderer : public AddWorkersRenderer {
-    OptixRenderer(CommBackend *comm,
+  struct VopatRenderer : public AddWorkersRenderer {
+    VopatRenderer(CommBackend *comm,
                   Model::SP model,
                   int numSPP);
 
@@ -62,7 +62,10 @@ namespace vopat {
     // ==================================================================
     
     void resizeFrameBuffer(const vec2i &newSize)  override;
-    void setCamera(const Camera &camera) override;
+    void setCamera(const vec3f &from,
+                   const vec3f &at,
+                   const vec3f &up,
+                   const float fov) override;
 
     
     

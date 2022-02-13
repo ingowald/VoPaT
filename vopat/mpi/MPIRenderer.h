@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022-2022 Ingo Wald                                            //
+// Copyright 2018-2022 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -16,38 +16,27 @@
 
 #pragma once
 
-#include "vopat/mpi/MPICommon.h"
-#include "vopat/mpi/MPIRenderer.h"
-
 namespace vopat {
-  
-  /*! mpi rendering interface for the *receivers* on the workers;
-      these recive the broadcasts from the MPIMaster, and execute them
-      on their (virutal) renderer. */
-  struct MPIWorker : public MPICommon
-  {
-    MPIWorker(MPIBackend &mpi, MPIRenderer *renderer);
 
-    int myRank() const { return mpi.myRank(); }
-    
-    /*! the 'main loop' that receives and executes cmmands sent by the master */
-    void run();
+  /*! base abstraction for a parallel renderer that the
+      mpimaster/mpiworker framework can talk to. _what_ that renderer
+      does with the commands (like 'resize', 'render' etc), is up the
+      derived class */
+  struct MPIRenderer {
+    /*! render into the provided application frame buffer; this
+        pointer will be 0 on workers */
+    virtual void render(uint32_t *appFbPointer)          = 0;
+    virtual void resizeFrameBuffer(const vec2i &newSize) = 0;
+    virtual void resetAccumulation()                     = 0;
+    virtual void setCamera(const vec3f &from,
+                           const vec3f &at,
+                           const vec3f &up,
+                           float fovy) = 0;
 
-    /*! @{ command handlers - each corresponds to exactly one command
-        sent my the master */
-    void cmd_terminate();
-    void cmd_renderFrame();
-    void cmd_resizeFrameBuffer();
-    void cmd_resetAccumulation();
-    void cmd_setCamera();
-    void cmd_setShadeMode();
-    void cmd_setNodeSelection();
-    void cmd_screenShot();
-    /* @} */
-    
-    MPIRenderer *renderer = nullptr;
-    MPIBackend  &mpi;
+    /*! dump a screenshot, possibhly including some per-rank debugging
+        screenshots (mostly for debugging; it should be the app that
+        provides the "real" screen shots) */
+    virtual void screenShot()                            = 0;
   };
   
-
-} // ::vopat
+}

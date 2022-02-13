@@ -19,7 +19,7 @@
 #include "vopat/common.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
-#include "vopat/render/OptixRenderer.h"
+#include "vopat/render/VopatRenderer.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
@@ -72,8 +72,9 @@ namespace vopat {
       const vec3f at = camera.getPOI();
       const vec3f up = camera.upVector;
       const float fovy = camera.fovyInDegrees;
-      master.setCamera(Camera(getWindowSize(),
-                              from,at,up,fovy));
+     // master.setCamera(Camera(getWindowSize(),
+      //                         from,at,up,fovy));
+      master.setCamera(from,at,up,fovy);
       master.resetAccumulation();
       // glutPostRedisplay();
     }
@@ -252,16 +253,16 @@ namespace vopat {
         //                                    scene::NodeMask::singleRank(myRank));
         // assert(localScene);
         Renderer *renderer
-          = new OptixRenderer(&mpiBackend,model,cmdline.spp);
+          = new VopatRenderer(&mpiBackend,model,cmdline.spp);
 
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
+        exit(0);
       }
 
       Renderer *renderer
-        = new OptixRenderer(&mpiBackend,model,cmdline.spp);
+        = new VopatRenderer(&mpiBackend,model,cmdline.spp);
         
-      // OptixMaster *optix = new OptixMaster(&mpiBackend);
       MPIMaster master(mpiBackend,renderer);
     
       // owl::viewer::GlutWindow::initGlut(argc,argv);

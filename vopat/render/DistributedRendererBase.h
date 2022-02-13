@@ -17,34 +17,17 @@
 #pragma once
 
 #include "vopat/common.h"
-#include "vopat/render/Comms.h"
+#include "vopat/mpi/MPIRenderer.h"
+#include "vopat/mpi/Comms.h"
 #include "vopat/render/CUDAArray.h"
 #include "vopat/render/Camera.h"
-
-// #include "vopat/scene/Scene.h"
-// #include "vopat/scene/PartialScene.h"
-// #include "vopat/scene/MasterScene.h"
-// #include "miniScene/Serialized.h"
-
-// #include "vopat/common/RankInfo.h"
-// #include "vopat/common/JobTally.h"
-// #include "vopat/common/RayState.h"
-// #include "vopat/common/Camera.h"
-
-// #include "vopat/render/Comms.h"
-// #include "vopat/render/LaunchData.h"
-
-// ------------------------------------------------------------------
-// kernels
-// ------------------------------------------------------------------
-// #include "composeRegion.h"
 
 namespace vopat {
 
   /*! base abstraction for a renderer, not specifying _how_ rendering
       works, just what kind of interface it offers to an
       application */
-  struct Renderer {
+  struct Renderer : public MPIRenderer {
 
     static std::string screenShotFileName;
 
@@ -52,16 +35,22 @@ namespace vopat {
 
     /*! returns rank of this renderer; is -1 on master, and worker ID on workers */
     int myRank() const { return comm->isMaster?-1:comm->worker.withinIsland->rank; }
-
+    
     /*! returns true if this is running on the master node */
     bool isMaster() const { return comm->isMaster; }
-
+    
     /*! render a given frame; fbPointer will be null on workers, and
-        point to app frame buffer on master */
-    virtual void render(uint32_t *fbPointer) { ++accumID; }
-    virtual void resizeFrameBuffer(const vec2i &newSize) { fbSize = newSize; }
-    virtual void resetAccumulation() { accumID = -1; };
-    virtual void setCamera(const Camera &camera) { this->camera = camera; };
+      point to app frame buffer on master */
+    void render(uint32_t *fbPointer) override { ++accumID; }
+    void resizeFrameBuffer(const vec2i &newSize) override { fbSize = newSize; }
+    void resetAccumulation() override { accumID = -1; };
+    void setCamera(const vec3f &from,
+                   const vec3f &at,
+                   const vec3f &up,
+                   const float fovy) {
+      // this->camera = camera;
+      this->camera = Camera(fbSize,from,at,up,fovy);
+    };
 
     virtual void screenShot() = 0;
 

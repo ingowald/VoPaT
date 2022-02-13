@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/render/Renderer.h"
+#include "vopat/render/DistributedRendererBase.h"
 
 namespace vopat {
   

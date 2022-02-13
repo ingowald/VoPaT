@@ -17,7 +17,7 @@
 #pragma once
 
 #include <mpi.h>
-#include "vopat/render/Comms.h"
+#include "vopat/mpi/Comms.h"
 
 namespace vopat {
   

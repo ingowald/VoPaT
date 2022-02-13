@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/render/OptixRenderer.h"
+#include "vopat/render/VopatRenderer.h"
 #include "3rdParty/stb_image//stb/stb_image_write.h"
 #include "3rdParty/stb_image//stb/stb_image.h"
 #include "owl/owl_device.h"
@@ -43,7 +43,7 @@ namespace vopat {
       (make_8bit(color.w) << 24);
   }
 
-  OptixRenderer::OptixRenderer(CommBackend *comm,
+  VopatRenderer::VopatRenderer(CommBackend *comm,
                                Model::SP model,
                                int numSPP)
     : AddWorkersRenderer(comm)
@@ -89,7 +89,7 @@ namespace vopat {
     return ray;
   }
 
-  void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
+  void VopatRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
@@ -109,15 +109,13 @@ namespace vopat {
     }
   }
   
-  // void OptixRenderer::resetAccumulation()
-  // {
-  //   globals.sampleID = -1;
-  // }
-  
-  void OptixRenderer::setCamera(const Camera &camera)
+  void VopatRenderer::setCamera(const vec3f &from,
+                                const vec3f &at,
+                                const vec3f &up,
+                                const float fovy)
   {
-    AddWorkersRenderer::setCamera(camera);
-    globals.camera = camera;
+    AddWorkersRenderer::setCamera(from,at,up,fovy);
+    globals.camera = AddWorkersRenderer::camera;
   }
 
   inline __device__
@@ -192,7 +190,7 @@ namespace vopat {
     globals.fbPointer[ray.pixelID] = to_half(randomColor(myRank));
   }
     
-  void OptixRenderer::renderLocal()
+  void VopatRenderer::renderLocal()
   {
     perRankSendCounts.bzero();
     localFB.bzero();
@@ -203,7 +201,7 @@ namespace vopat {
     CUDA_SYNC_CHECK();
   }
   
-  void OptixRenderer::screenShot()
+  void VopatRenderer::screenShot()
   {
     std::string fileName = Renderer::screenShotFileName;
     std::vector<uint32_t> pixels;

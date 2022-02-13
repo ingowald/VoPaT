@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2018-2020 Ingo Wald                                            //
+// Copyright 2018-2022 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -17,48 +17,29 @@
 #pragma once
 
 #include "vopat/mpi/MPICommon.h"
-#include "vopat/render/Renderer.h"
+#include "vopat/mpi/MPIRenderer.h"
 
 namespace vopat {
 
-// #define USE_APP_FB 1
-  
+  /*! mpi rendering interface for the master rank that runs the
+      app/viewer. basically this will take the 'rendering' commands,
+      broadcast them to all ranks, and on each rank (including the
+      master) excute them to the virtual renderer */
   struct MPIMaster : public MPICommon {
-    MPIMaster(MPIBackend &mpi, Renderer   *renderer);
+    MPIMaster(MPIBackend &mpi, MPIRenderer *renderer);
 
-    // void resize(const vec2i &newSize);
     void screenShot();
     void resetAccumulation();
     void terminate();
     void renderFrame(uint32_t *fbPointer);
     void resizeFrameBuffer(const vec2i &newSize);
-    void setCamera(const Camera &camera);
-    // void setShadeMode(int shadeMode);
-    // void setNodeSelection(int nodeSelection);
+    void setCamera(const vec3f &from,
+                   const vec3f &at,
+                   const vec3f &up,
+                   float fovy);
 
-    /*! collect the individual ranks partial (but fully composited)
-        results and put them back together into a single frmae
-        buffer */
-    // void collectRankResults(uint32_t *fbPointer);
-  
-//     const uint32_t *getFB() const
-//     {
-// // #if USE_APP_FB
-//       return appFB;
-// // #else
-// //       return fullyAssembledFrame.data();
-// // #endif
-//     }
-
-    Renderer   *renderer = nullptr;
-    MPIBackend &mpi;
-    // vec2i fbSize { -1,-1 };
-
-// #if USE_APP_FB
-    // uint32_t *appFB = nullptr;
-// #else
-//     std::vector<uint32_t> fullyAssembledFrame;
-// #endif
+    MPIRenderer *renderer = nullptr;
+    MPIBackend  &mpi;
   };
   
 } // ::vopat

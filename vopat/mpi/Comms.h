@@ -18,8 +18,12 @@
 
 #include "vopat/common.h"
 
+/*! \file Comms.h Describes an abstraction for a master/worker/islands
+    setup, describing which functsion master and/or workers can use to
+    communicate with each other. Will _probably_ be implemented using
+    MPI, but might also use another framework if/where applicable */
 namespace vopat {
-  
+
   struct ToMasterComm {
     // void allGatherSend(const void *data, size_t size) = 0;
     virtual void indexedGatherSend(int numBlocks,
@@ -59,6 +63,10 @@ namespace vopat {
   };
 
 
+  /*! \file Describes an abstraction for a master/worker/islands
+    setup, describing which functsion master and/or workers can use to
+    communicate with each other. Will _probably_ be implemented using
+    MPI, but might also use another framework if/where applicable */
   struct CommBackend {
     
     virtual void barrierAll() = 0;

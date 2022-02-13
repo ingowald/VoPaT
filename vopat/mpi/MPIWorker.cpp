@@ -15,14 +15,10 @@
 // ======================================================================== //
 
 #include "vopat/mpi/MPIWorker.h"
-// #define STB_IMAGE_WRITE_IMPLEMENTATION 1
-#include "3rdParty/stb_image/stb/stb_image_write.h"
-#define STB_IMAGE_IMPLEMENTATION 1
-#include "3rdParty/stb_image//stb/stb_image.h"
 
 namespace vopat {
   
-  MPIWorker::MPIWorker(MPIBackend &mpi, Renderer *renderer)
+  MPIWorker::MPIWorker(MPIBackend &mpi, MPIRenderer *renderer)
     : mpi(mpi),
       renderer(renderer)
   {}
@@ -86,12 +82,19 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
-    Camera camera;
-    MPI_Bcast(&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
+    vec3f from, at, up;
+    float fovy;
+    MPI_Bcast(&from,sizeof(from),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast(&at,sizeof(at),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast(&up,sizeof(up),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast(&fovy,sizeof(fovy),MPI_BYTE,0,MPI_COMM_WORLD);
+
+    // Camera camera;
+    // MPI_Bcast(&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->setCamera(camera);
+    renderer->setCamera(from,at,up,fovy);
   }
 
   // void MPIWorker::cmd_setShadeMode()
@@ -130,32 +133,6 @@ namespace vopat {
     // and execute
     // ------------------------------------------------------------------
     renderer->screenShot();
-    // const vec2i fbSize = renderer->fbSize;
-    // vec3f *fb = renderer->getLocalAccumBuffer();
-      
-    // char fileName[10000];
-    // sprintf(fileName,"%s-rank%02i.png",
-    //         Renderer::screenShotFileName.c_str(),
-    //         renderer->myRank());
-      
-    // std::vector<uint32_t> pixels;
-    // for (int y=0;y<fbSize.y;y++) {
-    //   const vec3f *line = fb + (fbSize.y-1-y)*fbSize.x;
-    //   for (int x=0;x<fbSize.x;x++) {
-    //     vec3f col = sqrt(line[x] / renderer->accumID);
-    //     int r = int(min(255.f,255.f*col.x));
-    //     int g = int(min(255.f,255.f*col.y));
-    //     int b = int(min(255.f,255.f*col.z));
-          
-    //     pixels.push_back((r << 0) |
-    //                      (g << 8) |
-    //                      (b << 16) |
-    //                      (0xff << 24));
-    //   }
-    // }
-    // stbi_write_png(fileName,fbSize.x,fbSize.y,4,
-    //                pixels.data(),fbSize.x*sizeof(uint32_t));
-    // std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
   }
     
   void MPIWorker::run()
@@ -167,12 +144,6 @@ namespace vopat {
       case SET_CAMERA:
         cmd_setCamera();
         break;
-      // case SET_SHADE_MODE:
-      //   cmd_setShadeMode();
-      //   break;
-      // case SET_NODE_SELECTION:
-      //   cmd_setNodeSelection();
-      //   break;
       case TERMINATE:
         cmd_terminate();
         break;
