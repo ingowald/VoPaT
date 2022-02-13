@@ -78,7 +78,8 @@ namespace vopat {
                                     vec2f pixelPos)
   {
     Ray ray;
-    ray.pixelID = pixelID.x + globals.fbSize.x*pixelID.y;
+    ray.pixelID  = pixelID.x + globals.fbSize.x*pixelID.y;
+    ray.isShadow = false;
     ray.origin = globals.camera.lens_00;
     vec3f dir
       = globals.camera.dir_00
@@ -165,7 +166,7 @@ namespace vopat {
     return closest;
   }
 
-  __global__ void renderFrame(Globals globals)
+  __global__ void generatePrimaryWave(Globals globals)
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
@@ -197,8 +198,16 @@ namespace vopat {
     
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
-    renderFrame<<<numBlocks,blockSize>>>(globals);
-    CUDA_SYNC_CHECK();
+    generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
+    numRaysInQueue = perRankSendCounts.download()[myRank()];
+    // CUDA_SYNC_CHECK();
+    while (true) {
+      traceRaysLocally();
+      createSendQueue();
+      int numRaysExchanged = exchangeRays();
+      if (numRaysExchanged == 0)
+        break;
+    }
   }
   
   void VopatRenderer::screenShot()
@@ -231,5 +240,34 @@ namespace vopat {
 
   }
 
+
+  __global__ void doTraceRaysLocally(Globals globals,
+                                     int numRaysInQueue)
+  {
+  }
+  
+  void VopatRenderer::traceRaysLocally()
+  {
+    int blockSize = 1024;
+    int numBlocks = divRoundUp(numRaysInQueue,blockSize);
+    doTraceRaysLocally<<<numBlocks,blockSize>>>
+      (globals,numRaysInQueue);
+  }
+  
+  void VopatRenderer::createSendQueue()
+  {
+  }
+  
+  int  VopatRenderer::exchangeRays()
+  {
+    return 0;
+    
+    // const int numWorkers = globals.numWorkers;
+    
+    // std::vector<int> hostSendCounts
+    //   = perRankSendCounts.download();
+    // std::vector<int> hostSendOffsets
+    //   = perRankSendOffsets.download();
+  }
   
 }
