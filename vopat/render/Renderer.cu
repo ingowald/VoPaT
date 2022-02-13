@@ -158,7 +158,6 @@ namespace vopat {
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fbSize.x*fbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
       CUDA_SYNC_CHECK();
-      PING; PRINT(fbPointer[0]);
     } else {
       // ------------------------------------------------------------------
       // step 0: clients render into their owl local frame buffers

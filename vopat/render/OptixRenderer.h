@@ -62,6 +62,9 @@ namespace vopat {
     // ==================================================================
     
     void resizeFrameBuffer(const vec2i &newSize)  override;
+    void setCamera(const Camera &camera) override;
+
+    
     
     /*! one box per rank, which rays can use to find neext rank to send to */
     CUDAArray<box3f>       rankBoxes;
