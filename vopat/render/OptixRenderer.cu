@@ -91,7 +91,6 @@ namespace vopat {
 
   void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
-    PING; fflush(0);
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
@@ -118,8 +117,6 @@ namespace vopat {
   void OptixRenderer::setCamera(const Camera &camera)
   {
     AddWorkersRenderer::setCamera(camera);
-    PRINT(camera.lens_00);
-    PRINT(camera.dir_00);
     globals.camera = camera;
   }
 
@@ -152,18 +149,18 @@ namespace vopat {
   {
     int closest = -1;
     float t_min = CUDART_INF;
-    if (dbg) printf("init ray %f %f %f dir %f %f %f\n",
-                   ray.origin.x,
-                   ray.origin.y,
-                   ray.origin.z,
-                   from_half(ray.direction.x),
-                   from_half(ray.direction.y),
-                   from_half(ray.direction.z)
-                   );
+    // if (dbg) printf("init ray %f %f %f dir %f %f %f\n",
+    //                ray.origin.x,
+    //                ray.origin.y,
+    //                ray.origin.z,
+    //                from_half(ray.direction.x),
+    //                from_half(ray.direction.y),
+    //                from_half(ray.direction.z)
+    //                );
     for (int i=0;i<globals.numWorkers;i++) {
       if (boxTest(globals.rankBoxes[i],ray,t_min)) {
-        if (dbg) printf("(%i) new closest %i %f\n",
-                        globals.myRank,i,t_min);
+        // if (dbg) printf("(%i) new closest %i %f\n",
+        //                 globals.myRank,i,t_min);
         closest = i;
       }
     }
@@ -175,14 +172,12 @@ namespace vopat {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
 
-    bool dbg = (vec2i(ix,iy) == globals.fbSize/2);
-    
     int myRank = globals.myRank;
     Ray ray    = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
-    int dest   = computeInitialRank(globals,ray,dbg);
+    int dest   = computeInitialRank(globals,ray);
 
     if (dest < 0) {
-      /* "nobody" owns this pixel, set it to 0 on rank 0 */
+      /* "nobody" owns this pixel, set to background on rank 0 */
       if (myRank == 0) {
         globals.fbPointer[ray.pixelID] = to_half(vec3f(.5f,.5f,.5f));
       }
@@ -192,28 +187,13 @@ namespace vopat {
       /* somebody else owns this pixel; we don't do anything */
       return;
     }
-
-    if (dbg) printf("pixel owned on rank %i\n",myRank);
-    
     int queuePos = atomicAdd(&globals.perRankSendCounts[myRank],1);
     globals.rayQueueIn[queuePos] = ray;
-    
     globals.fbPointer[ray.pixelID] = to_half(randomColor(myRank));
-
-    // if (ix == 512 && iy == 512) {
-    //   printf("(%i) fb %f %f %f\n",myRank,
-    //          from_half(globals.fbPointer[ray.pixelID]).x,
-    //          from_half(globals.fbPointer[ray.pixelID]).y,
-    //          from_half(globals.fbPointer[ray.pixelID]).z);
-    // }
   }
     
-void OptixRenderer::renderLocal()
+  void OptixRenderer::renderLocal()
   {
-    // if (isMaster()) {
-    //   return;
-    // }
-
     perRankSendCounts.bzero();
     localFB.bzero();
     
@@ -230,7 +210,6 @@ void OptixRenderer::renderLocal()
     if (isMaster()) {
       fileName = fileName + "_master.png";
       pixels = masterFB.download();
-      return;
     } else {
       char suff[100];
       sprintf(suff,"_island%03i_rank%05i.png",

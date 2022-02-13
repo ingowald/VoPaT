@@ -59,14 +59,12 @@ namespace vopat {
     
     void screenShot()
     {
-      PING; fflush(0);
       master.screenShot();
     }
     
     // /*! this function gets called whenever the viewer widget changes camera settings */
     virtual void cameraChanged() override 
     {
-      PING; fflush(0);
       inherited::cameraChanged();
       auto &camera = inherited::getCamera();
 
@@ -83,7 +81,6 @@ namespace vopat {
     /*! window notifies us that we got resized */
     virtual void resize(const vec2i &newSize) override
     {
-      PING; fflush(0);
       this->fbSize = newSize;
       cudaDeviceSynchronize();
       master.resizeFrameBuffer(newSize);
@@ -137,7 +134,6 @@ namespace vopat {
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
     {
-      PING; fflush(0);
       switch (key) {
       case '!':
         screenShot();
@@ -262,12 +258,10 @@ namespace vopat {
         worker.run();
       }
 
-      PING; fflush(0);
       Renderer *renderer
         = new OptixRenderer(&mpiBackend,model,cmdline.spp);
         
       // OptixMaster *optix = new OptixMaster(&mpiBackend);
-      PING; fflush(0);
       MPIMaster master(mpiBackend,renderer);
     
       // owl::viewer::GlutWindow::initGlut(argc,argv);
@@ -290,13 +284,12 @@ namespace vopat {
                   << std::endl;
         viewer.setCameraOrientation(/*origin   */
                                     sceneBounds.center()
-                                    + vec3f(-.3f,.7f,+1.f)*sceneBounds.span(),
+                                    + vec3f(-.3f,.7f,+1.f)*2.f*sceneBounds.span(),
                                     /*lookat   */sceneBounds.center(),
                                     /*up-vector*/vec3f(0.f, 1.f, 0.f),
                                     /*fovy(deg)*/cmdline.camera.fovy);
       }
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
-      PING; fflush(0);
       viewer.showAndRun();
 
     } catch (std::exception &e) {

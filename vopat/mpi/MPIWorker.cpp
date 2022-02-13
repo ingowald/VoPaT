@@ -25,9 +25,7 @@ namespace vopat {
   MPIWorker::MPIWorker(MPIBackend &mpi, Renderer *renderer)
     : mpi(mpi),
       renderer(renderer)
-  {
-    PING; PRINT(renderer);
-  }
+  {}
 
   void MPIWorker::cmd_terminate()
   {

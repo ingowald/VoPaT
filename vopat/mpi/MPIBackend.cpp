@@ -58,7 +58,6 @@ namespace vopat {
                                 &toWorkers->comm));
       workersRank = -1;
       MPI_CALL(Comm_remote_size(toWorkers->comm,&workersSize));
-      PRINT(workersSize);
     } else {
       toMaster = new MPIToMasterComm;
       worker.toMaster = toMaster;
@@ -70,7 +69,6 @@ namespace vopat {
                                 &toMaster->comm));
       MPI_CALL(Comm_rank(workersComm,&workersRank));
       MPI_CALL(Comm_size(workersComm,&workersSize));
-      PING; PRINT(workersRank); PRINT(workersSize);
     }
 
     if (isWorker) {
@@ -135,8 +133,6 @@ namespace vopat {
     // ------------------------------------------------------------------
     if (isWorker) {
       worker.numIslands = workersSize / numRanksPerIsland;
-      PRINT(worker.numIslands);
-      PRINT(numRanksPerIsland);
       if (worker.numIslands < 1)
         throw std::runtime_error("not enough workers for this model's number of partitions ...");
       if (workersSize % worker.numIslands)
@@ -149,8 +145,6 @@ namespace vopat {
       MPI_CALL(Comm_split(workersComm,worker.islandIdx,workersRank,&intraIsland->comm));
       MPI_CALL(Comm_rank(intraIsland->comm,&intraIsland->rank));
       MPI_CALL(Comm_size(intraIsland->comm,&intraIsland->size));
-      PING; PRINT(intraIsland->rank);
-      PRINT(intraIsland->size);
 
       printf("#vopat.mpi: workers rank #%i is local rank %i on island %i, local GPU id %i\n",
              workersRank,intraIsland->rank,worker.islandIdx,worker.gpuID);
@@ -178,27 +172,9 @@ namespace vopat {
                                      const void *ours,
                                      size_t elementSize) 
   {
-    // PING;
-    // int rank;
-    // MPI_Comm_rank(comm,&rank);
-    // PRINT(rank);
-    // int size;
-    // MPI_Comm_size(comm,&size);
-    // PRINT(size);
-    // PRINT(elementSize);
-    // PRINT(destArray);
-    // PRINT(ours);
-    // PRINT(((int*)ours)[0]);
-    // PRINT(((int*)ours)[1]);
-    // PRINT(((int*)ours)[2]);
-    // PRINT(((int*)ours)[3]);
     MPI_CALL(Allgather(ours,elementSize,MPI_CHAR,
                        destArray,elementSize,MPI_CHAR,
                        comm));
-    // PRINT(((int*)destArray)[0]);
-    // PRINT(((int*)destArray)[1]);
-    // PRINT(((int*)destArray)[2]);
-    // PRINT(((int*)destArray)[3]);
   }
 
   void MPIIntraIslandComm::allToAll(const void *sendBuf,
@@ -208,11 +184,9 @@ namespace vopat {
                                     const int *recvCounts,
                                     const int *recvOffsets)
   {
-    // CUDA_SYNC_CHECK();
     MPI_Alltoallv(sendBuf,sendCounts,sendOffsets,MPI_BYTE,
                   recvBuf,recvCounts,recvOffsets,MPI_BYTE,
                   comm);
-    // CUDA_SYNC_CHECK();
   }
 
   void MPIToMasterComm::indexedGatherSend(int numBlocks,
