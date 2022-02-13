@@ -28,11 +28,43 @@ namespace vopat {
     PRINT(comm->numWorkers());
     if (isMaster()) {
     } else {
-      tallies.resize(comm->numWorkers());
-      globals.tallies = tallies.get();
+      const int numWorkers = comm->numWorkers();
+
+      globals.myRank   = myRank();
+      globals.numRanks = numWorkers;
+      perRankSendCounts.resize(numWorkers);
+      perRankSendOffsets.resize(numWorkers);
+      globals.perRankSendOffsets = perRankSendOffsets.get();
+      globals.perRankSendCounts = perRankSendCounts.get();
+
+      // ------------------------------------------------------------------
+      // upload per-rank boxes
+      // ------------------------------------------------------------------
+      std::vector<box3f> localRankBoxes;
+      for (auto brick : model->bricks)
+        localRankBoxes.push_back(brick->spaceRange);
+      rankBoxes.resize(numWorkers);
+      rankBoxes.upload(localRankBoxes);
     }
   }
-  
+
+
+  inline __device__ Ray generateRay(const Globals &globals,
+                                    vec2i pixelID,
+                                    vec2f pixelPos)
+  {
+    Ray ray;
+    ray.pixelID = pixelPos.x + globals.fbSize.x*pixelPos.y;
+    ray.origin = globals.camera.lens_00;
+    vec3f dir
+      = globals.camera.dir_00
+      + globals.camera.dir_du * (pixelID.x+pixelPos.x)
+      + globals.camera.dir_dv * (pixelID.y+pixelPos.y);
+    ray.direction = to_half(normalize(dir));
+    ray.throughput = to_half(vec3f(1.f));
+    return ray;
+  }
+
   void OptixRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
     PING; fflush(0);
@@ -42,6 +74,15 @@ namespace vopat {
       // localFB.resize(newSize.x*newSize.y);
       globals.fbPointer = localFB.get();
       globals.fbSize    = fbSize;
+
+      rayQueueIn.resize(fbSize.x*fbSize.y);
+      globals.rayQueueIn = rayQueueIn.get();
+
+      rayQueueOut.resize(fbSize.x*fbSize.y);
+      globals.rayQueueOut = rayQueueOut.get();
+
+      rayNextNode.resize(fbSize.x*fbSize.y);
+      globals.rayNextNode = rayNextNode.get();
     }
   }
   
@@ -55,19 +96,70 @@ namespace vopat {
   //   globals.camera = camera;
   // }
 
+  inline __device__
+  float fixDir(float f) { return (f==0.f)?1e-8f:f; }
+  
+  inline __device__
+  vec3f fixDir(vec3f v)
+  { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
+  
+  inline __device__
+  bool boxTest(box3f box, Ray ray, float &t_min)
+  {
+    vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+    vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+    
+    vec3f t_nr = min(t_lo,t_hi);
+    vec3f t_fr = max(t_lo,t_hi);
+
+    float t0 = max(0.f,reduce_max(t_nr));
+    float t1 = min(t_min,reduce_min(t_fr));
+
+    if (t0 >= t1) return false;
+    t_min = t0;
+    return true;
+  }
+  
+  inline __device__
+  int computeInitialRank(Globals globals, Ray ray)
+  {
+    int closest = -1;
+    float t_min = CUDART_INF;
+    for (int i=0;i<globals.numRanks;i++) {
+      if (boxTest(globals.rankBoxes[i],ray,t_min))
+        closest = i;
+    }
+    return closest;
+  }
 
   __global__ void renderFrame(Globals globals)
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
-    if (ix == 0 && iy == 0)
-      printf("render %i %i ptr %lx\n",
-             globals.fbSize.x,globals.fbSize.y,
-             globals.fbPointer);
+    int myRank = globals.myRank;
+    // if (ix == 0 && iy == 0)
+    //   printf("render %i %i ptr %lx\n",
+    //          globals.fbSize.x,globals.fbSize.y,
+    //          globals.fbPointer);
+    Ray ray = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
+    int dest = computeInitialRank(globals,ray);
+    if (dest < 0) {
+      if (myRank == 0)
+        globals.fbPointer[ray.pixelID] = to_half(vec3f(1.f));
+      return;
+    }
+
+    int queuePos = atomicAdd(&globals.perRankSendCounts[myRank],1);
+    globals.rayQueueIn[queuePos] = ray;
+    
+    globals.fbPointer[ray.pixelID] = to_half(randomColor(myRank));
   }
   
   void OptixRenderer::renderLocal()
   {
+    perRankSendCounts.bzero();
+    localFB.bzero();
+    
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
     renderFrame<<<numBlocks,blockSize>>>(globals);

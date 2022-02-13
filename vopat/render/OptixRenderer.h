@@ -21,12 +21,25 @@
 
 namespace vopat {
 
+  struct Ray {
+    uint32_t    pixelID;
+    vec3f       origin;
+    small_vec3f direction;
+    small_vec3f throughput;
+  };
+  
   struct Globals {
+    int          myRank, numRanks;
     int          sampleID;
     Camera       camera;
     vec2i        fbSize;
     small_vec3f *fbPointer;
-    int         *tallies;
+    int         *perRankSendOffsets;
+    int         *perRankSendCounts;
+    int         *rayNextNode;
+    box3f       *rankBoxes;
+    Ray         *rayQueueIn;
+    Ray         *rayQueueOut;
   };
 
   struct OptixRenderer : public AddWorkersRenderer {
@@ -49,14 +62,26 @@ namespace vopat {
     // ==================================================================
     
     void resizeFrameBuffer(const vec2i &newSize)  override;
-    // void resetAccumulation()  override;
-    // void setCamera(const Camera &camera)  override;
-
-    // void composeRegion(const vec2i &ourRegionSize,
-    //                    const small_vec3f *compInputs,
-    //                    uint32_t *compOutputs);
     
-    CUDAArray<int>         tallies;
+    /*! one box per rank, which rays can use to find neext rank to send to */
+    CUDAArray<box3f>       rankBoxes;
+
+    /*! ray queues we are expected to trace in the next step */
+    CUDAArray<Ray>         rayQueueIn;
+    
+    /*! ray queues for sending out; in this one rays are sorted by
+        rank they are supposed to go to */
+    CUDAArray<Ray>         rayQueueOut;
+    
+    /*! one int per ray, which - after tracing locally, says which
+        rank to go to next; -1 meaning "done" */
+    CUDAArray<int>         rayNextNode;
+    
+    /*! one entry per ray, telling how many rays _we_ want to send to
+        that given rank */
+    CUDAArray<int>         perRankSendCounts;
+    CUDAArray<int>         perRankSendOffsets;
+    
     Globals globals;
   };
   

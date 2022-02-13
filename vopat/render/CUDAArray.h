@@ -40,7 +40,13 @@ namespace vopat {
     inline size_t numBytes() const { return N * sizeof(T); }
     inline T operator*() const { return *devMem; }
     inline operator bool() const { return devMem; }
-    
+    inline void upload(const std::vector<T> &vt) {
+      resize(vt.size());
+      CUDA_CALL(Memcpy(devMem,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
+    }
+    inline void bzero() {
+      CUDA_CALL(Memset(devMem,0,N*sizeof(T)));
+    }
     T *get() const { return devMem; }
     
     T     *devMem = 0;

@@ -238,12 +238,7 @@ namespace vopat {
       MPIBackend mpiBackend(argc,argv,1);
       Model::SP model = Model::load(inFileBase+".vopat");
       if (model->bricks.size() != mpiBackend.workersSize)
-#if 0
         throw std::runtime_error("incompatible number of bricks and workers");
-#else
-      std::cout << OWL_TERMINAL_RED << "incompatible number of bricks and workers"
-                << OWL_TERMINAL_DEFAULT << std::endl;
-#endif
       const bool isMaster = mpiBackend.isMaster;
       if (!isMaster) {
         const int myRank = mpiBackend.worker.withinIsland->rank;
