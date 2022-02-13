@@ -22,7 +22,10 @@
 namespace vopat {
 
   struct Ray {
-    uint32_t    pixelID;
+    struct {
+      uint32_t    pixelID : 31;
+      uint32_t    isShadow:  1;
+    };
     vec3f       origin;
     small_vec3f direction;
     small_vec3f throughput;
@@ -67,6 +70,9 @@ namespace vopat {
                    const vec3f &up,
                    const float fov) override;
 
+    void traceRaysLocally();
+    void createSendQueue();
+    int  exchangeRays();
     
     
     /*! one box per rank, which rays can use to find neext rank to send to */
@@ -89,6 +95,7 @@ namespace vopat {
     CUDAArray<int>         perRankSendOffsets;
     
     Globals globals;
+    int numRaysInQueue;
   };
   
 }
