@@ -19,7 +19,9 @@
 #include "vopat/common.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
-#include "vopat/render/VopatRenderer.h"
+#include "vopat/render/DistributedRendererBase.h"
+#include "vopat/model/Model.h"
+// #include "vopat/render/VopatRenderer.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
@@ -27,6 +29,8 @@
 #include "samples/common/owlViewer/OWLViewer.h"
 
 namespace vopat {
+  
+  Renderer *createSimpleNodeRenderer(CommBackend *comm, Model::SP model);
   
   struct {
     int spp = 1; //4;
@@ -237,6 +241,9 @@ namespace vopat {
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
       const bool isMaster = mpiBackend.isMaster;
+      Renderer *renderer
+        = createSimpleNodeRenderer(&mpiBackend,model);
+
       if (!isMaster) {
         const int myRank = mpiBackend.worker.withinIsland->rank;
         // Brick::SP rankData = model->bricks[myRank];
@@ -252,16 +259,16 @@ namespace vopat {
         //   = scene::LocalScene::extractFrom(masterScene,partScene,specs,
         //                                    scene::NodeMask::singleRank(myRank));
         // assert(localScene);
-        Renderer *renderer
-          = new VopatRenderer(&mpiBackend,model,cmdline.spp);
+        // Renderer *renderer
+          // = new VopatRenderer(&mpiBackend,model,cmdline.spp);
 
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
       }
 
-      Renderer *renderer
-        = new VopatRenderer(&mpiBackend,model,cmdline.spp);
+      // Renderer *renderer
+      //   = new VopatRenderer(&mpiBackend,model,cmdline.spp);
         
       MPIMaster master(mpiBackend,renderer);
     
