@@ -32,8 +32,11 @@ namespace vopat {
       this->N = N;
       if (devMem) CUDA_CALL(Free(devMem));
       devMem = 0;
+#if 0
       CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
-      // CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+#else
+      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+#endif
       assert(devMem);
     }
 

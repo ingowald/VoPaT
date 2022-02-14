@@ -198,11 +198,14 @@ namespace vopat {
       return;
     
     std::vector<MPI_Request> requests(numBlocks);
+    // printf("(M) gatherSEND(a) %i x %i\n",numBlocks,(int)blockSize);fflush(0);
     for (int i=0;i<numBlocks;i++) {
       MPI_CALL(Isend(blockPtrs[i],blockSize,MPI_BYTE,0,blockTags[i],
                      comm,&requests[i]));
     }
+    // printf("(M) gatherSEND(b) %i x %i\n",numBlocks,(int)blockSize);fflush(0);
     MPI_CALL(Waitall(numBlocks,requests.data(),MPI_STATUSES_IGNORE));
+    // printf("(M) gatherSEND(c) %i x %i\n",numBlocks,(int)blockSize);fflush(0);
   }
 
   void MPIToWorkersComm::indexedGather(void *recvBuffer,
@@ -213,9 +216,12 @@ namespace vopat {
       return;
 
     std::vector<MPI_Request> requests(numBlocks);
+    // printf("(M) gatherRECV %i x %i\n",(int)numBlocks,(int)blockSize);fflush(0);
     for (int i=0;i<numBlocks;i++) {
       int tag = i;
-      MPI_CALL(Irecv(((char*)recvBuffer)+i*blockSize,
+      char *lineRecv = ((char*)recvBuffer)+i*blockSize;
+      // *lineRecv = 0;
+      MPI_CALL(Irecv(lineRecv,
                      blockSize,MPI_BYTE,MPI_ANY_SOURCE,tag,
                      comm,&requests[i]));
     }

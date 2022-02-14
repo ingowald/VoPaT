@@ -285,7 +285,8 @@ namespace vopat {
                   << std::endl;
         viewer.setCameraOrientation(/*origin   */
                                     sceneBounds.center()
-                                    + vec3f(-.3f,.7f,+1.f)*2.f*sceneBounds.span(),
+                                    + vec3f(-.7f,.3f,+1.f)*1.5f*sceneBounds.span(),
+                                    // + vec3f(-.3f,.7f,+1.f)*1.5f*sceneBounds.span(),
                                     /*lookat   */sceneBounds.center(),
                                     /*up-vector*/vec3f(0.f, 1.f, 0.f),
                                     /*fovy(deg)*/cmdline.camera.fovy);

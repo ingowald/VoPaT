@@ -18,6 +18,7 @@
 #include "3rdParty/stb_image//stb/stb_image_write.h"
 #include "3rdParty/stb_image//stb/stb_image.h"
 #include "owl/owl_device.h"
+#include <sstream>
 
 namespace vopat {
 
@@ -41,6 +42,13 @@ namespace vopat {
       (make_8bit(color.y) << 8) +
       (make_8bit(color.z) << 16) +
       (make_8bit(color.w) << 24);
+  }
+
+  inline __device__ void addToFB(vec3f *tgt, vec3f addtl)
+  {
+    atomicAdd(&tgt->x,addtl.x);
+    atomicAdd(&tgt->y,addtl.y);
+    atomicAdd(&tgt->z,addtl.z);
   }
 
   VopatRenderer::VopatRenderer(CommBackend *comm,
@@ -95,9 +103,12 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      localFB.resize(newSize.x*newSize.y);
-      globals.fbPointer = localFB.get();
-      globals.fbSize    = fbSize;
+      PRINT(newSize);
+      // localFB.resize(newSize.x*newSize.y);
+      // globals.fbPointer = localFB.get();
+      accumBuffer.resize(newSize.x*newSize.y);
+      globals.accumBuffer = accumBuffer.get();
+      globals.fbSize    = newSize;
 
       rayQueueIn.resize(fbSize.x*fbSize.y);
       globals.rayQueueIn = rayQueueIn.get();
@@ -142,6 +153,22 @@ namespace vopat {
     t_min = t0;
     return true;
   }
+
+  inline __device__
+  void clipRay(box3f box, Ray ray, float &t_min, float &t_max)
+  {
+    vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+    vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+    
+    vec3f t_nr = min(t_lo,t_hi);
+    vec3f t_fr = max(t_lo,t_hi);
+
+    float t0 = max(0.f,reduce_max(t_nr));
+    float t1 = reduce_min(t_fr);
+
+    t_min = t0;
+    t_max = t1;
+  }
   
   inline __device__
   int computeInitialRank(const Globals &globals, Ray ray, bool dbg = false)
@@ -170,15 +197,23 @@ namespace vopat {
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    if (ix >= globals.fbSize.x) return;
+    if (iy >= globals.fbSize.y) return;
 
     int myRank = globals.myRank;
     Ray ray    = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
+    ray.dbg    = (vec2i(ix,iy) == globals.fbSize/2);
+    if (ray.dbg) printf("DEBUGGING ON %i %i\n",ix,iy);
     int dest   = computeInitialRank(globals,ray);
 
+    if (ray.dbg)
+      printf("(%i) dest %i\n",globals.myRank,dest);
+    
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */
       if (myRank == 0) {
-        globals.fbPointer[ray.pixelID] = to_half(vec3f(.5f,.5f,.5f));
+        globals.accumBuffer[ray.pixelID] += vec3f(.5f,.5f,.5f);
+        // globals.fbPointer[ray.pixelID] = to_half(vec3f(.5f,.5f,.5f));
       }
       return;
     }
@@ -187,27 +222,77 @@ namespace vopat {
       return;
     }
     int queuePos = atomicAdd(&globals.perRankSendCounts[myRank],1);
+    if (ray.dbg)
+      printf("(%i) primary wave -> slot %i\n",globals.myRank,queuePos);
     globals.rayQueueIn[queuePos] = ray;
-    globals.fbPointer[ray.pixelID] = to_half(randomColor(myRank));
+    // globals.accu[ray.pixelID] = to_half(randomColor(myRank));
+  }
+    
+  __global__ void writeLocalFB(small_vec3f *localFB, Globals globals)
+  {
+    int ix = threadIdx.x + blockIdx.x*blockDim.x;
+    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    if (ix >= globals.fbSize.x) return;
+    if (iy >= globals.fbSize.y) return;
+
+    int i = ix + iy * globals.fbSize.x;
+    
+    localFB[i] = to_half(globals.accumBuffer[i] * (1.f/(globals.sampleID+1)));
   }
     
   void VopatRenderer::renderLocal()
   {
-    perRankSendCounts.bzero();
+#if 0
     localFB.bzero();
+    return;
+#endif
+    globals.sampleID = accumID;
     
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
-    generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
-    numRaysInQueue = perRankSendCounts.download()[myRank()];
-    // CUDA_SYNC_CHECK();
+    perRankSendCounts.bzero();
+    if (numBlocks != vec2i(0))
+      generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
+    CUDA_SYNC_CHECK();
+    host_sendCounts = perRankSendCounts.download();
+    numRaysInQueue = host_sendCounts[myRank()];
+
+#if 1
+    fflush(0);
+    comm->worker.withinIsland->barrier();
+    printf("(%i) init num rays in q %i color %f %f %f\n",myRank(),numRaysInQueue,
+           randomColor(myRank()).x,
+           randomColor(myRank()).y,
+           randomColor(myRank()).z
+           );
+    comm->worker.withinIsland->barrier();
+    fflush(0);
+#endif
+
+    
+    CUDA_SYNC_CHECK();
     while (true) {
+      perRankSendCounts.bzero();
+      CUDA_SYNC_CHECK();
       traceRaysLocally();
+      CUDA_SYNC_CHECK();
       createSendQueue();
+      CUDA_SYNC_CHECK();
       int numRaysExchanged = exchangeRays();
       if (numRaysExchanged == 0)
         break;
     }
+
+    CUDA_SYNC_CHECK();
+    if (numBlocks != vec2i(0))
+      writeLocalFB<<<numBlocks,blockSize>>>(localFB.get(),globals);
+    CUDA_SYNC_CHECK();
+
+#if 1
+    fflush(0);
+    comm->worker.withinIsland->barrier();
+    fflush(0);
+#endif
   }
   
   void VopatRenderer::screenShot()
@@ -240,34 +325,194 @@ namespace vopat {
 
   }
 
-
-  __global__ void doTraceRaysLocally(Globals globals,
-                                     int numRaysInQueue)
+  inline __device__ int computeNextNode(const Globals &globals,
+                                        const Ray &ray,
+                                        const float t_exit)
   {
+    vec3f P = ray.origin + from_half(ray.direction) * (t_exit * (1.f+1e-3f));
+    if (ray.dbg)
+      printf("(%i) next query P %f %f %f\n",
+             globals.myRank,P.x,P.y,P.z);
+    for (int i=0;i<globals.numWorkers;i++)
+      if (i != globals.myRank && globals.rankBoxes[i].contains(P))
+        return i;
+    return -1;
+  }
+                                     
+  __global__ void doTraceRaysLocally(Globals globals,
+                                     int numRays)
+  {
+    int tid = threadIdx.x+blockIdx.x*blockDim.x;
+    if (tid >= numRays) return;
+
+    Ray ray = globals.rayQueueIn[tid];
+    const box3f myBox = globals.rankBoxes[globals.myRank];
+    float t0, t1;
+    clipRay(myBox,ray,t0,t1);
+
+    vec3f throughput = from_half(ray.throughput);
+    throughput *= randomColor(globals.myRank);
+    ray.throughput = to_half(throughput);
+
+    int nextNode = computeNextNode(globals,ray,t1);
+    if (ray.dbg)
+      printf("(%i) next node %i\n",globals.myRank,nextNode);
+
+    if (nextNode == -1) {
+      // printf("adding %f %f %f in %f %f %f : %f\n",
+      //        ray.color.x,ray.color.y,ray.color.z,
+      //        in_color.x,in_color.y,in_color.z,
+      //        in_alpha);
+      addToFB(&globals.accumBuffer[ray.pixelID],throughput);
+    } else {
+      // volume itself emits:
+      // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
+      atomicAdd(&globals.perRankSendCounts[nextNode],1);
+    }
+    globals.rayQueueIn[tid]  = ray;
+    globals.rayNextNode[tid] = nextNode;
   }
   
   void VopatRenderer::traceRaysLocally()
   {
     int blockSize = 1024;
     int numBlocks = divRoundUp(numRaysInQueue,blockSize);
-    doTraceRaysLocally<<<numBlocks,blockSize>>>
-      (globals,numRaysInQueue);
+    if (numBlocks)
+      doTraceRaysLocally<<<numBlocks,blockSize>>>
+        (globals,numRaysInQueue);
+    CUDA_SYNC_CHECK();
+  }
+
+  __global__ void computeCompactionOffsets(Globals globals)
+  {
+    if (threadIdx.x != 0) return;
+    int ofs = 0;
+    for (int i=0;i<globals.numWorkers;i++) {
+      globals.perRankSendOffsets[i] = ofs;
+      ofs += globals.perRankSendCounts[i];
+    }
+  }
+  
+  __global__ void compactRays(Globals globals, int numRays)
+  {
+    int tid = threadIdx.x+blockIdx.x*blockDim.x;
+    if (tid >= numRays) return;
+
+    int dest = globals.rayNextNode[tid];
+    if (dest < 0) return;
+
+    int slot = atomicAdd(&globals.perRankSendOffsets[dest],1);
+    globals.rayQueueOut[slot] = globals.rayQueueIn[tid];
   }
   
   void VopatRenderer::createSendQueue()
   {
+    computeCompactionOffsets<<<1,1>>>
+      (globals);
+    CUDA_SYNC_CHECK();
+    int blockSize = 1024;
+    int numBlocks = divRoundUp(numRaysInQueue,blockSize);
+    if (numBlocks)
+      compactRays<<<numBlocks,blockSize>>>
+        (globals,numRaysInQueue);
+    CUDA_SYNC_CHECK();
   }
-  
+
   int  VopatRenderer::exchangeRays()
   {
-    return 0;
+    host_sendCounts = perRankSendCounts.download();
+    const int numWorkers = globals.numWorkers;
+    const int myRank = this->myRank();
+    auto island = comm->worker.withinIsland;
+
+    /* iw - TODO: change this to use alltoall instead of allgaher;
+       with allgather each rank received N*N elements, which describes
+       what every node is sending to any other node ... but it would
+       actually only need to know how many _it_ receives */
+    std::vector<int> allRankSendCounts(numWorkers*numWorkers);
+    island->allGather(allRankSendCounts,host_sendCounts);
+
+    std::stringstream ss;
+    ss << "(" << myRank << ") : ";
+    for (auto i : allRankSendCounts)
+      ss << i << " ";
+    ss << std::endl;
+    std::cout << ss.str();
+
+    // ------------------------------------------------------------------
+    // compute SEND counts and offsets
+    // ------------------------------------------------------------------
+    std::vector<int> sendByteOffsets(numWorkers);
+    std::vector<int> sendByteCounts(numWorkers);
+    size_t ofs = 0;
+    for (int i=0;i<numWorkers;i++) {
+      int to_i = allRankSendCounts[myRank*numWorkers+i];
+      sendByteOffsets[i] = ofs;
+      sendByteCounts[i]  = to_i*sizeof(Ray);
+      ofs += sendByteCounts[i];
+    }
+
+    // ------------------------------------------------------------------
+    // compute RECEIVE counts and offsets
+    // ------------------------------------------------------------------
+    std::vector<int> recvByteOffsets(numWorkers);
+    std::vector<int> recvByteCounts(numWorkers);
+    ofs = 0;
+    int numReceived = 0;
+    for (int i=0;i<numWorkers;i++) {
+      int from_i = allRankSendCounts[i*numWorkers+myRank];
+      recvByteOffsets[i] = ofs;
+      recvByteCounts[i]  = from_i*sizeof(Ray);
+      ofs += recvByteCounts[i];
+      numReceived += from_i;
+    }
+
     
-    // const int numWorkers = globals.numWorkers;
+    // ------------------------------------------------------------------
+    // exeute the all2all
+    // ------------------------------------------------------------------
+    island->allToAll(rayQueueOut.get(),
+                     sendByteCounts.data(),
+                     sendByteOffsets.data(),
+                     rayQueueIn.get(),
+                     recvByteCounts.data(),
+                     recvByteOffsets.data());
+    CUDA_SYNC_CHECK();
+    numRaysInQueue = numReceived;
+
     
-    // std::vector<int> hostSendCounts
-    //   = perRankSendCounts.download();
-    // std::vector<int> hostSendOffsets
-    //   = perRankSendOffsets.download();
+    // ------------------------------------------------------------------
+    // return how many we've exchanged ACROSS ALL ranks
+    // ------------------------------------------------------------------
+    int sumAllSends = 0;
+    for (auto i : allRankSendCounts) sumAllSends += i;
+    printf("(%i) ----- sum all sends %i\n",myRank,sumAllSends);
+
+
+    
+
+    for (int r=0;r<numWorkers;r++) {
+      comm->worker.withinIsland->barrier();
+      if (r == globals.myRank) {
+        std::cout << "(" << r << ") IN:  ";
+        for (int i=0;i<numWorkers;i++)
+          std::cout << (recvByteCounts[i]/sizeof(Ray)) << " ";
+        std::cout << std::endl;
+        std::cout << "(" << r << ") OUT: ";
+        for (int i=0;i<numWorkers;i++)
+          std::cout << (sendByteCounts[i]/sizeof(Ray)) << " ";
+        std::cout << std::endl;
+        std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
+        if (r == 0)
+          std::cout << "-------------------------------------------------------" << std::endl;
+        fflush(0);
+      }
+      comm->worker.withinIsland->barrier();
+    }
+
+
+
+    return sumAllSends;
   }
   
 }

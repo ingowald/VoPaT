@@ -47,6 +47,12 @@ namespace vopat {
     {
       allGather(result.data(),&ours,sizeof(T)); 
     }
+    template<typename T>
+    void allGather(std::vector<T> &allResults,
+                   const std::vector<T> &ours)
+    {
+      allGather(allResults.data(),ours.data(),ours.size()*sizeof(T)); 
+    }
     virtual void barrier() = 0;
     virtual void allGather(void *destArray,
                            const void *ours,

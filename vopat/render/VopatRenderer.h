@@ -24,6 +24,7 @@ namespace vopat {
   struct Ray {
     struct {
       uint32_t    pixelID : 31;
+      uint32_t    dbg     :  1;
       uint32_t    isShadow:  1;
     };
     vec3f       origin;
@@ -36,7 +37,8 @@ namespace vopat {
     int          sampleID;
     Camera       camera;
     vec2i        fbSize;
-    small_vec3f *fbPointer;
+    // small_vec3f *fbPointer;
+    vec3f       *accumBuffer;
     int         *perRankSendOffsets;
     int         *perRankSendCounts;
     int         *rayNextNode;
@@ -70,6 +72,8 @@ namespace vopat {
                    const vec3f &up,
                    const float fov) override;
 
+    void resetAccumulation() override
+    { AddWorkersRenderer::resetAccumulation(); accumBuffer.bzero(); }
     void traceRaysLocally();
     void createSendQueue();
     int  exchangeRays();
@@ -93,6 +97,9 @@ namespace vopat {
         that given rank */
     CUDAArray<int>         perRankSendCounts;
     CUDAArray<int>         perRankSendOffsets;
+    std::vector<int>       host_sendCounts;
+    
+    CUDAArray<vec3f>       accumBuffer;
     
     Globals globals;
     int numRaysInQueue;

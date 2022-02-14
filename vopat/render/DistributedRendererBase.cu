@@ -63,20 +63,23 @@ namespace vopat {
                                          const small_vec3f *inputs,
                                          int islandSize)
   {
+    CUDA_SYNC_CHECK();
     vec2i tileSize = 32;
     const vec2i numTiles = divRoundUp(ourRegionSize,tileSize);
     // const int islandSize = comm->worker.withinIsland->size;
-    if (area(numTiles) > 0)
-      cudaComposeRegion<<<tileSize,numTiles>>>
+    if (numTiles.x*numTiles.y > 0)
+      cudaComposeRegion<<<numTiles,tileSize>>>
         (inputs,ourRegionSize,islandSize,
          results,
          false);
+    CUDA_SYNC_CHECK();
   }
   
   void AddWorkersRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
     Renderer::resizeFrameBuffer(newSize);
-
+    this->fbSize = newSize;
+    
     if (comm->isMaster) {
       masterFB.resize(newSize.x*newSize.y);
     } else {
@@ -104,7 +107,9 @@ namespace vopat {
       islandFbSize.y
         = (fullFbSize.y / numIslands)
         + (islandIdx < (fullFbSize.y % numIslands));
-    
+
+      PRINT(islandFbSize);
+      PRINT(fbSize);
       // ... and resize the local accum buffer
       // if (localAccumBuffer)
       //   CUDA_CALL(FreeMPI(localAccumBuffer));
@@ -151,12 +156,18 @@ namespace vopat {
       assert(fbPointer);
       assert(fbSize.x > 0);
       assert(fbSize.y > 0);
+      // CUDA_SYNC_CHECK();
+      // printf("(M) %i %i N %i\b",fbSize.x,fbSize.y,(int)masterFB.N);fflush(0);
       comm->master.toWorkers->indexedGather
         (masterFB.get(),//fbPointer,
          fbSize.x*sizeof(uint32_t),
          fbSize.y);
+      // CUDA_SYNC_CHECK();
+      // printf("(M) DONE %i %i N %i\b",fbSize.x,fbSize.y,(int)masterFB.N);fflush(0);
+#if 1
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fbSize.x*fbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
+#endif
       CUDA_SYNC_CHECK();
     } else {
       // ------------------------------------------------------------------
@@ -216,6 +227,8 @@ namespace vopat {
       //               // islandSize,
       //               // accumID,
       //               compResultMemory.get());
+      PING; PRINT(compResultMemory.N);
+#if 1
       composeRegion(compResultMemory.get(),
                     ourRegionSize,
                     compInputsMemory.get(),// ,ourRegionSize
@@ -224,7 +237,7 @@ namespace vopat {
                     islandSize
                     );
       CUDA_SYNC_CHECK();
-    
+#endif
       // ------------------------------------------------------------------
       // step 3: send to master ...
       // ------------------------------------------------------------------
@@ -237,11 +250,13 @@ namespace vopat {
         blockTags[iy] = global_y;
         blockPointers[iy] = ((char *)compResultMemory.get())+iy*sizeOfLine;
       }
+      PING; PRINT(ourRegionSize); fflush(0);
       comm->worker.toMaster->indexedGatherSend
         (ourRegionSize.y,
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
+      PING; fflush(0);
     }
   }
 
