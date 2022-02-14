@@ -108,8 +108,6 @@ namespace vopat {
         = (fullFbSize.y / numIslands)
         + (islandIdx < (fullFbSize.y % numIslands));
 
-      PRINT(islandFbSize);
-      PRINT(fbSize);
       // ... and resize the local accum buffer
       // if (localAccumBuffer)
       //   CUDA_CALL(FreeMPI(localAccumBuffer));
@@ -156,19 +154,13 @@ namespace vopat {
       assert(fbPointer);
       assert(fbSize.x > 0);
       assert(fbSize.y > 0);
-      // CUDA_SYNC_CHECK();
-      // printf("(M) %i %i N %i\b",fbSize.x,fbSize.y,(int)masterFB.N);fflush(0);
       comm->master.toWorkers->indexedGather
-        (masterFB.get(),//fbPointer,
+        (masterFB.get(),
          fbSize.x*sizeof(uint32_t),
          fbSize.y);
-      // CUDA_SYNC_CHECK();
-      // printf("(M) DONE %i %i N %i\b",fbSize.x,fbSize.y,(int)masterFB.N);fflush(0);
-#if 1
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fbSize.x*fbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
-#endif
-      CUDA_SYNC_CHECK();
+      // CUDA_SYNC_CHECK();
     } else {
       // ------------------------------------------------------------------
       // step 0: clients render into their owl local frame buffers
@@ -222,22 +214,12 @@ namespace vopat {
       // step 2: compose locally (optix backend uses cuda)
       // ------------------------------------------------------------------
       const vec2i ourRegionSize(islandFbSize.x,ourLineCount);
-      // composeRegion(ourRegionSize,
-      //               compInputsMemory.get(),// ,ourRegionSize
-      //               // islandSize,
-      //               // accumID,
-      //               compResultMemory.get());
-      PING; PRINT(compResultMemory.N);
-#if 1
       composeRegion(compResultMemory.get(),
                     ourRegionSize,
-                    compInputsMemory.get(),// ,ourRegionSize
-                    // islandSize,
-                    // accumID,
+                    compInputsMemory.get(),
                     islandSize
                     );
       CUDA_SYNC_CHECK();
-#endif
       // ------------------------------------------------------------------
       // step 3: send to master ...
       // ------------------------------------------------------------------
@@ -250,13 +232,11 @@ namespace vopat {
         blockTags[iy] = global_y;
         blockPointers[iy] = ((char *)compResultMemory.get())+iy*sizeOfLine;
       }
-      PING; PRINT(ourRegionSize); fflush(0);
       comm->worker.toMaster->indexedGatherSend
         (ourRegionSize.y,
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
-      PING; fflush(0);
     }
   }
 

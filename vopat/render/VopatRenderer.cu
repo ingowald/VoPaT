@@ -103,7 +103,6 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      PRINT(newSize);
       // localFB.resize(newSize.x*newSize.y);
       // globals.fbPointer = localFB.get();
       accumBuffer.resize(newSize.x*newSize.y);
@@ -175,18 +174,8 @@ namespace vopat {
   {
     int closest = -1;
     float t_min = CUDART_INF;
-    // if (dbg) printf("init ray %f %f %f dir %f %f %f\n",
-    //                ray.origin.x,
-    //                ray.origin.y,
-    //                ray.origin.z,
-    //                from_half(ray.direction.x),
-    //                from_half(ray.direction.y),
-    //                from_half(ray.direction.z)
-    //                );
     for (int i=0;i<globals.numWorkers;i++) {
       if (boxTest(globals.rankBoxes[i],ray,t_min)) {
-        // if (dbg) printf("(%i) new closest %i %f\n",
-        //                 globals.myRank,i,t_min);
         closest = i;
       }
     }
@@ -203,17 +192,12 @@ namespace vopat {
     int myRank = globals.myRank;
     Ray ray    = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
     ray.dbg    = (vec2i(ix,iy) == globals.fbSize/2);
-    if (ray.dbg) printf("DEBUGGING ON %i %i\n",ix,iy);
     int dest   = computeInitialRank(globals,ray);
 
-    if (ray.dbg)
-      printf("(%i) dest %i\n",globals.myRank,dest);
-    
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */
       if (myRank == 0) {
         globals.accumBuffer[ray.pixelID] += vec3f(.5f,.5f,.5f);
-        // globals.fbPointer[ray.pixelID] = to_half(vec3f(.5f,.5f,.5f));
       }
       return;
     }
@@ -222,10 +206,7 @@ namespace vopat {
       return;
     }
     int queuePos = atomicAdd(&globals.perRankSendCounts[myRank],1);
-    if (ray.dbg)
-      printf("(%i) primary wave -> slot %i\n",globals.myRank,queuePos);
     globals.rayQueueIn[queuePos] = ray;
-    // globals.accu[ray.pixelID] = to_half(randomColor(myRank));
   }
     
   __global__ void writeLocalFB(small_vec3f *localFB, Globals globals)
@@ -242,10 +223,6 @@ namespace vopat {
     
   void VopatRenderer::renderLocal()
   {
-#if 0
-    localFB.bzero();
-    return;
-#endif
     globals.sampleID = accumID;
     
     vec2i blockSize(16);
@@ -257,17 +234,17 @@ namespace vopat {
     host_sendCounts = perRankSendCounts.download();
     numRaysInQueue = host_sendCounts[myRank()];
 
-#if 1
-    fflush(0);
-    comm->worker.withinIsland->barrier();
-    printf("(%i) init num rays in q %i color %f %f %f\n",myRank(),numRaysInQueue,
-           randomColor(myRank()).x,
-           randomColor(myRank()).y,
-           randomColor(myRank()).z
-           );
-    comm->worker.withinIsland->barrier();
-    fflush(0);
-#endif
+// #if 1
+//     fflush(0);
+//     comm->worker.withinIsland->barrier();
+//     printf("(%i) init num rays in q %i color %f %f %f\n",myRank(),numRaysInQueue,
+//            randomColor(myRank()).x,
+//            randomColor(myRank()).y,
+//            randomColor(myRank()).z
+//            );
+//     comm->worker.withinIsland->barrier();
+//     fflush(0);
+// #endif
 
     
     CUDA_SYNC_CHECK();
@@ -288,11 +265,11 @@ namespace vopat {
       writeLocalFB<<<numBlocks,blockSize>>>(localFB.get(),globals);
     CUDA_SYNC_CHECK();
 
-#if 1
-    fflush(0);
-    comm->worker.withinIsland->barrier();
-    fflush(0);
-#endif
+// #if 1
+//     fflush(0);
+//     comm->worker.withinIsland->barrier();
+//     fflush(0);
+// #endif
   }
   
   void VopatRenderer::screenShot()
@@ -302,6 +279,12 @@ namespace vopat {
     if (isMaster()) {
       fileName = fileName + "_master.png";
       pixels = masterFB.download();
+      for (int iy=0;iy<fbSize.y/2;iy++) {
+        uint32_t *top = pixels.data() + iy * fbSize.x;
+        uint32_t *bot = pixels.data() + (fbSize.y-1-iy) * fbSize.x;
+        for (int ix=0;ix<fbSize.x;ix++)
+          std::swap(top[ix],bot[ix]);
+      }
     } else {
       char suff[100];
       sprintf(suff,"_island%03i_rank%05i.png",
@@ -330,9 +313,9 @@ namespace vopat {
                                         const float t_exit)
   {
     vec3f P = ray.origin + from_half(ray.direction) * (t_exit * (1.f+1e-3f));
-    if (ray.dbg)
-      printf("(%i) next query P %f %f %f\n",
-             globals.myRank,P.x,P.y,P.z);
+    // if (ray.dbg)
+    //   printf("(%i) next query P %f %f %f\n",
+    //          globals.myRank,P.x,P.y,P.z);
     for (int i=0;i<globals.numWorkers;i++)
       if (i != globals.myRank && globals.rankBoxes[i].contains(P))
         return i;
@@ -355,22 +338,17 @@ namespace vopat {
     ray.throughput = to_half(throughput);
 
     int nextNode = computeNextNode(globals,ray,t1);
-    if (ray.dbg)
-      printf("(%i) next node %i\n",globals.myRank,nextNode);
 
     if (nextNode == -1) {
-      // printf("adding %f %f %f in %f %f %f : %f\n",
-      //        ray.color.x,ray.color.y,ray.color.z,
-      //        in_color.x,in_color.y,in_color.z,
-      //        in_alpha);
+      // path exits volume - deposit to image
       addToFB(&globals.accumBuffer[ray.pixelID],throughput);
+      globals.rayNextNode[tid] = -1;
     } else {
-      // volume itself emits:
-      // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
+      // ray has another node to go to - add to queue
       atomicAdd(&globals.perRankSendCounts[nextNode],1);
+      globals.rayQueueIn[tid]  = ray;
+      globals.rayNextNode[tid] = nextNode;
     }
-    globals.rayQueueIn[tid]  = ray;
-    globals.rayNextNode[tid] = nextNode;
   }
   
   void VopatRenderer::traceRaysLocally()
@@ -432,13 +410,6 @@ namespace vopat {
     std::vector<int> allRankSendCounts(numWorkers*numWorkers);
     island->allGather(allRankSendCounts,host_sendCounts);
 
-    std::stringstream ss;
-    ss << "(" << myRank << ") : ";
-    for (auto i : allRankSendCounts)
-      ss << i << " ";
-    ss << std::endl;
-    std::cout << ss.str();
-
     // ------------------------------------------------------------------
     // compute SEND counts and offsets
     // ------------------------------------------------------------------
@@ -486,29 +457,29 @@ namespace vopat {
     // ------------------------------------------------------------------
     int sumAllSends = 0;
     for (auto i : allRankSendCounts) sumAllSends += i;
-    printf("(%i) ----- sum all sends %i\n",myRank,sumAllSends);
+    // printf("(%i) ----- sum all sends %i\n",myRank,sumAllSends);
 
 
     
 
-    for (int r=0;r<numWorkers;r++) {
-      comm->worker.withinIsland->barrier();
-      if (r == globals.myRank) {
-        std::cout << "(" << r << ") IN:  ";
-        for (int i=0;i<numWorkers;i++)
-          std::cout << (recvByteCounts[i]/sizeof(Ray)) << " ";
-        std::cout << std::endl;
-        std::cout << "(" << r << ") OUT: ";
-        for (int i=0;i<numWorkers;i++)
-          std::cout << (sendByteCounts[i]/sizeof(Ray)) << " ";
-        std::cout << std::endl;
-        std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
-        if (r == 0)
-          std::cout << "-------------------------------------------------------" << std::endl;
-        fflush(0);
-      }
-      comm->worker.withinIsland->barrier();
-    }
+    // for (int r=0;r<numWorkers;r++) {
+    //   comm->worker.withinIsland->barrier();
+    //   if (r == globals.myRank) {
+    //     std::cout << "(" << r << ") IN:  ";
+    //     for (int i=0;i<numWorkers;i++)
+    //       std::cout << (recvByteCounts[i]/sizeof(Ray)) << " ";
+    //     std::cout << std::endl;
+    //     std::cout << "(" << r << ") OUT: ";
+    //     for (int i=0;i<numWorkers;i++)
+    //       std::cout << (sendByteCounts[i]/sizeof(Ray)) << " ";
+    //     std::cout << std::endl;
+    //     std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
+    //     if (r == 0)
+    //       std::cout << "-------------------------------------------------------" << std::endl;
+    //     fflush(0);
+    //   }
+    //   comm->worker.withinIsland->barrier();
+    // }
 
 
 
