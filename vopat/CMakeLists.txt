@@ -56,4 +56,4 @@ target_link_libraries(vopatViewer
   owl_viewer
   MPI::MPI_CXX
   )
-
+set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
