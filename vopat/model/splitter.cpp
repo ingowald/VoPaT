@@ -24,7 +24,8 @@ namespace vopat {
     const int inputRank = rank;
     box3i region{vec3i(0),inputSize-vec3i(1)};
     while (1) {
-      if (numRanks == 1) return Brick::create(inputRank,inputSize,region);
+      if (numRanks == 1)
+        return Brick::create(inputRank,inputSize,region);
       
       int lCount = numRanks / 2;
       int rCount = numRanks - lCount;
@@ -119,7 +120,8 @@ int main(int ac, char **av)
       throw std::runtime_error("unsupported raw format");
     std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);
     std::ofstream out(outFileName,std::ios::binary);
-    write(out,scalars);
+    // write(out,scalars);
+    out.write((const char *)scalars.data(),scalars.size()*sizeof(scalars[0]));
     std::cout << OWL_TERMINAL_GREEN
               << " -> " << outFileName
               << OWL_TERMINAL_DEFAULT << std::endl;

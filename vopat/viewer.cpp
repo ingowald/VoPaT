@@ -39,10 +39,19 @@ namespace vopat {
   struct {
     int spp = 1; //4;
     struct {
+#if 0
+      // auto-generate
       vec3f vp = vec3f(0.f);
       vec3f vu = vec3f(0.f);
       vec3f vi = vec3f(0.f);
       float fovy = 70;
+#else
+      // magnetic
+      vec3f vp = vec3f(-0.1957508922f, 1.78088963f, 1.166904449f);
+      vec3f vi = vec3f(0.4999998808f, 0.4999995232f, 0.5000001788f );
+      vec3f vu = vec3f(0.f,0.f,1.f);
+      float fovy = 70;
+#endif
     } camera;
     vec2i windowSize  = vec2i(1024,1024);
     float windowScale = 1.f;

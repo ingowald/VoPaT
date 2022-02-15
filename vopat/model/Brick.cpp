@@ -50,14 +50,20 @@ namespace vopat {
     std::ifstream in(rawFileName);
     std::vector<float> voxels(volume(numVoxels));
     std::vector<T> line(numVoxels.x);
+    PRINT(numVoxelsParent);
+    PRINT(rawFileName);
+    PRINT(voxelRange);
+    PRINT(numVoxels);
     for (int iz=0;iz<numVoxels.z;iz++)
       for (int iy=0;iy<numVoxels.y;iy++) {
         size_t idxOfs
           = (voxelRange.lower.z+iz) * size_t(numVoxelsParent.x) * size_t(numVoxelsParent.y)
-          + (voxelRange.lower.y+iy) * size_t(numVoxelsParent.x);
-        in.seekg(idxOfs*sizeof(float),std::ios::beg);
+          + (voxelRange.lower.y+iy) * size_t(numVoxelsParent.x)
+          + (voxelRange.lower.x+ 0) * size_t(1);
+        in.seekg(idxOfs*sizeof(T),std::ios::beg);
         in.read((char *)line.data(),
                 numVoxels.x * sizeof(T));
+        // PING; PRINT(idxOfs); PRINT(line[0]);
         for (int ix=0;ix<numVoxels.x;ix++)
           voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = float(line[ix]);
       }
@@ -67,13 +73,14 @@ namespace vopat {
   std::string Brick::toString() const
   {
     std::stringstream ss;
-    ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << "}";
+    ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << ", numVox=" << numVoxels << "}";
     return ss.str();
   }
 
   /*! load a given time step and variable's worth of voxels from given file name */
   std::vector<float> Brick::load(const std::string &fileName)
   {
+    PING; PRINT(fileName);
     std::ifstream in(fileName,std::ios::binary);
     if (!in) throw std::runtime_error("could not open '"+fileName+"'");
     std::vector<float> loadedVoxels;

@@ -457,6 +457,7 @@ namespace vopat {
   template<typename T>
   void VopatRenderer<T>::traceRaysLocally()
   {
+    CUDA_SYNC_CHECK();
     nodeRenderer->traceLocally(globals);
 #if 0
     int blockSize = 1024;
