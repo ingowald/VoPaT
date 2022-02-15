@@ -19,6 +19,10 @@
 
 #define MPI_CALL(a) MPI_##a;
 
+#ifdef WIN32
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)  
+#endif
+
 namespace vopat {
 
   typedef enum { MPI_SPLIT_KEY_MASTER, MPI_SPLIT_KEY_ISLANDS } MPISplitKeyConstants;
