@@ -20,7 +20,7 @@
 
 namespace vopat {
 
-  /*! a "brick" refers to a sub-region of a larger (structured)
+  /*! a "brick" refers to a sub-range of a larger (structured)
     volume, such that the entirety of all bricks conver all of the
     input volume's cells, and as such all share one "boundary"
     layer of voxels */
@@ -50,10 +50,13 @@ namespace vopat {
 
     std::string toString() const;
     
-    /*! loads this brick's voxels from a raw file */
-    template<typename T>
+    /*! loads this brick's voxels - ie, only a range of the full file - from a raw file */
+    template<typename T=float>
     std::vector<float> loadRegionRAW(const std::string &rawFileName);
 
+    /*! load a given time step and variable's worth of voxels from given file name */
+    std::vector<float> load(const std::string &fileName);
+    
     /*! linear numbering of this brick, relative to all bricks in the parent model */
     const int ID;
     box3i voxelRange;

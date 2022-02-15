@@ -71,6 +71,17 @@ namespace vopat {
     return ss.str();
   }
 
+  /*! load a given time step and variable's worth of voxels from given file name */
+  std::vector<float> Brick::load(const std::string &fileName)
+  {
+    std::ifstream in(fileName,std::ios::binary);
+    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
+    std::vector<float> loadedVoxels;
+    loadedVoxels.resize(volume(numVoxels));
+    in.read((char*)loadedVoxels.data(),volume(numVoxels)*sizeof(float));
+    return loadedVoxels;
+  }
+
   template std::vector<float> Brick::loadRegionRAW<float>(const std::string &rawFileName);
   template std::vector<float> Brick::loadRegionRAW<uint8_t>(const std::string &rawFileName);   
 }

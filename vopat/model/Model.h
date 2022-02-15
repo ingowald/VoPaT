@@ -26,10 +26,24 @@ namespace vopat {
 
     static SP create() { return std::make_shared<Model>(); }
     static SP load(const std::string &fileName);
-    
+
     void save(const std::string &fileName);
+
+    /*! given a base file name prefix (including directory name, if
+        desired), return a canonical file name for the master model
+        file */
+    static std::string canonicalMasterFileName(const std::string &baseName);
     
-    std::vector<Brick::SP> bricks;
+    /*! given a base file name prefix (including directory name, if
+        desired), return a canonical file name for the data file for
+        the 'rankID'th rank */
+    static std::string canonicalRankFileName(const std::string &baseName,
+                                             int rankID,
+                                             const std::string &variable = "unknown",
+                                             int timeStep = 0);
+
+    std::vector<Brick::SP>   bricks;
+    
     vec3i                  numVoxelsTotal;
   };
 

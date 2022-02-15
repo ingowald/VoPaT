@@ -3,12 +3,9 @@
 
 namespace vopat {
 
-  struct SimpleNodeRenderer {
+  struct TrivialNodeRenderer {
     struct OwnGlobals {
       box3f *rankBoxes;
-      box3f  myRegion;
-      float *myVoxels;
-      vec3i  mySize;
     };
     
     struct Ray {
@@ -22,39 +19,24 @@ namespace vopat {
       small_vec3f throughput;
     };
 
-    using VopatGlobals = typename VopatRenderer<SimpleNodeRenderer>::Globals;
+    using VopatGlobals = typename VopatRenderer<TrivialNodeRenderer>::Globals;
     
-    SimpleNodeRenderer(Model::SP model,
-                       const std::string &baseFileName,
-                       int myRank)
+    TrivialNodeRenderer(Model::SP model)
     {
-      if (myRank < 0)
-        return;
-      
       // ------------------------------------------------------------------
       // upload per-rank boxes
       // ------------------------------------------------------------------
+
       std::vector<box3f> hostRankBoxes;
       for (auto brick : model->bricks)
         hostRankBoxes.push_back(brick->spaceRange);
       rankBoxes.upload(hostRankBoxes);
-      globals.rankBoxes = rankBoxes.get();
-
-      myBrick = model->bricks[myRank];
-      const std::string fileName = Model::canonicalRankFileName(baseFileName,myRank);
-      std::vector<float> loadedVoxels = myBrick->load(fileName);
-      
-      voxels.upload(loadedVoxels);
-      globals.myVoxels = voxels.get();
-      globals.mySize   = myBrick->voxelRange.size();
-      globals.myRegion = myBrick->spaceRange;
+      ownGlobals.rankBoxes = rankBoxes.get();
     };
 
     /*! one box per rank, which rays can use to find neext rank to send to */
     CUDAArray<box3f> rankBoxes;
-    OwnGlobals       globals;
-    Brick::SP        myBrick;
-    CUDAArray<float> voxels;
+    OwnGlobals       ownGlobals;
 
     void generatePrimaryWave(const VopatGlobals &globals);
     void traceLocally(const VopatGlobals &globals);
@@ -90,7 +72,7 @@ namespace vopat {
   { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
   
   inline __device__
-  bool boxTest(box3f box, SimpleNodeRenderer::Ray ray, float &t_min)
+  bool boxTest(box3f box, TrivialNodeRenderer::Ray ray, float &t_min)
   {
     vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
     vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
@@ -107,7 +89,7 @@ namespace vopat {
   }
 
   inline __device__
-  void clipRay(box3f box, SimpleNodeRenderer::Ray ray, float &t_min, float &t_max)
+  void clipRay(box3f box, TrivialNodeRenderer::Ray ray, float &t_min, float &t_max)
   {
     vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
     vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
@@ -123,9 +105,9 @@ namespace vopat {
   }
   
   inline __device__
-  int SimpleNodeRenderer::computeInitialRank(const SimpleNodeRenderer::VopatGlobals &vopat,
-                                             const SimpleNodeRenderer::OwnGlobals &globals,
-                                             SimpleNodeRenderer::Ray ray,
+  int TrivialNodeRenderer::computeInitialRank(const TrivialNodeRenderer::VopatGlobals &vopat,
+                                             const TrivialNodeRenderer::OwnGlobals &globals,
+                                             TrivialNodeRenderer::Ray ray,
                                              bool dbg)
   {
     int closest = -1;
@@ -140,13 +122,13 @@ namespace vopat {
   
 
 
-  __global__ void doTraceRaysLocally(SimpleNodeRenderer::VopatGlobals vopat,
-                                     SimpleNodeRenderer::OwnGlobals   globals)
+  __global__ void doTraceRaysLocally(TrivialNodeRenderer::VopatGlobals vopat,
+                                     TrivialNodeRenderer::OwnGlobals   globals)
   {
     int tid = threadIdx.x+blockIdx.x*blockDim.x;
     if (tid >= vopat.numRaysInQueue) return;
 
-    SimpleNodeRenderer::Ray ray = vopat.rayQueueIn[tid];
+    TrivialNodeRenderer::Ray ray = vopat.rayQueueIn[tid];
     const box3f myBox = globals.rankBoxes[vopat.myRank];
     float t0, t1;
     clipRay(myBox,ray,t0,t1);
@@ -155,7 +137,7 @@ namespace vopat {
     throughput *= randomColor(vopat.myRank);
     ray.throughput = to_half(throughput);
 
-    int nextNode = SimpleNodeRenderer::computeNextNode(vopat,globals,ray,t1);
+    int nextNode = TrivialNodeRenderer::computeNextNode(vopat,globals,ray,t1);
 
     if (nextNode == -1) {
       // path exits volume - deposit to image
@@ -172,22 +154,22 @@ namespace vopat {
     }
   }
   
-  void SimpleNodeRenderer::traceLocally(const SimpleNodeRenderer::VopatGlobals &vopat)
+  void TrivialNodeRenderer::traceLocally(const TrivialNodeRenderer::VopatGlobals &vopat)
   {
     int blockSize = 1024;
     int numBlocks = divRoundUp(vopat.numRaysInQueue,blockSize);
     if (numBlocks)
       doTraceRaysLocally<<<numBlocks,blockSize>>>
-        (vopat,globals);
+        (vopat,ownGlobals);
   }
 
 
-  inline __device__ SimpleNodeRenderer::Ray
-  generateRay(const SimpleNodeRenderer::VopatGlobals &globals,
+  inline __device__ TrivialNodeRenderer::Ray
+  generateRay(const TrivialNodeRenderer::VopatGlobals &globals,
               vec2i pixelID,
               vec2f pixelPos)
   {
-    SimpleNodeRenderer::Ray ray;
+    TrivialNodeRenderer::Ray ray;
     ray.pixelID  = pixelID.x + globals.fbSize.x*pixelID.y;
     ray.isShadow = false;
     ray.origin = globals.camera.lens_00;
@@ -203,8 +185,8 @@ namespace vopat {
 
 
   __global__
-  void doGeneratePrimaryWave(SimpleNodeRenderer::VopatGlobals vopat,
-                             SimpleNodeRenderer::OwnGlobals   globals)
+  void doGeneratePrimaryWave(TrivialNodeRenderer::VopatGlobals vopat,
+                             TrivialNodeRenderer::OwnGlobals   globals)
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
@@ -212,9 +194,9 @@ namespace vopat {
     if (iy >= vopat.fbSize.y) return;
 
     int myRank = vopat.myRank;
-    SimpleNodeRenderer::Ray ray    = generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
+    TrivialNodeRenderer::Ray ray    = generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
     ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
-    int dest   = SimpleNodeRenderer::computeInitialRank(vopat,globals,ray);
+    int dest   = TrivialNodeRenderer::computeInitialRank(vopat,globals,ray);
 
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */
@@ -231,19 +213,25 @@ namespace vopat {
     vopat.rayQueueIn[queuePos] = ray;
   }
   
-  void SimpleNodeRenderer::generatePrimaryWave(const SimpleNodeRenderer::VopatGlobals &vopat)
+  void TrivialNodeRenderer::generatePrimaryWave(const TrivialNodeRenderer::VopatGlobals &vopat)
   {
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(vopat.fbSize,blockSize);
-    doGeneratePrimaryWave<<<numBlocks,blockSize>>>(vopat,globals);
+    doGeneratePrimaryWave<<<numBlocks,blockSize>>>(vopat,ownGlobals);
   }
 
-  Renderer *createSimpleNodeRenderer(CommBackend *comm,
-                                     Model::SP model,
-                                     const std::string &fileNameBase,
-                                     int rank)
+
+#if 0
+
+
+  
+
+
+#endif
+
+  Renderer *createTrivialNodeRenderer(CommBackend *comm, Model::SP model)
   {
-    SimpleNodeRenderer *nodeRenderer = new SimpleNodeRenderer(model,fileNameBase,rank);
-    return new VopatRenderer<SimpleNodeRenderer>(comm,nodeRenderer);
+    TrivialNodeRenderer *nodeRenderer = new TrivialNodeRenderer(model);
+    return new VopatRenderer<TrivialNodeRenderer>(comm,nodeRenderer);
   }
 }

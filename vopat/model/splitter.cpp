@@ -104,7 +104,7 @@ int main(int ac, char **av)
     std::cout << "... created brick " << model->bricks.back()->toString() << std::endl;
   }
   std::cout << "saving meta..." << std::endl;
-  model->save(outFileBase+".vopat");
+  model->save(Model::canonicalMasterFileName(outFileBase));
 
   int timeStep = 0;
   std::string variable = "unknown";
@@ -117,11 +117,7 @@ int main(int ac, char **av)
       scalars = brick->loadRegionRAW<uint8_t>(inFileName);
     else
       throw std::runtime_error("unsupported raw format");
-    char ts[100];
-    sprintf(ts,"%05i",timeStep);
-    char bid[100];
-    sprintf(bid,"%05i",brick->ID);
-    std::string outFileName = outFileBase+"__"+variable+"__t"+ts+".b"+bid+".brick";
+    std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);
     std::ofstream out(outFileName,std::ios::binary);
     write(out,scalars);
     std::cout << OWL_TERMINAL_GREEN

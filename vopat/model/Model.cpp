@@ -20,6 +20,29 @@
 
 namespace vopat {
 
+  /*! given a base file name prefix (including directory name, if
+    desired), return a canonical file name for the master model
+    file */
+  std::string Model::canonicalMasterFileName(const std::string &baseName)
+  {
+    return baseName+".vopat";
+  }
+    
+  /*! given a base file name prefix (including directory name, if
+    desired), return a canonical file name for the data file for
+    the 'rankID'th rank */
+  std::string Model::canonicalRankFileName(const std::string &baseName,
+                                           int rankID,
+                                           const std::string &variable,
+                                           int timeStep)
+  {
+    char ts[100];
+    sprintf(ts,"%05i",timeStep);
+    char bid[100];
+    sprintf(bid,"%05i",rankID);
+    return baseName+"__"+variable+"__t"+ts+".b"+bid+".brick";
+  }
+
   void Model::save(const std::string &fileName)
   {
     std::cout << OWL_TERMINAL_BLUE

@@ -30,7 +30,11 @@
 
 namespace vopat {
   
-  Renderer *createSimpleNodeRenderer(CommBackend *comm, Model::SP model);
+  Renderer *createTrivialNodeRenderer(CommBackend *comm, Model::SP model);
+  Renderer *createSimpleNodeRenderer(CommBackend *comm,
+                                     Model::SP model,
+                                     const std::string &fileNameBase,
+                                     int rank);
   
   struct {
     int spp = 1; //4;
@@ -237,15 +241,18 @@ namespace vopat {
       //   inFileBase = inFileBase+"_";
       // MasterScene::SP masterScene = MasterScene::load(inFileBase+"master.summ");
       MPIBackend mpiBackend(argc,argv,0);
-      Model::SP model = Model::load(inFileBase+".vopat");
+      Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
       const bool isMaster = mpiBackend.isMaster;
+      int myRank = mpiBackend.myRank();
       Renderer *renderer
-        = createSimpleNodeRenderer(&mpiBackend,model);
+        // = createTrivialNodeRenderer(&mpiBackend,model);
+        = createSimpleNodeRenderer(&mpiBackend,model,
+                                   inFileBase,myRank);
 
       if (!isMaster) {
-        const int myRank = mpiBackend.worker.withinIsland->rank;
+        // const int myRank = mpiBackend.worker.withinIsland->rank;
         // Brick::SP rankData = model->bricks[myRank];
           // = scene::PartialScene::loadRank(inFileBase,myRank);
         // localScene->selfCheck();
