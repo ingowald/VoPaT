@@ -100,25 +100,25 @@ namespace vopat {
   vec3f fixDir(vec3f v)
   { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
   
-  inline __device__
-  bool boxTest(box3f box, SimpleNodeRenderer::Ray ray, float &t_min)
-  {
-    vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
-    vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+  // inline __device__
+  // bool boxTest(box3f box, SimpleNodeRenderer::Ray ray, float &t_min)
+  // {
+  //   vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+  //   vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
     
-    vec3f t_nr = min(t_lo,t_hi);
-    vec3f t_fr = max(t_lo,t_hi);
+  //   vec3f t_nr = min(t_lo,t_hi);
+  //   vec3f t_fr = max(t_lo,t_hi);
 
-    float t0 = max(0.f,reduce_max(t_nr));
-    float t1 = min(t_min,reduce_min(t_fr));
+  //   float t0 = max(0.f,reduce_max(t_nr));
+  //   float t1 = min(t_min,reduce_min(t_fr));
 
-    if (t0 >= t1) return false;
-    t_min = t0;
-    return true;
-  }
+  //   if (t0 >= t1) return false;
+  //   t_min = t0;
+  //   return true;
+  // }
 
   inline __device__
-  bool boxTest(box3f box, SimpleNodeRenderer::Ray ray, float t0, float t1, float &t_min)
+  bool boxTest(box3f box, SimpleNodeRenderer::Ray ray, float &t0, float &t1)
   {
     vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
     vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
@@ -129,56 +129,46 @@ namespace vopat {
     t0 = max(t0,reduce_max(t_nr));
     t1 = min(t1,reduce_min(t_fr));
 
-    if (t0 >= t1) return false;
-    t_min = t0;
-    return true;
+    return (t0 < t1);
   }
 
   
-  inline __device__
-  void clipRay(box3f box, SimpleNodeRenderer::Ray ray, float &t_min, float &t_max)
-  {
-    vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
-    vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+  // inline __device__
+  // void clipRay(box3f box, SimpleNodeRenderer::Ray ray, float &t_min, float &t_max)
+  // {
+  //   vec3f t_lo = (box.lower - ray.origin) * rcp(fixDir(from_half(ray.direction)));
+  //   vec3f t_hi = (box.upper - ray.origin) * rcp(fixDir(from_half(ray.direction)));
     
-    vec3f t_nr = min(t_lo,t_hi);
-    vec3f t_fr = max(t_lo,t_hi);
+  //   vec3f t_nr = min(t_lo,t_hi);
+  //   vec3f t_fr = max(t_lo,t_hi);
 
-    float t0 = max(0.f,reduce_max(t_nr));
-    float t1 = reduce_min(t_fr);
+  //   float t0 = max(0.f,reduce_max(t_nr));
+  //   float t1 = reduce_min(t_fr);
 
-    t_min = t0;
-    t_max = t1;
-  }
+  //   t_min = t0;
+  //   t_max = t1;
+  // }
   
   inline __device__
   int SimpleNodeRenderer::computeNextNode(const VopatGlobals &vopat,
                                           const OwnGlobals &globals,
                                           const Ray &ray,
-                                          const float t_exit)
+                                          const float t_already_travelled)
   {
-#if 1
     int closest = -1;
     float t_closest = CUDART_INF;
     for (int i=0;i<vopat.numWorkers;i++) {
       if (i == vopat.myRank) continue;
 
-      float t_min = t_exit;
-      float t_max = t_closest;
-      if (!boxTest(globals.rankBoxes[i],ray,t_min,t_max,t_closest))
+      float t0 = t_already_travelled;
+      float t1 = t_closest; 
+      if (!boxTest(globals.rankBoxes[i],ray,t0,t1))
         continue;
+      t_closest = t0;
       closest = i;
     }
     if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.myRank,closest);
     return closest;
-#else
-      
-    vec3f P = ray.origin + from_half(ray.direction) * (t_exit * (1.f+1e-5f));
-    for (int i=0;i<vopat.numWorkers;i++)
-      if (i != vopat.myRank && globals.rankBoxes[i].contains(P))
-        return i;
-    return -1;
-#endif
   }
 
   inline __device__
@@ -187,29 +177,18 @@ namespace vopat {
                                              SimpleNodeRenderer::Ray ray,
                                              bool dbg)
   {
-#if 1
     int closest = -1;
     float t_closest = CUDART_INF;
     for (int i=0;i<vopat.numWorkers;i++) {
       float t_min = 0.f;
       float t_max = t_closest;
-      if (!boxTest(globals.rankBoxes[i],ray,t_min,t_max,t_closest))
+      if (!boxTest(globals.rankBoxes[i],ray,t_min,t_max))
         continue;
       closest = i;
+      t_closest = t_min;
     }
     if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
     return closest;
-#else
-    int closest = -1;
-    float t_min = CUDART_INF;
-    for (int i=0;i<vopat.numWorkers;i++) {
-      if (boxTest(globals.rankBoxes[i],ray,t_min)) {
-        closest = i;
-      }
-    }
-    if (ray.dbg) printf("(%i) initial rank is %i\n",vopat.myRank,closest);
-    return closest;
-#endif
   }
   
 
@@ -226,28 +205,44 @@ namespace vopat {
     vec3f dir  = from_half(ray.direction);
     
     const box3f myBox = globals.rankBoxes[vopat.myRank];
-    float t0, t1;
-    clipRay(myBox,ray,t0,t1);
+    float t0 = 0.f, t1 = CUDART_INF;
+    boxTest(myBox,ray,t0,t1);
 
     if (ray.dbg) printf("(%i) tracing locally (%f %f)\n",vopat.myRank,t0,t1);
     
     const float dt = .001f;
-    const float DENSITY = 1.1f;
+    const float DENSITY = 1.5f;//10000.f;
     
     Random rnd(ray.pixelID,vopat.sampleID);
     int step = 0;
+    vec3i numVoxels = globals.numVoxels;
+    vec3i numCells = numVoxels - 1;
     for (float t = (int(t0/dt)+rnd()) * dt; t < t1; t += dt, ++step) {
+      if (t < 0.f) continue;
+      
       vec3f P = org + t * dir;
       vec3f relPos = (P - globals.myRegion.lower) * rcp(globals.myRegion.size());
-      vec3i cellID = vec3i(relPos * vec3f(globals.numVoxels));
-      if (cellID.x < 0 || cellID.x >= globals.numVoxels.x ||
-          cellID.y < 0 || cellID.y >= globals.numVoxels.y ||
-          cellID.z < 0 || cellID.z >= globals.numVoxels.z) continue;
+      if (relPos.x < 0.f) continue;
+      if (relPos.y < 0.f) continue;
+      if (relPos.z < 0.f) continue;
+      vec3i cellID = vec3i(relPos * vec3f(numCells));
+      if (cellID.x < 0 || (cellID.x >= numCells.x) ||
+          cellID.y < 0 || (cellID.y >= numCells.y) ||
+          cellID.z < 0 || (cellID.z >= numCells.z)) continue;
       float f = globals.myVoxels[cellID.x
-                                 +globals.numVoxels.x*(cellID.y
-                                                       +globals.numVoxels.y*cellID.z)];
-      if (ray.dbg && step == 10) printf("(%i) step %i val %f\n",
-                                        vopat.myRank,step,f);
+                                +numVoxels.x*(cellID.y
+                                              +numVoxels.y*cellID.z)];
+      if (ray.dbg && (step < 2 || step == 10))
+        printf("(%i) step %i rel (%f %f %f) cell (%i %i %i) val %f\n",
+               vopat.myRank,
+               step,
+               relPos.x,
+               relPos.y,
+               relPos.z,
+               cellID.x,
+               cellID.y,
+               cellID.z,
+               f);
       f = f * dt * DENSITY;
 
       if (rnd() < f) {
@@ -261,14 +256,17 @@ namespace vopat {
           break;
         } else {
           org = P; 
-          dir = normalize(lightDirection());
           ray.origin = org;
-          ray.direction = to_half(dir);
-          clipRay(myBox,ray,t0,t1);
-          t = rnd()*dt - dt; // subtract one dt because loop will add
+          ray.direction = to_half(normalize(lightDirection()));
+          dir = from_half(ray.direction);
+          
+          t0 = 0.f;
+          t1 = CUDART_INF;
+          boxTest(myBox,ray,t0,t1);
+          t = (rnd()-1.f)*dt; // subtract one dt because loop will add
                              // it back before next it
           ray.isShadow = true;
-          if (ray.dbg) printf("(%i) BOUNCED (%f %f)\n",vopat.myRank,t0,t1);
+          if (ray.dbg) printf("(%i) BOUNCED t in %f (%f %f)\n",vopat.myRank,t,t0,t1);
           continue;
         }
 #endif
