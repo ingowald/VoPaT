@@ -255,6 +255,8 @@ namespace vopat {
         throw std::runtime_error("incompatible number of bricks and workers");
       const bool isMaster = mpiBackend.isMaster;
       int myRank = mpiBackend.myRank();
+      if (!isMaster)
+        CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer
         // = createTrivialNodeRenderer(&mpiBackend,model);
         = createSimpleNodeRenderer(&mpiBackend,model,
@@ -278,6 +280,7 @@ namespace vopat {
         // Renderer *renderer
           // = new VopatRenderer(&mpiBackend,model,cmdline.spp);
 
+        
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
