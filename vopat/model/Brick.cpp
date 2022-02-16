@@ -47,7 +47,7 @@ namespace vopat {
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
-    std::ifstream in(rawFileName);
+    std::ifstream in(rawFileName,std::ios::binary);
     std::vector<float> voxels(volume(numVoxels));
     std::vector<T> line(numVoxels.x);
     PRINT(numVoxelsParent);
