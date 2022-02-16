@@ -134,7 +134,7 @@ namespace vopat {
     clipRay(myBox,ray,t0,t1);
 
     vec3f throughput = from_half(ray.throughput);
-    throughput *= randomColor(vopat.myRank);
+    //throughput *= randomColor(vopat.myRank);
     ray.throughput = to_half(throughput);
 
     int nextNode = TrivialNodeRenderer::computeNextNode(vopat,globals,ray,t1);

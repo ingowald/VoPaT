@@ -8,7 +8,7 @@ namespace vopat {
 
   inline __device__ vec3f backgroundColor() { return .3f; }
   
-  inline __device__ vec3f lightColor() { return 2.f*vec3f(.8f,1.f,.8f); }
+  inline __device__ vec3f lightColor() { return vec3f(1.f,1.f,1.f); }
   inline __device__ vec3f lightDirection()
   {
     return vec3f(1.f,.1f,.1f);
@@ -218,7 +218,7 @@ namespace vopat {
 
     // maximum possible voxel density
     float majorant = 1.f; // must be larger than the max voxel density
-    const float dt = .1f; // relative to voxels
+    const float dt = .01f; // relative to voxels
     float t = t0;
     while (true) {
       // Sample a distance
@@ -275,8 +275,7 @@ namespace vopat {
           t0 = 0.f;
           t1 = CUDART_INF;
           boxTest(myBox,ray,t0,t1);
-          t = (rnd()-1.f)*dt; // subtract one dt because loop will add
-                             // it back before next it
+          t = 0.f; // reset t to the origin
           ray.isShadow = true;
           if (ray.dbg) printf("(%i) BOUNCED t in %f (%f %f)\n",vopat.myRank,t,t0,t1);
           continue;
@@ -294,12 +293,19 @@ namespace vopat {
     if (nextNode == -1) {
       // path exits volume - deposit to image
       // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
-      vec3f color
-        = ray.isShadow
-        ? lightColor()
-        : backgroundColor();
+      float ambient = .1f;
+      vec3f albedo = vec3f(.8f, 1.f, .8f); // you'd normally sample this from the volume
+      bool missed = (throughput.x == 1.f && throughput.y == 1.f && throughput.z == 1.f);
+      vec3f color;
+      // primary ray hitting background
+      if (missed && !ray.isShadow) color = backgroundColor();
+      // primary ray hitting light
+      else if (missed) color = lightColor() * albedo; 
+      // else, we're in shadow
+      else color = lightColor() * albedo * ambient;
+
       if (ray.crosshair) color = vec3f(1.f)-color;
-      vopat.addPixelContribution(ray.pixelID,throughput*color);
+      vopat.addPixelContribution(ray.pixelID,color);
       vopat.killRay(tid);
       // vopat.rayNextNode[tid] = -1;
     } else {
