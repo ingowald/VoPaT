@@ -210,28 +210,40 @@ namespace vopat {
 
     if (ray.dbg) printf("(%i) tracing locally (%f %f)\n",vopat.myRank,t0,t1);
     
-    const float dt = .001f;
-    const float DENSITY = 1.5f;//10000.f;
-    
+    //const float DENSITY = 1.5f;//10000.f;
     Random rnd(ray.pixelID,vopat.sampleID);
     int step = 0;
     vec3i numVoxels = globals.numVoxels;
     vec3i numCells = numVoxels - 1;
-    for (float t = (int(t0/dt)+rnd()) * dt; t < t1; t += dt, ++step) {
-      if (t < 0.f) continue;
-      
+
+    // maximum possible voxel density
+    float majorant = 1.f; // must be larger than the max voxel density
+    const float dt = .1f; // relative to voxels
+    float t = t0;
+    while (true) {
+      // Sample a distance
+      t = t - (log(1.0f - rnd()) / majorant) * dt; 
+
+      // A boundary has been hit
+      if (t >= t1) break;
+
+      // Update current position
       vec3f P = org + t * dir;
       vec3f relPos = (P - globals.myRegion.lower) * rcp(globals.myRegion.size());
       if (relPos.x < 0.f) continue;
       if (relPos.y < 0.f) continue;
       if (relPos.z < 0.f) continue;
+
       vec3i cellID = vec3i(relPos * vec3f(numCells));
       if (cellID.x < 0 || (cellID.x >= numCells.x) ||
           cellID.y < 0 || (cellID.y >= numCells.y) ||
           cellID.z < 0 || (cellID.z >= numCells.z)) continue;
+
+      // Sample heterogeneous media
       float f = globals.myVoxels[cellID.x
                                 +numVoxels.x*(cellID.y
                                               +numVoxels.y*cellID.z)];
+      
       if (ray.dbg && (step < 2 || step == 10))
         printf("(%i) step %i rel (%f %f %f) cell (%i %i %i) val %f\n",
                vopat.myRank,
@@ -243,9 +255,9 @@ namespace vopat {
                cellID.y,
                cellID.z,
                f);
-      f = f * dt * DENSITY;
-
-      if (rnd() < f) {
+      
+      // Check if a collision occurred (real particles / real + fake particles)
+      if (rnd() < f / majorant) {
 #if 0
         // just absorb, done
         throughput = 0;
@@ -272,7 +284,7 @@ namespace vopat {
 #endif
       }
     }
-
+    
     // throughput *= randomColor(vopat.myRank);
     ray.throughput = to_half(throughput);
 
