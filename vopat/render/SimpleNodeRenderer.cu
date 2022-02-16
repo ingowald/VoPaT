@@ -42,15 +42,17 @@ namespace vopat {
         uint32_t    crosshair:  1;
         uint32_t    isShadow :  1;
       };
-      int age;
-      inline __device__ void setDirection(vec3f v) { direction = fixDir(normalize(v)); }
-      inline __device__ vec3f getDirection() const {
-        return direction;
-        // return from_half(direction);
-      }
       vec3f       origin;
-      vec3f direction;
       // small_vec3f direction;
+#if 1
+      inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
+      inline __device__ vec3f getDirection() const { return from_half(direction); }
+      small_vec3f direction;
+#else
+      inline __device__ void setDirection(vec3f v) { direction = fixDir(normalize(v)); }
+      inline __device__ vec3f getDirection() const { return direction; }
+      vec3f direction;
+#endif
       small_vec3f throughput;
     };
 
@@ -262,7 +264,6 @@ namespace vopat {
     
     // Random rnd((int)ray.pixelID+vopat.myRank+ray.age,vopat.sampleID);
     Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
-    int step = 0;
     vec3i numVoxels = globals.numVoxels;
     vec3i numCells = numVoxels - 1;
 
@@ -273,12 +274,6 @@ namespace vopat {
     float t = t0 + dt * rnd();
     while (true) {
       if (t >= t1) break;
-      ++step;
-      // if (step > 1000) {
-      //   printf("huge iteration ... age %i step %i t %f (%f %f)\n",
-      //          ray.age,step,dt,t0,t1);
-      //   break;
-      // }
 
       // Update current position
       vec3f P = org + t * dir;
@@ -402,11 +397,9 @@ namespace vopat {
     
     // throughput *= randomColor(vopat.myRank);
     ray.throughput = to_half(throughput);
-    ray.age++;
     int nextNode = SimpleNodeRenderer::computeNextNode(vopat,globals,ray,t1,ray.dbg);
 
-    if (// ray.age > 10 ||
-        nextNode == -1) {
+    if (nextNode == -1) {
       // path exits volume - deposit to image
       // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
       float ambient = 0.1f;
@@ -458,7 +451,6 @@ namespace vopat {
       + globals.camera.dir_dv * (pixelID.y+pixelPos.y);
     ray.setDirection(dir);
     ray.throughput = to_half(vec3f(1.f));
-    ray.age = 0;
     return ray;
   }
 
