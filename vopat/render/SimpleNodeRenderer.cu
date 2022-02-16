@@ -244,17 +244,17 @@ namespace vopat {
                                 +numVoxels.x*(cellID.y
                                               +numVoxels.y*cellID.z)];
       
-      if (ray.dbg && (step < 2 || step == 10))
-        printf("(%i) step %i rel (%f %f %f) cell (%i %i %i) val %f\n",
-               vopat.myRank,
-               step,
-               relPos.x,
-               relPos.y,
-               relPos.z,
-               cellID.x,
-               cellID.y,
-               cellID.z,
-               f);
+      // if (ray.dbg && (step < 2 || step == 10))
+      //   printf("(%i) step %i rel (%f %f %f) cell (%i %i %i) val %f\n",
+      //          vopat.myRank,
+      //          step,
+      //          relPos.x,
+      //          relPos.y,
+      //          relPos.z,
+      //          cellID.x,
+      //          cellID.y,
+      //          cellID.z,
+      //          f);
       
       // Check if a collision occurred (real particles / real + fake particles)
       if (rnd() < f / majorant) {
@@ -293,7 +293,7 @@ namespace vopat {
     if (nextNode == -1) {
       // path exits volume - deposit to image
       // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
-      float ambient = .1f;
+      float ambient = 0.1f;
       vec3f albedo = vec3f(.8f, 1.f, .8f); // you'd normally sample this from the volume
       bool missed = (throughput.x == 1.f && throughput.y == 1.f && throughput.z == 1.f);
       vec3f color;
