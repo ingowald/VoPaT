@@ -39,7 +39,7 @@ namespace vopat {
   struct {
     int spp = 1; //4;
     struct {
-#if 0
+#if 1
       // auto-generate
       vec3f vp = vec3f(0.f);
       vec3f vu = vec3f(0.f);
@@ -291,7 +291,8 @@ namespace vopat {
       // owl::viewer::GlutWindow::initGlut(argc,argv);
 
       VoPaTViewer viewer(master);
-      box3f sceneBounds = { vec3f(0.f), vec3f(1.f) };
+      box3f sceneBounds = model->getBounds();
+      PRINT(sceneBounds);
       viewer.enableFlyMode();
       viewer.enableInspectMode();
 

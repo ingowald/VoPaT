@@ -36,8 +36,8 @@ namespace vopat {
   {
     this->cellRange = desiredCellRange;
     this->voxelRange = {desiredCellRange.lower,desiredCellRange.upper+vec3i(1)};
-    this->spaceRange.lower = vec3f(this->voxelRange.lower) / vec3f(numVoxelsTotal-1);
-    this->spaceRange.upper = vec3f(this->voxelRange.upper-1) / vec3f(numVoxelsTotal-1);
+    this->spaceRange.lower = vec3f(this->voxelRange.lower);
+    this->spaceRange.upper = vec3f(this->voxelRange.upper-1);
     
     this->numVoxels = this->voxelRange.size();
     this->numCells  = this->voxelRange.size() - vec3i(1);

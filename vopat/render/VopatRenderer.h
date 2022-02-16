@@ -335,30 +335,34 @@ namespace vopat {
   template<typename T>
   void VopatRenderer<T>::renderLocal()
   {
-    globals.sampleID = accumID;
-    
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
-    perRankSendCounts.bzero();
-    if (numBlocks != vec2i(0))
-      nodeRenderer->generatePrimaryWave(globals);
-      // generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
-    CUDA_SYNC_CHECK();
-    host_sendCounts = perRankSendCounts.download();
-    numRaysInQueue = host_sendCounts[myRank()];
-    globals.numRaysInQueue = numRaysInQueue;
     
-    CUDA_SYNC_CHECK();
-    while (true) {
+    int numSPP = 16;
+    for (int s = 0; s < numSPP; s++) {
+      globals.sampleID = numSPP * accumID + s;
+    
       perRankSendCounts.bzero();
+      if (numBlocks != vec2i(0))
+        nodeRenderer->generatePrimaryWave(globals);
+      // generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
       CUDA_SYNC_CHECK();
-      traceRaysLocally();
+      host_sendCounts = perRankSendCounts.download();
+      numRaysInQueue = host_sendCounts[myRank()];
+      globals.numRaysInQueue = numRaysInQueue;
+    
       CUDA_SYNC_CHECK();
-      createSendQueue();
-      CUDA_SYNC_CHECK();
-      int numRaysExchanged = exchangeRays();
-      if (numRaysExchanged == 0)
-        break;
+      while (true) {
+        perRankSendCounts.bzero();
+        CUDA_SYNC_CHECK();
+        traceRaysLocally();
+        CUDA_SYNC_CHECK();
+        createSendQueue();
+        CUDA_SYNC_CHECK();
+        int numRaysExchanged = exchangeRays();
+        if (numRaysExchanged == 0)
+          break;
+      }
     }
 
     CUDA_SYNC_CHECK();
@@ -366,7 +370,7 @@ namespace vopat {
       writeLocalFB<<<numBlocks,blockSize>>>(globals.fbSize,
                                             localFB.get(),
                                             accumBuffer.get(),
-                                            globals.sampleID+1);
+                                            (globals.sampleID+1));
     CUDA_SYNC_CHECK();
   }
   

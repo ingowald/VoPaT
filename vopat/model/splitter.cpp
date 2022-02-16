@@ -100,6 +100,7 @@ int main(int ac, char **av)
   if (inFormat == "") usage("input format not specified");
   if (inFormat != "int8" && inFormat != "float") usage("unknown input format (allowed 'int8' 'float')");
   Model::SP model = Model::create();
+  model->numVoxelsTotal = inputSize;
   for (int brickID=0;brickID<numBricks;brickID++) {
     model->bricks.push_back(kdCreateBrick(brickID,numBricks,inputSize));
     std::cout << "... created brick " << model->bricks.back()->toString() << std::endl;

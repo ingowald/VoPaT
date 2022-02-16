@@ -26,7 +26,12 @@ namespace vopat {
 
     static SP create() { return std::make_shared<Model>(); }
     static SP load(const std::string &fileName);
-
+    box3f getBounds() const {
+      if (reduce_min(numVoxelsTotal) <= 0)
+        throw std::runtime_error("invalid model...");
+      return { vec3f(0.f), vec3f(numVoxelsTotal-1) };
+    }
+    
     void save(const std::string &fileName);
 
     /*! given a base file name prefix (including directory name, if
@@ -44,7 +49,7 @@ namespace vopat {
 
     std::vector<Brick::SP>   bricks;
     
-    vec3i                  numVoxelsTotal;
+    vec3i                  numVoxelsTotal { -1,-1,-1 };
   };
 
 }

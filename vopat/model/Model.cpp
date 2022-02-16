@@ -51,6 +51,7 @@ namespace vopat {
 
     std::ofstream out(fileName);
     write(out,numVoxelsTotal);
+    PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));
     for (int i=0;i<bricks.size();i++) {
       Brick::SP brick = bricks[i];
