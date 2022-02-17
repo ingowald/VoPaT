@@ -43,8 +43,8 @@ add_executable(vopatViewer
 
   render/DistributedRendererBase.h
   render/DistributedRendererBase.cu
-  render/VopatRenderer.h
-  render/VopatRenderer.cu
+  render/RayForwardingRenderer.h
+  render/RayForwardingRenderer.cu
   render/SimpleNodeRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp

@@ -17,7 +17,7 @@
 #pragma once
 
 #include "owl/owl_device.h"
-#include "vopat/render/VopatRenderer.h"
+#include "vopat/render/RayForwardingRenderer.h"
 #include "owl/common/math/random.h"
 
 namespace vopat {

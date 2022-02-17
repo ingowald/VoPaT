@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/render/VopatRenderer.h"
+#include "vopat/render/RayForwardingRenderer.h"
 #include "3rdParty/stb_image//stb/stb_image_write.h"
 #include "3rdParty/stb_image//stb/stb_image.h"
 #include "owl/owl_device.h"

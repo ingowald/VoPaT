@@ -24,17 +24,16 @@
 
 namespace vopat {
 
-
-  template<typename NodeRenderer>
-  struct VopatRenderer : public AddWorkersRenderer {
-    using Ray = typename NodeRenderer::Ray;
+  template<typename _RayType>
+  struct RayForwardingRenderer : public AddWorkersRenderer {
+    using RayType = _RayType;
     
     struct Globals {
       inline __device__
-      void killRay(int rayID) { rayNextNode[rayID] = -1; }
+      void killRay(int rayID) const { rayNextNode[rayID] = -1; }
 
       inline __device__
-      void addPixelContribution(int pixelID, vec3f addtl)
+      void addPixelContribution(int pixelID, vec3f addtl) const
       {
         vec3f *tgt = accumBuffer+pixelID;
         atomicAdd(&tgt->x,addtl.x);
@@ -43,7 +42,8 @@ namespace vopat {
       }
 
       inline __device__
-      void forwardRay(int rayID, const Ray &ray, int nextNodeForThisRay)
+      void forwardRay(int rayID, const RayType &ray, int nextNodeForThisRay)
+        const
       {
         atomicAdd(&perRankSendCounts[nextNodeForThisRay],1);
         rayQueueIn[rayID]  = ray;
@@ -60,13 +60,18 @@ namespace vopat {
       int         *perRankSendCounts;
       int         *rayNextNode;
       // box3f       *rankBoxes;
-      Ray         *rayQueueIn;
-      Ray         *rayQueueOut;
+      RayType        *rayQueueIn;
+      RayType        *rayQueueOut;
       int          numRaysInQueue;
     };
 
-    VopatRenderer(CommBackend *comm,
-                  NodeRenderer *nodeRenderer);
+    struct NodeRenderer {
+      virtual void generatePrimaryWave(const Globals &globals) = 0;
+      virtual void traceLocally(const Globals &globals) = 0;
+    };
+    
+    RayForwardingRenderer(CommBackend *comm,
+                          NodeRenderer *nodeRenderer);
     NodeRenderer *nodeRenderer;
     // ==================================================================
     // main things we NEED to implement
@@ -96,11 +101,11 @@ namespace vopat {
     
     
     /*! ray queues we are expected to trace in the next step */
-    CUDAArray<Ray>         rayQueueIn;
+    CUDAArray<RayType>         rayQueueIn;
     
     /*! ray queues for sending out; in this one rays are sorted by
         rank they are supposed to go to */
-    CUDAArray<Ray>         rayQueueOut;
+    CUDAArray<RayType>         rayQueueOut;
     
     /*! one int per ray, which - after tracing locally, says which
         rank to go to next; -1 meaning "done" */
@@ -121,7 +126,7 @@ namespace vopat {
 
 
   template<typename T>
-  int  VopatRenderer<T>::exchangeRays()
+  int  RayForwardingRenderer<T>::exchangeRays()
   {
     host_sendCounts = perRankSendCounts.download();
     const int numWorkers = globals.numWorkers;
@@ -144,7 +149,7 @@ namespace vopat {
     for (int i=0;i<numWorkers;i++) {
       int to_i = allRankSendCounts[myRank*numWorkers+i];
       sendByteOffsets[i] = ofs;
-      sendByteCounts[i]  = to_i*sizeof(Ray);
+      sendByteCounts[i]  = to_i*sizeof(RayType);
       ofs += sendByteCounts[i];
     }
 
@@ -158,7 +163,7 @@ namespace vopat {
     for (int i=0;i<numWorkers;i++) {
       int from_i = allRankSendCounts[i*numWorkers+myRank];
       recvByteOffsets[i] = ofs;
-      recvByteCounts[i]  = from_i*sizeof(Ray);
+      recvByteCounts[i]  = from_i*sizeof(RayType);
       ofs += recvByteCounts[i];
       numReceived += from_i;
     }
@@ -188,24 +193,24 @@ namespace vopat {
 
     
 
-    // for (int r=0;r<numWorkers;r++) {
-    //   comm->worker.withinIsland->barrier();
-    //   if (r == globals.myRank) {
-    //     std::cout << "(" << r << ") IN:  ";
-    //     for (int i=0;i<numWorkers;i++)
-    //       std::cout << (recvByteCounts[i]/sizeof(Ray)) << " ";
-    //     std::cout << std::endl;
-    //     std::cout << "(" << r << ") OUT: ";
-    //     for (int i=0;i<numWorkers;i++)
-    //       std::cout << (sendByteCounts[i]/sizeof(Ray)) << " ";
-    //     std::cout << std::endl;
-    //     std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
-    //     if (r == 0)
-    //       std::cout << "-------------------------------------------------------" << std::endl;
-    //     fflush(0);
-    //   }
-    //   comm->worker.withinIsland->barrier();
-    // }
+    for (int r=0;r<numWorkers;r++) {
+      comm->worker.withinIsland->barrier();
+      if (r == globals.myRank) {
+        std::cout << "(" << r << ") IN:  ";
+        for (int i=0;i<numWorkers;i++)
+          std::cout << (recvByteCounts[i]/sizeof(RayType)) << " ";
+        std::cout << std::endl;
+        std::cout << "(" << r << ") OUT: ";
+        for (int i=0;i<numWorkers;i++)
+          std::cout << (sendByteCounts[i]/sizeof(RayType)) << " ";
+        std::cout << std::endl;
+        std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
+        if (r == 0)
+          std::cout << "-------------------------------------------------------" << std::endl;
+        fflush(0);
+      }
+      comm->worker.withinIsland->barrier();
+    }
 
 
 
@@ -242,7 +247,7 @@ namespace vopat {
   }
 
   template<typename NodeRenderer>
-  VopatRenderer<NodeRenderer>::VopatRenderer(CommBackend *comm,
+  RayForwardingRenderer<NodeRenderer>::RayForwardingRenderer(CommBackend *comm,
                                              NodeRenderer *nodeRenderer)
     : AddWorkersRenderer(comm),
       nodeRenderer(nodeRenderer)
@@ -261,14 +266,12 @@ namespace vopat {
   }
 
 
-  template<typename T>
-  void VopatRenderer<T>::resizeFrameBuffer(const vec2i &newSize)
+  template<typename RayType>
+  void RayForwardingRenderer<RayType>::resizeFrameBuffer(const vec2i &newSize)
   {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      // localFB.resize(newSize.x*newSize.y);
-      // globals.fbPointer = localFB.get();
       accumBuffer.resize(newSize.x*newSize.y);
       globals.accumBuffer = accumBuffer.get();
       globals.fbSize    = newSize;
@@ -281,11 +284,14 @@ namespace vopat {
 
       rayNextNode.resize(fbSize.x*fbSize.y);
       globals.rayNextNode = rayNextNode.get();
+      PING; PRINT(newSize);
+      PRINT(globals.rayQueueOut);
+      PRINT(sizeof(*globals.rayQueueOut));
     }
   }
    
   template<typename T>
-  void VopatRenderer<T>::setCamera(const vec3f &from,
+  void RayForwardingRenderer<T>::setCamera(const vec3f &from,
                                    const vec3f &at,
                                    const vec3f &up,
                                    const float fovy)
@@ -294,46 +300,13 @@ namespace vopat {
     globals.camera = AddWorkersRenderer::camera;
   }
 
-#if 0
-#endif
-
-#if 0
-  template<typename SimpleNodeRenderer>
-  __global__ void generatePrimaryWave(typename SimpleNodeRenderer::Globals globals)
-  {
-    int ix = threadIdx.x + blockIdx.x*blockDim.x;
-    int iy = threadIdx.y + blockIdx.y*blockDim.y;
-    if (ix >= globals.fbSize.x) return;
-    if (iy >= globals.fbSize.y) return;
-
-    int myRank = globals.myRank;
-    Ray ray    = generateRay(globals,vec2i(ix,iy),vec2f(.5f));
-    ray.dbg    = (vec2i(ix,iy) == globals.fbSize/2);
-    int dest   = computeInitialRank(globals,ray);
-
-    if (dest < 0) {
-      /* "nobody" owns this pixel, set to background on rank 0 */
-      if (myRank == 0) {
-        globals.accumBuffer[ray.pixelID] += vec3f(.5f,.5f,.5f);
-      }
-      return;
-    }
-    if (dest != myRank) {
-      /* somebody else owns this pixel; we don't do anything */
-      return;
-    }
-    int queuePos = atomicAdd(&globals.perRankSendCounts[myRank],1);
-    globals.rayQueueIn[queuePos] = ray;
-  }
-#endif
-    
   __global__ void writeLocalFB(vec2i fbSize,
                                small_vec3f *localFB,
                                vec3f *accumBuffer,
                                int numAccumFrames);
     
   template<typename T>
-  void VopatRenderer<T>::renderLocal()
+  void RayForwardingRenderer<T>::renderLocal()
   {
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
@@ -375,7 +348,7 @@ namespace vopat {
   }
   
   template<typename T>
-  void VopatRenderer<T>::screenShot()
+  void RayForwardingRenderer<T>::screenShot()
   {
     std::string fileName = Renderer::screenShotFileName;
     std::vector<uint32_t> pixels;
@@ -411,65 +384,11 @@ namespace vopat {
 
   }
 
-  // template<typename T>
-  // inline __device__ int computeNextNode(const Globals &globals,
-  //                                       const Ray &ray,
-  //                                       const float t_exit)
-  // {
-  //   vec3f P = ray.origin + from_half(ray.direction) * (t_exit * (1.f+1e-3f));
-  //   // if (ray.dbg)
-  //   //   printf("(%i) next query P %f %f %f\n",
-  //   //          globals.myRank,P.x,P.y,P.z);
-  //   for (int i=0;i<globals.numWorkers;i++)
-  //     if (i != globals.myRank && globals.rankBoxes[i].contains(P))
-  //       return i;
-  //   return -1;
-  // }
-
-#if 0
   template<typename T>
-  __global__ void doTraceRaysLocally(Globals globals,
-                                     int numRays)
-  {
-    int tid = threadIdx.x+blockIdx.x*blockDim.x;
-    if (tid >= numRays) return;
-
-    Ray ray = globals.rayQueueIn[tid];
-    const box3f myBox = globals.rankBoxes[globals.myRank];
-    float t0, t1;
-    clipRay(myBox,ray,t0,t1);
-
-    vec3f throughput = from_half(ray.throughput);
-    throughput *= randomColor(globals.myRank);
-    ray.throughput = to_half(throughput);
-
-    int nextNode = computeNextNode(globals,ray,t1);
-
-    if (nextNode == -1) {
-      // path exits volume - deposit to image
-      addToFB(&globals.accumBuffer[ray.pixelID],throughput);
-      globals.rayNextNode[tid] = -1;
-    } else {
-      // ray has another node to go to - add to queue
-      atomicAdd(&globals.perRankSendCounts[nextNode],1);
-      globals.rayQueueIn[tid]  = ray;
-      globals.rayNextNode[tid] = nextNode;
-    }
-  }
-#endif
-  
-  template<typename T>
-  void VopatRenderer<T>::traceRaysLocally()
+  void RayForwardingRenderer<T>::traceRaysLocally()
   {
     CUDA_SYNC_CHECK();
     nodeRenderer->traceLocally(globals);
-#if 0
-    int blockSize = 1024;
-    int numBlocks = divRoundUp(numRaysInQueue,blockSize);
-    if (numBlocks)
-      doTraceRaysLocally<<<numBlocks,blockSize>>>
-        (globals,numRaysInQueue);
-#endif
     CUDA_SYNC_CHECK();
   }
  
@@ -498,7 +417,7 @@ namespace vopat {
   }
 
   template<typename T>
-  void VopatRenderer<T>::createSendQueue()
+  void RayForwardingRenderer<T>::createSendQueue()
   {
     computeCompactionOffsets<<<1,1>>>
       (globals);
