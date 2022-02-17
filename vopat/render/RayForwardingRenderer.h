@@ -29,42 +29,50 @@ namespace vopat {
     using RayType = _RayType;
     
     struct Globals {
-      inline __device__
-      void killRay(int rayID) const { rayNextNode[rayID] = -1; }
-
-      inline __device__
-      void addPixelContribution(int pixelID, vec3f addtl) const
-      {
-        vec3f *tgt = accumBuffer+pixelID;
-        atomicAdd(&tgt->x,addtl.x);
-        atomicAdd(&tgt->y,addtl.y);
-        atomicAdd(&tgt->z,addtl.z);
-      }
-
-      inline __device__
-      void forwardRay(int rayID, const RayType &ray, int nextNodeForThisRay)
-        const
-      {
-        atomicAdd(&perRankSendCounts[nextNodeForThisRay],1);
-        rayQueueIn[rayID]  = ray;
-        rayNextNode[rayID] = nextNodeForThisRay;
-      }
+      /*! "kill" the ray in input queue position `rayID` - do nothing
+          further with this ray, and do not forward it anywhere */
+      inline __device__ void killRay(int rayID) const;
+      
+      /*! (atomically) add the given contribution to the specified pixel */
+      inline __device__ void addPixelContribution(int pixelID, vec3f addtl) const;
+      
+      /*! mark ray at input queue position `rayID` to be forwarded to
+          rank with given ID. This will overwrite the ray at input queue pos rayID */
+      inline __device__ void forwardRay(int rayID, const RayType &ray, int nextNodeID) const;
       
       int          myRank, numWorkers;
       int          sampleID;
       Camera       camera;
       vec2i        fbSize;
-      // small_vec3f *fbPointer;
       vec3f       *accumBuffer;
+
+      /*! for compaction - where in the output queue to write rays for
+          a given target rank */
       int         *perRankSendOffsets;
+      
+      /*! for compaction - how many rays will go to a given rank */
       int         *perRankSendCounts;
+
+      /*! list of node IDs where each of the corresponding rays in
+          rayQueueIn are supposed to be sent to (a nextnode of '-1'
+          means the ray will die and not get sent anywhere) */
       int         *rayNextNode;
-      // box3f       *rankBoxes;
-      RayType        *rayQueueIn;
-      RayType        *rayQueueOut;
+
+      /*! queue of rays received during ray exchange, and to be
+          traced/shaded on this node */
+      RayType     *rayQueueIn;
+      
+      /*! ray queue used for sending rays; generarting by
+          sorting/compacting the input queue after ti has been traced
+          locally */
+      RayType     *rayQueueOut;
+      
+      /*! number of rays in the input queue */
       int          numRaysInQueue;
     };
 
+    /*! abstraction for any sort of renderer that will generate and/or
+        shade/modify/bounce rays within this ray forwardign context */
     struct NodeRenderer {
       virtual void generatePrimaryWave(const Globals &globals) = 0;
       virtual void traceLocally(const Globals &globals) = 0;
@@ -72,7 +80,7 @@ namespace vopat {
     
     RayForwardingRenderer(CommBackend *comm,
                           NodeRenderer *nodeRenderer);
-    NodeRenderer *nodeRenderer;
+
     // ==================================================================
     // main things we NEED to implement
     // ==================================================================
@@ -121,102 +129,11 @@ namespace vopat {
     
     Globals globals;
     int numRaysInQueue;
+    NodeRenderer *nodeRenderer;
   };
   
 
 
-  template<typename T>
-  int  RayForwardingRenderer<T>::exchangeRays()
-  {
-    host_sendCounts = perRankSendCounts.download();
-    const int numWorkers = globals.numWorkers;
-    const int myRank = this->myRank();
-    auto island = comm->worker.withinIsland;
-
-    /* iw - TODO: change this to use alltoall instead of allgaher;
-       with allgather each rank received N*N elements, which describes
-       what every node is sending to any other node ... but it would
-       actually only need to know how many _it_ receives */
-    std::vector<int> allRankSendCounts(numWorkers*numWorkers);
-    island->allGather(allRankSendCounts,host_sendCounts);
-
-    // ------------------------------------------------------------------
-    // compute SEND counts and offsets
-    // ------------------------------------------------------------------
-    std::vector<int> sendByteOffsets(numWorkers);
-    std::vector<int> sendByteCounts(numWorkers);
-    size_t ofs = 0;
-    for (int i=0;i<numWorkers;i++) {
-      int to_i = allRankSendCounts[myRank*numWorkers+i];
-      sendByteOffsets[i] = ofs;
-      sendByteCounts[i]  = to_i*sizeof(RayType);
-      ofs += sendByteCounts[i];
-    }
-
-    // ------------------------------------------------------------------
-    // compute RECEIVE counts and offsets
-    // ------------------------------------------------------------------
-    std::vector<int> recvByteOffsets(numWorkers);
-    std::vector<int> recvByteCounts(numWorkers);
-    ofs = 0;
-    int numReceived = 0;
-    for (int i=0;i<numWorkers;i++) {
-      int from_i = allRankSendCounts[i*numWorkers+myRank];
-      recvByteOffsets[i] = ofs;
-      recvByteCounts[i]  = from_i*sizeof(RayType);
-      ofs += recvByteCounts[i];
-      numReceived += from_i;
-    }
-
-    
-    // ------------------------------------------------------------------
-    // exeute the all2all
-    // ------------------------------------------------------------------
-    island->allToAll(rayQueueOut.get(),
-                     sendByteCounts.data(),
-                     sendByteOffsets.data(),
-                     rayQueueIn.get(),
-                     recvByteCounts.data(),
-                     recvByteOffsets.data());
-    CUDA_SYNC_CHECK();
-    numRaysInQueue = numReceived;
-    globals.numRaysInQueue = numRaysInQueue;
-
-    
-    // ------------------------------------------------------------------
-    // return how many we've exchanged ACROSS ALL ranks
-    // ------------------------------------------------------------------
-    int sumAllSends = 0;
-    for (auto i : allRankSendCounts) sumAllSends += i;
-    // printf("(%i) ----- sum all sends %i\n",myRank,sumAllSends);
-
-
-    
-
-    for (int r=0;r<numWorkers;r++) {
-      comm->worker.withinIsland->barrier();
-      if (r == globals.myRank) {
-        std::cout << "(" << r << ") IN:  ";
-        for (int i=0;i<numWorkers;i++)
-          std::cout << (recvByteCounts[i]/sizeof(RayType)) << " ";
-        std::cout << std::endl;
-        std::cout << "(" << r << ") OUT: ";
-        for (int i=0;i<numWorkers;i++)
-          std::cout << (sendByteCounts[i]/sizeof(RayType)) << " ";
-        std::cout << std::endl;
-        std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
-        if (r == 0)
-          std::cout << "-------------------------------------------------------" << std::endl;
-        fflush(0);
-      }
-      comm->worker.withinIsland->barrier();
-    }
-
-
-
-    return sumAllSends;
-  }
-  
   inline __both__ uint32_t make_8bit(const float f)
   {
     return min(255,max(0,int(f*256.f)));
@@ -284,9 +201,6 @@ namespace vopat {
 
       rayNextNode.resize(fbSize.x*fbSize.y);
       globals.rayNextNode = rayNextNode.get();
-      PING; PRINT(newSize);
-      PRINT(globals.rayQueueOut);
-      PRINT(sizeof(*globals.rayQueueOut));
     }
   }
    
@@ -430,4 +344,118 @@ namespace vopat {
     CUDA_SYNC_CHECK();
   }
 
+  template<typename T>
+  int  RayForwardingRenderer<T>::exchangeRays()
+  {
+    host_sendCounts = perRankSendCounts.download();
+    const int numWorkers = globals.numWorkers;
+    const int myRank = this->myRank();
+    auto island = comm->worker.withinIsland;
+
+    /* iw - TODO: change this to use alltoall instead of allgaher;
+       with allgather each rank received N*N elements, which describes
+       what every node is sending to any other node ... but it would
+       actually only need to know how many _it_ receives */
+    std::vector<int> allRankSendCounts(numWorkers*numWorkers);
+    island->allGather(allRankSendCounts,host_sendCounts);
+
+    // ------------------------------------------------------------------
+    // compute SEND counts and offsets
+    // ------------------------------------------------------------------
+    std::vector<int> sendByteOffsets(numWorkers);
+    std::vector<int> sendByteCounts(numWorkers);
+    size_t ofs = 0;
+    for (int i=0;i<numWorkers;i++) {
+      int to_i = allRankSendCounts[myRank*numWorkers+i];
+      sendByteOffsets[i] = ofs;
+      sendByteCounts[i]  = to_i*sizeof(RayType);
+      ofs += sendByteCounts[i];
+    }
+
+    // ------------------------------------------------------------------
+    // compute RECEIVE counts and offsets
+    // ------------------------------------------------------------------
+    std::vector<int> recvByteOffsets(numWorkers);
+    std::vector<int> recvByteCounts(numWorkers);
+    ofs = 0;
+    int numReceived = 0;
+    for (int i=0;i<numWorkers;i++) {
+      int from_i = allRankSendCounts[i*numWorkers+myRank];
+      recvByteOffsets[i] = ofs;
+      recvByteCounts[i]  = from_i*sizeof(RayType);
+      ofs += recvByteCounts[i];
+      numReceived += from_i;
+    }
+
+    
+    // ------------------------------------------------------------------
+    // exeute the all2all
+    // ------------------------------------------------------------------
+    island->allToAll(rayQueueOut.get(),
+                     sendByteCounts.data(),
+                     sendByteOffsets.data(),
+                     rayQueueIn.get(),
+                     recvByteCounts.data(),
+                     recvByteOffsets.data());
+    CUDA_SYNC_CHECK();
+    numRaysInQueue = numReceived;
+    globals.numRaysInQueue = numRaysInQueue;
+
+    
+    // ------------------------------------------------------------------
+    // return how many we've exchanged ACROSS ALL ranks
+    // ------------------------------------------------------------------
+    int sumAllSends = 0;
+    for (auto i : allRankSendCounts) sumAllSends += i;
+
+    // for (int r=0;r<numWorkers;r++) {
+    //   comm->worker.withinIsland->barrier();
+    //   if (r == globals.myRank) {
+    //     std::cout << "(" << r << ") IN:  ";
+    //     for (int i=0;i<numWorkers;i++)
+    //       std::cout << (recvByteCounts[i]/sizeof(RayType)) << " ";
+    //     std::cout << std::endl;
+    //     std::cout << "(" << r << ") OUT: ";
+    //     for (int i=0;i<numWorkers;i++)
+    //       std::cout << (sendByteCounts[i]/sizeof(RayType)) << " ";
+    //     std::cout << std::endl;
+    //     std::cout << "(" << r << ") num in queue " << numRaysInQueue << std::endl;
+    //     if (r == 0)
+    //       std::cout << "-------------------------------------------------------" << std::endl;
+    //     fflush(0);
+    //   }
+    //   comm->worker.withinIsland->barrier();
+    // }
+
+    return sumAllSends;
+  }
+  
+  template<typename _RayType>
+  inline __device__
+  void RayForwardingRenderer<_RayType>::Globals::killRay(int rayID) const
+  { rayNextNode[rayID] = -1; }
+  
+
+  template<typename _RayType>
+  inline __device__
+  void RayForwardingRenderer<_RayType>::Globals::addPixelContribution
+  (int pixelID, vec3f addtl) const
+  {
+    vec3f *tgt = accumBuffer+pixelID;
+    atomicAdd(&tgt->x,addtl.x);
+    atomicAdd(&tgt->y,addtl.y);
+    atomicAdd(&tgt->z,addtl.z);
+  }
+
+  template<typename _RayType>
+  inline __device__
+  void RayForwardingRenderer<_RayType>::Globals::forwardRay
+  (int rayID, const RayType &ray, int nextNodeForThisRay)
+    const
+  {
+    atomicAdd(&perRankSendCounts[nextNodeForThisRay],1);
+    rayQueueIn[rayID]  = ray;
+    rayNextNode[rayID] = nextNodeForThisRay;
+  }
+      
 }

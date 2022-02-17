@@ -98,7 +98,7 @@ int main(int ac, char **av)
   if (reduce_min(inputSize) <= 0) usage("invalid or not-specified input model size");
   if (inFileName.empty()) usage("invalid or not-specified input file name");
   if (inFormat == "") usage("input format not specified");
-  if (inFormat != "int8" && inFormat != "float") usage("unknown input format (allowed 'int8' 'float')");
+  if (inFormat != "uint8" && inFormat != "uint16" && inFormat != "float") usage("unknown input format (allowed 'uint8' 'uint16' 'float')");
   Model::SP model = Model::create();
   model->numVoxelsTotal = inputSize;
   for (int brickID=0;brickID<numBricks;brickID++) {
@@ -115,8 +115,10 @@ int main(int ac, char **av)
     std::cout << "extracting var '" << variable << "', time step " << timeStep << ", brick " << brick->ID << std::endl;
     if (inFormat == "float")
       scalars = brick->loadRegionRAW<float>(inFileName);
-    else if (inFormat == "int8")
+    else if (inFormat == "uint8")
       scalars = brick->loadRegionRAW<uint8_t>(inFileName);
+    else if (inFormat == "uint16")
+      scalars = brick->loadRegionRAW<uint16_t>(inFileName);
     else
       throw std::runtime_error("unsupported raw format");
     std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);

@@ -44,6 +44,13 @@ namespace vopat {
     this->numVoxelsParent = numVoxelsTotal;
   }
   
+
+  template<typename T> float voxelToFloat(T t);
+
+  template<> float voxelToFloat(float f) { return f; }
+  template<> float voxelToFloat(uint8_t ui) { return ui / float(255.f); }
+  template<> float voxelToFloat(uint16_t ui) { return ui / float((1<<16)-1); }
+  
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
@@ -65,7 +72,7 @@ namespace vopat {
                 numVoxels.x * sizeof(T));
         // PING; PRINT(idxOfs); PRINT(line[0]);
         for (int ix=0;ix<numVoxels.x;ix++)
-          voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = float(line[ix]);
+          voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = voxelToFloat(line[ix]);
       }
     return voxels;
   }
@@ -80,7 +87,6 @@ namespace vopat {
   /*! load a given time step and variable's worth of voxels from given file name */
   std::vector<float> Brick::load(const std::string &fileName)
   {
-    PING; PRINT(fileName);
     std::ifstream in(fileName,std::ios::binary);
     if (!in) throw std::runtime_error("could not open '"+fileName+"'");
     std::vector<float> loadedVoxels;
@@ -91,4 +97,5 @@ namespace vopat {
 
   template std::vector<float> Brick::loadRegionRAW<float>(const std::string &rawFileName);
   template std::vector<float> Brick::loadRegionRAW<uint8_t>(const std::string &rawFileName);   
+  template std::vector<float> Brick::loadRegionRAW<uint16_t>(const std::string &rawFileName);   
 }

@@ -48,6 +48,42 @@ namespace vopat {
       float *myVoxels;
       vec3i  numVoxels;
     };
+
+    static inline __device__
+    vec3f albedo() {
+      return vec3f(.8f, 1.f, .8f); // you'd normally sample this from the volume
+    }
+    
+    static inline __device__
+    float ambient() { return 0.1f; }
+
+    static inline __device__ bool getVolume(float &f,
+                                             const OwnGlobals &globals,
+                                             vec3f P)
+    {
+      vec3ui cellID = vec3ui(floor(P - globals.myRegion.lower));
+      if (// cellID.x < 0 || 
+          (cellID.x >= globals.numVoxels.x-1) ||
+          // cellID.y < 0 || 
+          (cellID.y >= globals.numVoxels.y-1) ||
+          // cellID.z < 0 || 
+          (cellID.z >= globals.numVoxels.z-1))
+        return false;
+      
+      f = globals.myVoxels[cellID.x
+                                 +globals.numVoxels.x*(cellID.y
+                                                       +globals.numVoxels.y*size_t(cellID.z))];
+      return true;
+    }
+    
+    static inline __device__ float transferFunction(float f)
+    {
+#if 1
+      return min(1.f,max(0.f,3.f*f-1.f));
+#else
+      return max(0.f,1.1f*f-0.1f);
+#endif
+    }
     
     static inline __device__
     float floor(float f) { return ::floorf(f); }
@@ -183,66 +219,27 @@ namespace vopat {
       vec3f throughput = from_half(ray.throughput);
       vec3f org = ray.origin;
       vec3f dir = ray.getDirection();
-
     
       const box3f myBox = globals.rankBoxes[vopat.myRank];
       float t0 = 0.f, t1 = CUDART_INF;
       boxTest(myBox,ray,t0,t1);
 
-      if (ray.dbg)
-        printf("(%i) tracing ray(%i:%i(%f %f %f)(%f %f %f)\n",
-               tid,
-               (int)ray.pixelID,
-               (int)ray.dbg,
-               ray.origin.x,
-               ray.origin.y,
-               ray.origin.z,
-               ray.getDirection().x,
-               ray.getDirection().y,
-               ray.getDirection().z);
-
-      if (ray.dbg) printf("(%i) tracing locally (%f %f)\n",vopat.myRank,t0,t1);
-
-          // vopat.killRay(tid);
-          // return;
       
       // Random rnd((int)ray.pixelID+vopat.myRank+ray.age,vopat.sampleID);
       Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
-      vec3i numVoxels = globals.numVoxels;
-      vec3i numCells = numVoxels - 1;
 
       // maximum possible voxel density
       const float dt = .5f; // relative to voxels
       const float DENSITY = .03f;
-#if 0
       float t = t0 + dt * rnd();
       while (true) {
         if (t >= t1) break;
 
         // Update current position
         vec3f P = org + t * dir;
-        vec3i cellID = vec3i(floor(P - globals.myRegion.lower));
-        if (cellID.x < 0 || (cellID.x >= numCells.x) ||
-            cellID.y < 0 || (cellID.y >= numCells.y) ||
-            cellID.z < 0 || (cellID.z >= numCells.z)) {
-          // if (ray.dbg)
-          //   printf("SKIPPING step %i at %f P %f %f %f cell %i %i %i\n",
-          //          step,t,P.x,P.y,P.z,cellID.x,cellID.y,cellID.z);
-
-          t += dt;
-          continue;
-        }
-      
-        // Sample heterogeneous media
-        float f = globals.myVoxels[cellID.x
-                                   +numVoxels.x*(cellID.y
-                                                 +numVoxels.y*cellID.z)];
-#if 1
-        f = max(0.f,f-0.1);
-#endif
-        // if (ray.dbg && step < 10)
-        //   printf("step %i t %f cell %i %i %i f %f\n",
-        //          step,t,cellID.x,cellID.y,cellID.z,f);
+        float f;
+        if (!getVolume(f,globals,P)) { t += dt; continue; }
+        f = transferFunction(f);
         f *= (DENSITY * dt);
         if (rnd() >= f) {
           t += dt;
@@ -250,7 +247,6 @@ namespace vopat {
         }
 
         if (ray.isShadow) {
-          throughput = 0;
           vopat.killRay(tid);
           return;
         } else {
@@ -262,15 +258,65 @@ namespace vopat {
           t0 = 0.f;
           t1 = CUDART_INF;
           boxTest(myBox,ray,t0,t1,ray.dbg);
-          float t_old = t;
           t = dt * rnd();
           ray.isShadow = true;
-          if (ray.dbg) printf("(%i) BOUNCED t at t=%f, new t %f (%f %f)\n",vopat.myRank,t_old,t,t0,t1);
           continue;
         }
       }
-#else
-      float majorant = 1.f ; // must be larger than the max voxel density
+      int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
+
+      if (nextNode == -1) {
+        vec3f color
+          = (ray.isShadow)
+          /* shadow ray that did reach the light (shadow rays that got
+             blocked got terminated above) */
+          ? lightColor() * albedo()
+          /* primary ray going straight through */
+          : backgroundColor(ray,vopat);
+
+        if (ray.crosshair) color = vec3f(1.f)-color;
+        vopat.addPixelContribution(ray.pixelID,color);
+        vopat.killRay(tid);
+      } else {
+        // ray has another node to go to - add to queue
+        // ray.throughput = to_half(throughput);
+        vopat.forwardRay(tid,ray,nextNode);
+      }
+    }
+  };
+
+
+
+
+
+
+
+
+  struct WoodcockKernels : public DeviceKernelsBase
+  {
+    static inline __device__
+    void traceRay(int tid,
+                  const VopatGlobals &vopat,
+                  const OwnGlobals &globals)
+    {
+      Ray ray = vopat.rayQueueIn[tid];
+
+      vec3f throughput = from_half(ray.throughput);
+      vec3f org = ray.origin;
+      vec3f dir = ray.getDirection();
+    
+      const box3f myBox = globals.rankBoxes[vopat.myRank];
+      float t0 = 0.f, t1 = CUDART_INF;
+      boxTest(myBox,ray,t0,t1);
+
+      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
+      vec3i numVoxels = globals.numVoxels;
+      vec3i numCells  = numVoxels - 1;
+
+      // maximum possible voxel density
+      const float dt = 1.f; // relative to voxels
+      const float DENSITY = .03f;
+      float majorant = 1.f; // must be larger than the max voxel density
       float t = t0;
       while (true) {
         // Sample a distance
@@ -281,46 +327,21 @@ namespace vopat {
 
         // Update current position
         vec3f P = org + t * dir;
-        // vec3f relPos = (P - globals.myRegion.lower) * rcp(globals.myRegion.size());
-        // if (relPos.x < 0.f) continue;
-        // if (relPos.y < 0.f) continue;
-        // if (relPos.z < 0.f) continue;
-
-        // vec3i cellID = vec3i(relPos * vec3f(numCells));
-        vec3i cellID = vec3i(floor(P - globals.myRegion.lower));
-        if (cellID.x < 0 || (cellID.x >= numCells.x) ||
-            cellID.y < 0 || (cellID.y >= numCells.y) ||
-            cellID.z < 0 || (cellID.z >= numCells.z)) continue;
 
         // Sample heterogeneous media
-        float f = globals.myVoxels[cellID.x
-                                   +numVoxels.x*(cellID.y
-                                                 +numVoxels.y*cellID.z)];
-#if 1
-        f = max(0.f,f-0.1);
-#endif
-      
-        // if (ray.dbg && (step < 2 || step == 10))
-        //   printf("(%i) step %i rel (%f %f %f) cell (%i %i %i) val %f\n",
-        //          vopat.myRank,
-        //          step,
-        //          relPos.x,
-        //          relPos.y,
-        //          relPos.z,
-        //          cellID.x,
-        //          cellID.y,
-        //          cellID.z,
-        //          f);
+        float f;
+        if (!getVolume(f,globals,P)) { t += dt; continue; }
+        f = transferFunction(f);
       
         // Check if a collision occurred (real particles / real + fake particles)
         if (rnd() < f / majorant) {
           if (ray.isShadow) {
-            // throughput = 0;
-            // vopat.killRay(tid);
-            // return;
-            throughput = 0;
-            // TODO: *KILL* that ray instead of letting it go through black...
-            break;
+            vec3f color = lightColor() * albedo() * ambient();
+            
+            if (ray.crosshair) color = vec3f(1.f)-color;
+            vopat.addPixelContribution(ray.pixelID,color);
+            vopat.killRay(tid);            
+            return;
           } else {
             org = P; 
             ray.origin = org;
@@ -332,43 +353,35 @@ namespace vopat {
             boxTest(myBox,ray,t0,t1);
             t = 0.f; // reset t to the origin
             ray.isShadow = true;
-            if (ray.dbg) printf("(%i) BOUNCED t in %f (%f %f)\n",vopat.myRank,t,t0,t1);
             continue;
           }
         }
       }
-#endif
-    
-      // throughput *= randomColor(vopat.myRank);
-      ray.throughput = to_half(throughput);
+      
       int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
 
       if (nextNode == -1) {
-        // path exits volume - deposit to image
-        // addToFB(&globals.accumBuffer[ray.pixelID],throughput);
-        float ambient = 0.1f;
-        vec3f albedo = vec3f(.8f, 1.f, .8f); // you'd normally sample this from the volume
-        bool missed = (throughput.x == 1.f && throughput.y == 1.f && throughput.z == 1.f);
-        vec3f color;
-        // primary ray hitting background
-        if (missed && !ray.isShadow) color = backgroundColor(ray,vopat);
-        // primary ray hitting light
-        else if (missed) color = lightColor() * albedo; 
-        // else, we're in shadow
-        else color = lightColor() * albedo * ambient;
+        vec3f color
+          = (ray.isShadow)
+          /* shadow ray that did reach the light (shadow rays that got
+             blocked got terminated above) */
+          ? lightColor() * albedo()
+          /* primary ray going straight through */
+          : backgroundColor(ray,vopat);
 
         if (ray.crosshair) color = vec3f(1.f)-color;
         vopat.addPixelContribution(ray.pixelID,color);
         vopat.killRay(tid);
-        // vopat.rayNextNode[tid] = -1;
       } else {
         // ray has another node to go to - add to queue
+        // ray.throughput = to_half(throughput);
         vopat.forwardRay(tid,ray,nextNode);
       }
     }
   };
 
 
+  
     
 
 
@@ -463,14 +476,13 @@ namespace vopat {
   void SimpleNodeRenderer<DeviceKernels>::traceLocally
   (const typename SimpleNodeRenderer<DeviceKernels>::VopatGlobals &vopat)
   {
-    CUDA_SYNC_CHECK();
+    // CUDA_SYNC_CHECK();
     int blockSize = 512;
     int numBlocks = divRoundUp(vopat.numRaysInQueue,blockSize);
-    PING; PRINT(vopat.numRaysInQueue); PRINT(numBlocks); fflush(0);
     if (numBlocks)
       doTraceRaysLocally<DeviceKernels><<<numBlocks,blockSize>>>
         (vopat,globals);
-    CUDA_SYNC_CHECK();
+    // CUDA_SYNC_CHECK();
   }
 
 
@@ -513,10 +525,9 @@ namespace vopat {
     CUDA_SYNC_CHECK();
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(vopat.fbSize,blockSize);
-    PING; PRINT(vopat.fbSize);
-    PRINT(numBlocks);
+    // PRINT(numBlocks);
     doGeneratePrimaryWave<DeviceKernels><<<numBlocks,blockSize>>>(vopat,globals);
-    CUDA_SYNC_CHECK();
+    // CUDA_SYNC_CHECK();
   }
 
 
@@ -528,9 +539,16 @@ namespace vopat {
                                      const std::string &fileNameBase,
                                      int rank)
   {
+#if 0
     SimpleNodeRenderer<SimpleDeviceKernels> *nodeRenderer
       = new SimpleNodeRenderer<SimpleDeviceKernels>
       (model,fileNameBase,rank);
     return new RayForwardingRenderer<SimpleDeviceKernels::Ray>(comm,nodeRenderer);
+#else
+    SimpleNodeRenderer<WoodcockKernels> *nodeRenderer
+      = new SimpleNodeRenderer<WoodcockKernels>
+      (model,fileNameBase,rank);
+    return new RayForwardingRenderer<SimpleDeviceKernels::Ray>(comm,nodeRenderer);
+#endif
   }
 }
