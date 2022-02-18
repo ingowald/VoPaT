@@ -32,5 +32,6 @@ include(cmake/configure_build_type.cmake)
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 add_subdirectory(vopat)
 
+add_subdirectory(submodules/cuteeOWL EXCLUDE_FROM_ALL)
 
 

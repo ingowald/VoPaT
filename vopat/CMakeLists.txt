@@ -57,3 +57,28 @@ target_link_libraries(vopatViewer
   MPI::MPI_CXX
   )
 set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+
+
+
+
+# ==================================================================
+add_executable(vopatQTViewer
+  qtViewer.cpp
+
+  render/DistributedRendererBase.h
+  render/DistributedRendererBase.cu
+  render/RayForwardingRenderer.h
+  render/RayForwardingRenderer.cu
+  render/SimpleNodeRenderer.cu
+  mpi/MPIBackend.cpp
+  mpi/MPIWorker.cpp
+  mpi/MPIMaster.cpp
+  )
+target_link_libraries(vopatQTViewer
+  PUBLIC
+  vopat_model
+  qtOWL
+#  owl_viewer
+  MPI::MPI_CXX
+  )
+set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
