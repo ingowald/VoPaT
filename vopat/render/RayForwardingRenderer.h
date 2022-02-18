@@ -225,7 +225,7 @@ namespace vopat {
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
     
-    int numSPP = 16;
+    int numSPP = 1;
     for (int s = 0; s < numSPP; s++) {
       globals.sampleID = numSPP * accumID + s;
     

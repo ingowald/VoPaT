@@ -29,6 +29,7 @@ namespace vopat {
        RENDER_FRAME,
        SCREEN_SHOT,
        TERMINATE,
+       SET_TRANSFER_FUNCTION,
        RESET_ACCUMULATION
       } Command;
   };

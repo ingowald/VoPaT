@@ -118,4 +118,25 @@ namespace vopat {
     renderer->setCamera(from,at,up,fovy);
   }
 
+  void MPIMaster::setTransferFunction(const std::vector<vec4f> &cm,
+                                      const interval<float> &range,
+                                      const float density)
+  {
+    // ------------------------------------------------------------------
+    // send request....
+    // ------------------------------------------------------------------
+    int cmd = SET_TRANSFER_FUNCTION;
+    MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+    // MPI_Bcast((void*)&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
+    int count = (int)cm.size();
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)cm.data(),count*sizeof(*cm.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&range,sizeof(range),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&density,sizeof(density),MPI_BYTE,0,MPI_COMM_WORLD);
+    // ------------------------------------------------------------------
+    // and do our own....
+    // ------------------------------------------------------------------
+    renderer->setTransferFunction(cm,range,density);
+  }
+  
 } // ::vopat

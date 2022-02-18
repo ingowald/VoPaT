@@ -199,11 +199,26 @@ namespace vopat {
     // signals:
     //   ;
   public slots:
-    void colorMapChanged(qtOWL::XFEditor *xf) { PING; };
-    void rangeChanged(range1f r) { PING; };
-    void opacityScaleChanged(double scale) { PING; };
+    void colorMapChanged(qtOWL::XFEditor *xf)
+    {
+      xfValues = xf->getColorMap();
+      master.setTransferFunction(xfValues,xfRange,xfDensity);
+    };
+    void rangeChanged(range1f r) 
+    {
+      xfRange = r;
+      master.setTransferFunction(xfValues,xfRange,xfDensity);
+    };
+    void opacityScaleChanged(double scale)
+    {
+      xfDensity = scale;
+      master.setTransferFunction(xfValues,xfRange,xfDensity);
+    };
                                      
   public:
+    std::vector<vec4f> xfValues;
+    range1f xfRange = { 0.f,1.f };
+    float   xfDensity = 1.f;
   };
 
   extern "C" int main(int argc, char **argv)
@@ -338,8 +353,8 @@ namespace vopat {
       }
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
       
-      qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
       QMainWindow guiWindow;
+      qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
       guiWindow.setCentralWidget(xfEditor);
 
       QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,

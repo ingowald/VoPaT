@@ -32,7 +32,9 @@ namespace vopat {
                            const vec3f &at,
                            const vec3f &up,
                            float fovy) = 0;
-
+    virtual void setTransferFunction(const std::vector<vec4f> &cm,
+                                     const interval<float> &range,
+                                     const float density) {}
     /*! dump a screenshot, possibhly including some per-rank debugging
         screenshots (mostly for debugging; it should be the app that
         provides the "real" screen shots) */

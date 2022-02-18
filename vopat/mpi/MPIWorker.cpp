@@ -135,6 +135,27 @@ namespace vopat {
     renderer->screenShot();
   }
     
+  void MPIWorker::cmd_setTransferFunction()
+  {
+    // ------------------------------------------------------------------
+    // get args....
+    // ------------------------------------------------------------------
+    int count;
+    std::vector<vec4f> cm;
+    interval<float> range;
+    float density;
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    cm.resize(count);
+    MPI_Bcast((void*)cm.data(),count*sizeof(*cm.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&range,sizeof(range),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&density,sizeof(density),MPI_BYTE,0,MPI_COMM_WORLD);
+
+    // ------------------------------------------------------------------
+    // and execute
+    // ------------------------------------------------------------------
+    renderer->setTransferFunction(cm,range,density);
+  }
+  
   void MPIWorker::run()
   {
     while (1) {
@@ -158,6 +179,9 @@ namespace vopat {
         break;
       case SCREEN_SHOT:
         cmd_screenShot();
+        break;
+      case SET_TRANSFER_FUNCTION:
+        cmd_setTransferFunction();
         break;
       default:
         throw std::runtime_error("unknown command ...");

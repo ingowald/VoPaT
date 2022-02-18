@@ -37,7 +37,9 @@ namespace vopat {
                    const vec3f &at,
                    const vec3f &up,
                    float fovy);
-
+    void setTransferFunction(const std::vector<vec4f> &cm,
+                             const interval<float> &range,
+                             const float density);
     MPIRenderer *renderer = nullptr;
     MPIBackend  &mpi;
   };

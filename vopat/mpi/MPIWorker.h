@@ -40,6 +40,7 @@ namespace vopat {
     void cmd_resizeFrameBuffer();
     void cmd_resetAccumulation();
     void cmd_setCamera();
+    void cmd_setTransferFunction();
     void cmd_setShadeMode();
     void cmd_setNodeSelection();
     void cmd_screenShot();

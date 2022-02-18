@@ -78,7 +78,7 @@ namespace vopat {
     
     static inline __device__ float transferFunction(float f)
     {
-#if 1
+#if 0
       return min(1.f,max(0.f,3.f*f-1.f));
 #else
       return max(0.f,1.1f*f-0.1f);
