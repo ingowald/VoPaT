@@ -296,35 +296,12 @@ namespace vopat {
                                    inFileBase,myRank);
 
       if (!isMaster) {
-        // const int myRank = mpiBackend.worker.withinIsland->rank;
-        // Brick::SP rankData = model->bricks[myRank];
-        // = scene::PartialScene::loadRank(inFileBase,myRank);
-        // localScene->selfCheck();
-        // char partString[100];
-        // sprintf(partString,"%03d",myRank);
-        // const std::string partFileName = inFileBase+"_part"+partString+".pbf";
-
-        // pbrt::Scene::SP partScene = pbrt::Scene::loadFrom(partFileName);
-        // assert(partScene);
-        // scene::LocalScene::SP localScene
-        //   = scene::LocalScene::extractFrom(masterScene,partScene,specs,
-        //                                    scene::NodeMask::singleRank(myRank));
-        // assert(localScene);
-        // Renderer *renderer
-        // = new VopatRenderer(&mpiBackend,model,cmdline.spp);
-
-        
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
       }
 
-      // Renderer *renderer
-      //   = new VopatRenderer(&mpiBackend,model,cmdline.spp);
-        
       MPIMaster master(mpiBackend,renderer);
-    
-      // owl::viewer::GlutWindow::initGlut(argc,argv);
 
       VoPaTViewer viewer(master);
       box3f sceneBounds = model->getBounds();
