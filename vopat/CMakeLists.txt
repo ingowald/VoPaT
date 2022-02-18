@@ -59,9 +59,17 @@ target_link_libraries(vopatViewer
 set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 
 
+#find_package(Qt5Widgets REQUIRED)
+#get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
+#string(REPLACE "-fPIC" "" new_core_options ${core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE ON)
+#set(CMAKE_AUTOMOC ON)
+#set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
 # ==================================================================
+set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
 add_executable(vopatQTViewer
   qtViewer.cpp
 
@@ -81,4 +89,18 @@ target_link_libraries(vopatQTViewer
 #  owl_viewer
   MPI::MPI_CXX
   )
-set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopatQTViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopatQTViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
+
+#get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
+#string(REPLACE "-fPIC" "" new_core_options ${core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE ON)
+
+
+
+#get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
+#string(REPLACE "-fPIC" "" new_core_options ${core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options})
+#set_property(TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE ON)
+
