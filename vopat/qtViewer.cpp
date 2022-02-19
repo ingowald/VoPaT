@@ -224,7 +224,6 @@ namespace vopat {
   extern "C" int main(int argc, char **argv)
   {
     try {
-      QApplication app(argc,argv);
       std::string inFileBase = "";
       for (int i=1;i<argc;i++) {
         const std::string arg = argv[i];
@@ -260,28 +259,9 @@ namespace vopat {
       }
 
     
-      // const std::string masterFileName = inFileBase+"_master.pbf";
-      // const std::string specsFileName = inFileBase+".ss";
-      // if (specsFileName == "") usage("no split-spec file specified");
-
-      // std::cout << "#brx.scene: done loading PBF scene" << std::endl;
-      // scene::SplitSpecs::SP specs
-      //   = scene::SplitSpecs::load(specsFileName);
-      // assert(specs);
-    
-      // std::cout << "#brx.scene: loading master PBF part " << masterFileName << std::endl;
-      // pbrt::Scene::SP masterScene = pbrt::Scene::loadFrom(masterFileName);
-      // assert(masterScene);
-      // masterScene->makeSingleLevel();
-      // pbrt::Scene::SP input = pbrt::Scene::loadFrom(pbrtFileName);
-      // assert(input);
-
       // ******************************************************************
       // all input loaded, and all parameters parsed ... set-up comms
       // ******************************************************************
-      // if (inFileBase[inFileBase.size()-1] != '_')
-      //   inFileBase = inFileBase+"_";
-      // MasterScene::SP masterScene = MasterScene::load(inFileBase+"master.summ");
       MPIBackend mpiBackend(argc,argv,0);
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
@@ -301,6 +281,7 @@ namespace vopat {
         exit(0);
       }
 
+      QApplication app(argc,argv);
       MPIMaster master(mpiBackend,renderer);
 
       VoPaTViewer viewer(master);

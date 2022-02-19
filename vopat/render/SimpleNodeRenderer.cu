@@ -76,6 +76,25 @@ namespace vopat {
       return true;
     }
     
+    static inline __device__ vec4f transferFunction(const VopatGlobals &vopat,
+                                                    float f)
+    {
+      if (vopat.xf.numValues == 0)
+        return f;
+      if (vopat.xf.range.lower >= vopat.xf.range.upper)
+        return f;
+
+      f = (f - vopat.xf.range.lower) / (vopat.xf.range.upper - vopat.xf.range.lower);
+      f = max(0.f,min(1.f,f));
+      int i = min(vopat.xf.numValues-1,int(f * vopat.xf.numValues));
+      return vopat.xf.values[i];
+#if 0
+      return min(1.f,max(0.f,3.f*f-1.f));
+#else
+      return max(0.f,1.1f*f-0.1f);
+#endif
+    }
+
     static inline __device__ float transferFunction(float f)
     {
 #if 0
@@ -239,7 +258,9 @@ namespace vopat {
         vec3f P = org + t * dir;
         float f;
         if (!getVolume(f,globals,P)) { t += dt; continue; }
-        f = transferFunction(f);
+        vec4f xf = transferFunction(vopat,f);
+        f = xf.w;
+        // f = transferFunction(f);
         f *= (DENSITY * dt);
         if (rnd() >= f) {
           t += dt;
@@ -315,7 +336,8 @@ namespace vopat {
 
       // maximum possible voxel density
       const float dt = 1.f; // relative to voxels
-      const float DENSITY = .03f;
+      // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+      const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
       float majorant = 1.f; // must be larger than the max voxel density
       float t = t0;
       while (true) {
@@ -331,7 +353,9 @@ namespace vopat {
         // Sample heterogeneous media
         float f;
         if (!getVolume(f,globals,P)) { t += dt; continue; }
-        f = transferFunction(f);
+        vec4f xf = transferFunction(vopat,f);
+        f = xf.w;
+        // f = transferFunction(f);
       
         // Check if a collision occurred (real particles / real + fake particles)
         if (rnd() < f / majorant) {
@@ -347,7 +371,10 @@ namespace vopat {
             ray.origin = org;
             ray.setDirection(lightDirection());
             dir = ray.getDirection();
-          
+            
+            throughput *= vec3f(xf.x,xf.y,xf.z);
+            ray.throughput = to_half(throughput);
+            
             t0 = 0.f;
             t1 = CUDART_INF;
             boxTest(myBox,ray,t0,t1);
@@ -365,7 +392,7 @@ namespace vopat {
           = (ray.isShadow)
           /* shadow ray that did reach the light (shadow rays that got
              blocked got terminated above) */
-          ? lightColor() * albedo()
+          ? lightColor() * throughput //albedo()
           /* primary ray going straight through */
           : backgroundColor(ray,vopat);
 

@@ -54,11 +54,6 @@ namespace vopat {
 
     virtual void screenShot() = 0;
 
-    virtual void setTransferFunction(const std::vector<vec4f> &cm,
-                                     const interval<float> &range,
-                                     const float density)
-    {}
-    
     CommBackend    *const comm;
     int             accumID = -1;
     vec2i           fbSize;

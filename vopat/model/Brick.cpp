@@ -84,6 +84,9 @@ namespace vopat {
     return ss.str();
   }
 
+  float clamp01(float f)
+  { return min(1.f,max(0.f,f)); }
+  
   /*! load a given time step and variable's worth of voxels from given file name */
   std::vector<float> Brick::load(const std::string &fileName)
   {
@@ -92,6 +95,17 @@ namespace vopat {
     std::vector<float> loadedVoxels;
     loadedVoxels.resize(volume(numVoxels));
     in.read((char*)loadedVoxels.data(),volume(numVoxels)*sizeof(float));
+
+    float lo = 0.f;
+    float hi = 0.f;
+    for (auto &v : loadedVoxels) {
+      lo = min(lo,v);
+      hi = max(hi,v);
+      v = clamp01(v / 100.f);
+    }
+    PRINT(lo);
+    PRINT(hi);
+    
     return loadedVoxels;
   }
 

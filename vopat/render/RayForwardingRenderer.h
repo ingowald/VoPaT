@@ -46,6 +46,14 @@ namespace vopat {
       vec2i        fbSize;
       vec3f       *accumBuffer;
 
+      struct {
+        interval<float> range;
+        float           density = 1.f;
+        vec4f          *values  = 0;
+        int             numValues = 0;
+      } xf;
+      
+
       /*! for compaction - where in the output queue to write rays for
           a given target rank */
       int         *perRankSendOffsets;
@@ -106,6 +114,29 @@ namespace vopat {
     void traceRaysLocally();
     void createSendQueue();
     int  exchangeRays();
+
+    void setTransferFunction(const std::vector<vec4f> &cm,
+                             const interval<float> &range,
+                             const float density) override
+    {
+      if (isMaster()) {
+      } else {
+        xf.cm.upload(cm);
+        globals.xf.values = xf.cm.get();
+        globals.xf.numValues = cm.size();
+        globals.xf.range = range;
+        globals.xf.density = density;
+      }
+      resetAccumulation();
+    }
+
+    struct {
+      CUDAArray<vec4f> cm;
+      // std::vector<vec4f> cm;
+      const interval<float> range = {0.f,1.f};
+      float density = 1.f;
+    } xf;
+      
     
     
     /*! ray queues we are expected to trace in the next step */
