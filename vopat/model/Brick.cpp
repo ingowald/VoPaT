@@ -101,7 +101,7 @@ namespace vopat {
     for (auto &v : loadedVoxels) {
       lo = min(lo,v);
       hi = max(hi,v);
-      v = clamp01(v / 100.f);
+      v = clamp01(v);
     }
     PRINT(lo);
     PRINT(hi);

@@ -18,6 +18,8 @@
 
 namespace vopat {
 
+// #define ISO_SURFACE 0.5f
+  
   struct DeviceKernelsBase
   {
     struct Ray {
@@ -334,6 +336,28 @@ namespace vopat {
       vec3i numVoxels = globals.numVoxels;
       vec3i numCells  = numVoxels - 1;
 
+#ifdef ISO_SURFACE
+      float isoDistance = -1.f;
+      {
+        int numSegments = int(t1-t0+1);
+        vec3f P1 = org + t0 * dir;
+        float f1 = getClampVolume(f,globals,P);
+        for (int i=1;i<=numSegments;i++) {
+          float f0 = f1;
+
+          float seg_t1 = t0 + float(i)/(t1-t0);
+          P1 = org + seg_t1 * dir;
+          f1 = getClampVolume(f,globals,P);
+
+          if ((f0 != f1) && (f1 - ISO_VALUE)*(f0 - ISO_VALUE) <= 0.f) {
+            isoDistance = (ISO_VALUE - f0) / (f1 - f0);
+            break;
+          }
+        }
+      }
+      if (isoDistance >= 0.f)
+        t1 = isoDistance;
+#endif
       // maximum possible voxel density
       const float dt = 1.f; // relative to voxels
       // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
@@ -345,7 +369,18 @@ namespace vopat {
         t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
 
         // A boundary has been hit
-        if (t >= t1) break;
+        if (t >= t1) {
+#if ISO_SURFACE
+          if (isoDistance >= 0.f) {
+            // we DID have an iso-surface hit!
+            org = org + isoDistance * dir;
+            vec3f N = normalize(gradient(org,globals));
+            if (dot(N,dir) > 0.f) N = -N;
+            vec3f r = sampleCosineHemisphere();
+          }
+#endif
+          break;
+        }
 
         // Update current position
         vec3f P = org + t * dir;
@@ -380,11 +415,16 @@ namespace vopat {
             boxTest(myBox,ray,t0,t1);
             t = 0.f; // reset t to the origin
             ray.isShadow = true;
+
+#if ISO_SURFACE
+            // eventually need to do iso-marching here, too!!!!
+            isoDistance = -1;
+#endif
             continue;
           }
         }
       }
-      
+
       int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
 
       if (nextNode == -1) {
