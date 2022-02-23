@@ -19,9 +19,7 @@
 #include "vopat/common.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
-#include "vopat/render/DistributedRendererBase.h"
-#include "vopat/model/Model.h"
-// #include "vopat/render/VopatRenderer.h"
+#include "vopat/Renderer.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
@@ -32,6 +30,8 @@
 
 namespace vopat {
 
+  std::string rendererName = "wc";
+    
   using qtOWL::range1f;
   
   Renderer *createTrivialNodeRenderer(CommBackend *comm, Model::SP model);
@@ -230,6 +230,9 @@ namespace vopat {
         if (arg[0] != '-') {
           inFileBase = arg;
         } 
+        else if (arg == "--renderer" || arg == "-r") {
+          rendererName = argv[++i];
+        }
         else if (arg == "-fovy") {
           cmdline.camera.fovy = std::atof(argv[++i]);
         }
@@ -271,9 +274,9 @@ namespace vopat {
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer
-        // = createTrivialNodeRenderer(&mpiBackend,model);
-        = createSimpleNodeRenderer(&mpiBackend,model,
-                                   inFileBase,myRank);
+        = createRenderer(rendererName,
+                         &mpiBackend,model,
+                         inFileBase,myRank);
 
       if (!isMaster) {
         MPIWorker worker(mpiBackend,renderer);

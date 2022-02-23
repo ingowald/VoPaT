@@ -19,9 +19,7 @@
 #include "vopat/common.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
-#include "vopat/render/DistributedRendererBase.h"
-#include "vopat/model/Model.h"
-// #include "vopat/render/VopatRenderer.h"
+#include "vopat/Renderer.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
@@ -29,13 +27,9 @@
 #include "samples/common/owlViewer/OWLViewer.h"
 
 namespace vopat {
-  
-  Renderer *createTrivialNodeRenderer(CommBackend *comm, Model::SP model);
-  Renderer *createSimpleNodeRenderer(CommBackend *comm,
-                                     Model::SP model,
-                                     const std::string &fileNameBase,
-                                     int rank);
-  
+
+  std::string rendererName = "wc";
+    
   struct {
     int spp = 1; //4;
     struct {
@@ -198,6 +192,9 @@ namespace vopat {
         if (arg[0] != '-') {
           inFileBase = arg;
         } 
+        else if (arg == "--renderer" || arg == "-r") {
+          rendererName = argv[++i];
+        }
         else if (arg == "-fovy") {
           cmdline.camera.fovy = std::atof(argv[++i]);
         }
@@ -226,29 +223,10 @@ namespace vopat {
           usage("unknown cmdline arg '"+arg+"'");
       }
 
-    
-      // const std::string masterFileName = inFileBase+"_master.pbf";
-      // const std::string specsFileName = inFileBase+".ss";
-      // if (specsFileName == "") usage("no split-spec file specified");
-
-      // std::cout << "#brx.scene: done loading PBF scene" << std::endl;
-      // scene::SplitSpecs::SP specs
-      //   = scene::SplitSpecs::load(specsFileName);
-      // assert(specs);
-    
-      // std::cout << "#brx.scene: loading master PBF part " << masterFileName << std::endl;
-      // pbrt::Scene::SP masterScene = pbrt::Scene::loadFrom(masterFileName);
-      // assert(masterScene);
-      // masterScene->makeSingleLevel();
-      // pbrt::Scene::SP input = pbrt::Scene::loadFrom(pbrtFileName);
-      // assert(input);
 
       // ******************************************************************
       // all input loaded, and all parameters parsed ... set-up comms
       // ******************************************************************
-      // if (inFileBase[inFileBase.size()-1] != '_')
-      //   inFileBase = inFileBase+"_";
-      // MasterScene::SP masterScene = MasterScene::load(inFileBase+"master.summ");
       MPIBackend mpiBackend(argc,argv,0);
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
@@ -258,41 +236,18 @@ namespace vopat {
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer
-        // = createTrivialNodeRenderer(&mpiBackend,model);
-        = createSimpleNodeRenderer(&mpiBackend,model,
-                                   inFileBase,myRank);
-
+        = createRenderer(rendererName,
+                         &mpiBackend,model,
+                         inFileBase,myRank);
+      
       if (!isMaster) {
-        // const int myRank = mpiBackend.worker.withinIsland->rank;
-        // Brick::SP rankData = model->bricks[myRank];
-          // = scene::PartialScene::loadRank(inFileBase,myRank);
-        // localScene->selfCheck();
-        // char partString[100];
-        // sprintf(partString,"%03d",myRank);
-        // const std::string partFileName = inFileBase+"_part"+partString+".pbf";
-
-        // pbrt::Scene::SP partScene = pbrt::Scene::loadFrom(partFileName);
-        // assert(partScene);
-        // scene::LocalScene::SP localScene
-        //   = scene::LocalScene::extractFrom(masterScene,partScene,specs,
-        //                                    scene::NodeMask::singleRank(myRank));
-        // assert(localScene);
-        // Renderer *renderer
-          // = new VopatRenderer(&mpiBackend,model,cmdline.spp);
-
-        
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
       }
 
-      // Renderer *renderer
-      //   = new VopatRenderer(&mpiBackend,model,cmdline.spp);
-        
       MPIMaster master(mpiBackend,renderer);
     
-      // owl::viewer::GlutWindow::initGlut(argc,argv);
-
       VoPaTViewer viewer(master);
       box3f sceneBounds = model->getBounds();
       PRINT(sceneBounds);

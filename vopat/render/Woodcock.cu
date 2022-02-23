@@ -1,0 +1,165 @@
+// ======================================================================== //
+// Copyright 2022++ Ingo Wald                                               //
+//                                                                          //
+// Licensed under the Apache License, Version 2.0 (the "License");          //
+// you may not use this file except in compliance with the License.         //
+// You may obtain a copy of the License at                                  //
+//                                                                          //
+//     http://www.apache.org/licenses/LICENSE-2.0                           //
+//                                                                          //
+// Unless required by applicable law or agreed to in writing, software      //
+// distributed under the License is distributed on an "AS IS" BASIS,        //
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
+// See the License for the specific language governing permissions and      //
+// limitations under the License.                                           //
+// ======================================================================== //
+
+#include "LocalDeviceRenderer.h"
+
+namespace vopat {
+
+  struct WoodcockKernels : public DeviceKernelsBase
+  {
+    static inline __device__
+    void traceRay(int tid,
+                  const VopatGlobals &vopat,
+                  const OwnGlobals &globals)
+    {
+      Ray ray = vopat.rayQueueIn[tid];
+
+      vec3f throughput = from_half(ray.throughput);
+      vec3f org = ray.origin;
+      vec3f dir = ray.getDirection();
+    
+      const box3f myBox = globals.rankBoxes[vopat.myRank];
+      float t0 = 0.f, t1 = CUDART_INF;
+      boxTest(myBox,ray,t0,t1);
+
+      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
+      vec3i numVoxels = globals.numVoxels;
+      vec3i numCells  = numVoxels - 1;
+
+#ifdef ISO_SURFACE
+      NOT WORKING YET
+        float isoDistance = -1.f;
+      {
+        int numSegments = int(t1-t0+1);
+        vec3f P1 = org + t0 * dir;
+        float f1 = getClampVolume(f,globals,P);
+        for (int i=1;i<=numSegments;i++) {
+          float f0 = f1;
+
+          float seg_t1 = t0 + float(i)/(t1-t0);
+          P1 = org + seg_t1 * dir;
+          f1 = getClampVolume(f,globals,P);
+
+          if ((f0 != f1) && (f1 - ISO_VALUE)*(f0 - ISO_VALUE) <= 0.f) {
+            isoDistance = (ISO_VALUE - f0) / (f1 - f0);
+            break;
+          }
+        }
+      }
+      if (isoDistance >= 0.f)
+        t1 = isoDistance;
+#endif
+      // maximum possible voxel density
+      const float dt = 1.f; // relative to voxels
+      // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+      const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+      float majorant = 1.f; // must be larger than the max voxel density
+      float t = t0;
+      while (true) {
+        // Sample a distance
+        t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
+
+        // A boundary has been hit
+        if (t >= t1) {
+#if ISO_SURFACE
+          if (isoDistance >= 0.f) {
+            // we DID have an iso-surface hit!
+            org = org + isoDistance * dir;
+            vec3f N = normalize(gradient(org,globals));
+            if (dot(N,dir) > 0.f) N = -N;
+            vec3f r = sampleCosineHemisphere();
+          }
+#endif
+          break;
+        }
+
+        // Update current position
+        vec3f P = org + t * dir;
+
+        // Sample heterogeneous media
+        float f;
+        if (!getVolume(f,globals,P)) { t += dt; continue; }
+        vec4f xf = transferFunction(vopat,f);
+        f = xf.w;
+        // f = transferFunction(f);
+      
+        // Check if a collision occurred (real particles / real + fake particles)
+        if (rnd() < f / majorant) {
+          if (ray.isShadow) {
+            vec3f color = lightColor() * albedo() * ambient();
+            
+            if (ray.crosshair) color = vec3f(1.f)-color;
+            vopat.addPixelContribution(ray.pixelID,color);
+            vopat.killRay(tid);            
+            return;
+          } else {
+            org = P; 
+            ray.origin = org;
+            ray.setDirection(lightDirection());
+            dir = ray.getDirection();
+            
+            throughput *= vec3f(xf.x,xf.y,xf.z);
+            ray.throughput = to_half(throughput);
+            
+            t0 = 0.f;
+            t1 = CUDART_INF;
+            boxTest(myBox,ray,t0,t1);
+            t = 0.f; // reset t to the origin
+            ray.isShadow = true;
+
+#if ISO_SURFACE
+            // eventually need to do iso-marching here, too!!!!
+            isoDistance = -1;
+#endif
+            continue;
+          }
+        }
+      }
+
+      int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
+
+      if (nextNode == -1) {
+        vec3f color
+          = (ray.isShadow)
+          /* shadow ray that did reach the light (shadow rays that got
+             blocked got terminated above) */
+          ? lightColor() * throughput //albedo()
+          /* primary ray going straight through */
+          : backgroundColor(ray,vopat);
+
+        if (ray.crosshair) color = vec3f(1.f)-color;
+        vopat.addPixelContribution(ray.pixelID,color);
+        vopat.killRay(tid);
+      } else {
+        // ray has another node to go to - add to queue
+        // ray.throughput = to_half(throughput);
+        vopat.forwardRay(tid,ray,nextNode);
+      }
+    }
+  };
+
+  Renderer *createRenderer_Woodcock(CommBackend *comm,
+                                    Model::SP model,
+                                    const std::string &fileNameBase,
+                                    int rank)
+  {
+    LocalDeviceRenderer<WoodcockKernels> *nodeRenderer
+      = new LocalDeviceRenderer<WoodcockKernels>
+      (model,fileNameBase,rank);
+    return new RayForwardingRenderer<WoodcockKernels::Ray>(comm,nodeRenderer);
+  }
+
+} // ::vopat

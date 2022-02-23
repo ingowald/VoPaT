@@ -37,57 +37,49 @@ target_link_libraries(vopatSplitRaw
   vopat_model
   )
 
-# ==================================================================
-add_executable(vopatViewer
-  viewer.cpp
-
+add_library(vopat_render
+  Renderer.cpp
+  
   render/DistributedRendererBase.h
   render/DistributedRendererBase.cu
   render/RayForwardingRenderer.h
   render/RayForwardingRenderer.cu
-  render/SimpleNodeRenderer.cu
+#  render/SimpleNodeRenderer.cu
+  render/Woodcock.cu
+  render/CellMarchRenderer.cu
+  render/StepMarchRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp
   )
-target_link_libraries(vopatViewer
+target_link_libraries(vopat_render
   PUBLIC
   vopat_model
   owl_viewer
   MPI::MPI_CXX
   )
-set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 
-
-#find_package(Qt5Widgets REQUIRED)
-#get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
-#string(REPLACE "-fPIC" "" new_core_options ${core_options})
-#set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options})
-#set_property(TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE ON)
-#set(CMAKE_AUTOMOC ON)
-#set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# ==================================================================
+add_executable(vopatViewer
+  viewer.cpp
+  )
+target_link_libraries(vopatViewer
+  PUBLIC
+  vopat_render
+  )
+#set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 
 
 # ==================================================================
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
 add_executable(vopatQTViewer
   qtViewer.cpp
-
-  render/DistributedRendererBase.h
-  render/DistributedRendererBase.cu
-  render/RayForwardingRenderer.h
-  render/RayForwardingRenderer.cu
-  render/SimpleNodeRenderer.cu
-  mpi/MPIBackend.cpp
-  mpi/MPIWorker.cpp
-  mpi/MPIMaster.cpp
   )
 target_link_libraries(vopatQTViewer
   PUBLIC
-  vopat_model
+  vopat_render
   qtOWL
-#  owl_viewer
-  MPI::MPI_CXX
   )
 set_property(TARGET vopatQTViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 set_property(TARGET vopatQTViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
