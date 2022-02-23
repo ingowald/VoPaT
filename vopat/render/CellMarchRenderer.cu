@@ -41,17 +41,16 @@ namespace vopat {
     vec3f dir = ray.getDirection();
     
     const box3f myBox = globals.rankBoxes[vopat.myRank];
-    vec3f local_org = org - myBox.lower;
     float t0 = 0.f, t1 = CUDART_INF;
     boxTest(myBox,ray,t0,t1);
 
     Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
     vec3i numVoxels = globals.numVoxels;
     vec3i numCells  = numVoxels - 1;
-    const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+    const float DENSITY = vopat.xf.density;//.03f;
     bool skipFirstStep = false;
     if (!ray.isShadow)
-      dda::dda3(local_org,dir,CUDART_INF,
+      dda::dda3(org - myBox.lower,dir,CUDART_INF,
                 vec3ui(numCells),
                 [&](vec3i cellIdx)
                 {
@@ -87,7 +86,7 @@ namespace vopat {
     // note ray may also just have BECOME a shadow ray
     bool killThisRay = false;
     if (ray.isShadow)
-      dda::dda3(local_org,dir,CUDART_INF,
+      dda::dda3(org - myBox.lower,dir,CUDART_INF,
                 vec3ui(numCells),
                 [&](vec3i cellIdx)
                 {
@@ -126,10 +125,14 @@ namespace vopat {
         = (ray.isShadow)
         /* shadow ray that did reach the light (shadow rays that got
            blocked got terminated above) */
-        ? lightColor() * throughput //albedo()
+        ? lightColor() //albedo()
         /* primary ray going straight through */
         : backgroundColor(ray,vopat);
       
+      if (killThisRay)
+        color *= ambient();
+      color *= throughput;
+        
       if (ray.crosshair) color = vec3f(1.f)-color;
       vopat.addPixelContribution(ray.pixelID,color);
       vopat.killRay(tid);
