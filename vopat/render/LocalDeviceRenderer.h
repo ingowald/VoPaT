@@ -288,7 +288,7 @@ namespace vopat {
   (const typename LocalDeviceRenderer<DeviceKernels>::VopatGlobals &vopat)
   {
     // CUDA_SYNC_CHECK();
-    int blockSize = 512;
+    int blockSize = 128;
     int numBlocks = divRoundUp(vopat.numRaysInQueue,blockSize);
     if (numBlocks)
       doTraceRaysLocally<DeviceKernels><<<numBlocks,blockSize>>>
@@ -310,7 +310,11 @@ namespace vopat {
     int myRank = vopat.myRank;
     typename DeviceKernels::Ray
       ray    = DeviceKernels::generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
-    ray.dbg    = false;//(vec2i(ix,iy) == vopat.fbSize/2);
+#if 0
+    ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
+#else
+    ray.dbg    = false;
+#endif
     ray.crosshair = (ix == vopat.fbSize.x/2) || (iy == vopat.fbSize.y/2);
     int dest   = DeviceKernels::computeInitialRank(vopat,globals,ray);
 

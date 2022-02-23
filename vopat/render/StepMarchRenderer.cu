@@ -52,7 +52,7 @@ namespace vopat {
     const float dt = 1.f; // relative to voxels
     const float DENSITY = vopat.xf.density;//.03f;
     float t = t0 + dt * rnd();
-    bool killThisRay = false;
+    bool terminatedShadowRay = false;
     while (true) {
       if (t >= t1) break;
 
@@ -69,7 +69,7 @@ namespace vopat {
       }
 
       if (ray.isShadow) {
-        killThisRay = true;
+        terminatedShadowRay = true;
         // vopat.killRay(tid);
         break;//return;
       } else {
@@ -88,30 +88,31 @@ namespace vopat {
         continue;
       }
     }
-    int nextNode
-      = killThisRay
-      ? -1
-      : computeNextNode(vopat,globals,ray,t1,ray.dbg);
-
+    if (terminatedShadowRay) {
+      vec3f color = throughput * lightColor() * ambient();
+      if (ray.crosshair) color = vec3f(1.f)-color;
+      vopat.addPixelContribution(ray.pixelID,color);
+      vopat.killRay(tid);
+      return;
+    }
+    
+    int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
     if (nextNode == -1) {
       vec3f color
         = (ray.isShadow)
         /* shadow ray that did reach the light (shadow rays that got
            blocked got terminated above) */
-        ? lightColor() // * albedo()
+        ? lightColor()
         /* primary ray going straight through */
         : backgroundColor(ray,vopat);
-
-      if (killThisRay)
-        color *= ambient();
-      color *= throughput;
       
+      color *= throughput;
       if (ray.crosshair) color = vec3f(1.f)-color;
       vopat.addPixelContribution(ray.pixelID,color);
       vopat.killRay(tid);
     } else {
       // ray has another node to go to - add to queue
-      ray.throughput = to_half(throughput);
+      // ray.throughput = to_half(throughput);
       vopat.forwardRay(tid,ray,nextNode);
     }
   }

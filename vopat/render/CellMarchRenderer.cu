@@ -36,6 +36,17 @@ namespace vopat {
   {
     Ray ray = vopat.rayQueueIn[tid];
 
+#if 0
+     if (!ray.dbg) {
+       vopat.killRay(tid);
+       return;
+     }
+     bool dbg = ray.dbg;
+#else
+     // force-off debug flag so compiler can dead-code eliminate ...
+     bool dbg = false;
+#endif
+     
     vec3f throughput = from_half(ray.throughput);
     vec3f org = ray.origin;
     vec3f dir = ray.getDirection();
@@ -49,10 +60,18 @@ namespace vopat {
     vec3i numCells  = numVoxels - 1;
     const float DENSITY = vopat.xf.density;//.03f;
     bool skipFirstStep = false;
+    if (dbg) printf("tracing FIRST ray (%f %f %f)(%f %f %f) ....\n",
+                    org.x,
+                    org.y,
+                    org.z,
+                    dir.x,
+                    dir.y,
+                    dir.z
+                    );
     if (!ray.isShadow)
       dda::dda3(org - myBox.lower,dir,CUDART_INF,
                 vec3ui(numCells),
-                [&](vec3i cellIdx)
+                [&](const vec3i &cellIdx, float t0, float t1) -> bool
                 {
                   // Update current position - for now (in absence of
                   // tin/tout of the cell - let's just do sample in
@@ -74,21 +93,30 @@ namespace vopat {
                   ray.origin = org;
                   ray.setDirection(lightDirection());
                   dir = ray.getDirection();
+                  throughput *= vec3f(xf);
                   
                   t0 = 0.f;
                   t1 = CUDART_INF;
-                  boxTest(myBox,ray,t0,t1,ray.dbg);
+                  boxTest(myBox,ray,t0,t1,dbg);
                   ray.isShadow = true;
                   skipFirstStep = true;
                   return false;
                 },
-                false);
+                dbg);
+    if (dbg) printf("going on the shadow ray .... (%f %f %f)(%f %f %f)\n",
+                        org.x,
+                        org.y,
+                        org.z,
+                        dir.x,
+                        dir.y,
+                        dir.z
+                        );
     // note ray may also just have BECOME a shadow ray
-    bool killThisRay = false;
+    bool terminatedShadowRay = false;
     if (ray.isShadow)
       dda::dda3(org - myBox.lower,dir,CUDART_INF,
                 vec3ui(numCells),
-                [&](vec3i cellIdx)
+                [&](const vec3i &cellIdx, float t0, float t1) -> bool
                 {
                   if (skipFirstStep) {
                     skipFirstStep = false;
@@ -108,37 +136,39 @@ namespace vopat {
                   if (rnd() >= f) 
                     // did not sample this density; keep on going
                     return true;
-
+                  
                   // kill ray and terminate traversal
-                  killThisRay = true;
+                  terminatedShadowRay = true;
                   return false;
                 },
-                false);
+                dbg);
+    if (dbg) printf("after trace...\n");
+
+    if (terminatedShadowRay) {
+      vec3f color = throughput * lightColor() * ambient();
+      if (ray.crosshair) color = vec3f(1.f)-color;
+      vopat.addPixelContribution(ray.pixelID,color);
+      vopat.killRay(tid);
+      return;
+    }
     
-    int nextNode
-      = killThisRay
-      ? -1
-      : computeNextNode(vopat,globals,ray,t1,ray.dbg);
-    
+    int nextNode = computeNextNode(vopat,globals,ray,t1,dbg);
     if (nextNode == -1) {
       vec3f color
         = (ray.isShadow)
         /* shadow ray that did reach the light (shadow rays that got
            blocked got terminated above) */
-        ? lightColor() //albedo()
+        ? lightColor()
         /* primary ray going straight through */
         : backgroundColor(ray,vopat);
       
-      if (killThisRay)
-        color *= ambient();
       color *= throughput;
-        
       if (ray.crosshair) color = vec3f(1.f)-color;
       vopat.addPixelContribution(ray.pixelID,color);
       vopat.killRay(tid);
     } else {
       // ray has another node to go to - add to queue
-      // ray.throughput = to_half(throughput);
+      ray.throughput = to_half(throughput);
       vopat.forwardRay(tid,ray,nextNode);
     }
   }

@@ -8,17 +8,17 @@
 namespace dda {
   using namespace owl::common;
 
-  inline __device__
-  bool clipRay(vec3f org, vec3f rcp_dir, box3f box, float &t0, float &t1)
-  {
-    vec3f t_lo = (box.lower - org) * rcp_dir;
-    vec3f t_up = (box.upper - org) * rcp_dir;
-    vec3f t_nr = min(t_lo,t_up);
-    vec3f t_fr = max(t_lo,t_up);
-    t0 = max(t0,reduce_max(t_nr));
-    t1 = min(t1,reduce_min(t_fr));
-    return t0 < t1;
-  }
+  // inline __device__
+  // bool clipRay(vec3f org, vec3f rcp_dir, box3f box, float &t0, float &t1)
+  // {
+  //   vec3f t_lo = (box.lower - org) * rcp_dir;
+  //   vec3f t_up = (box.upper - org) * rcp_dir;
+  //   vec3f t_nr = min(t_lo,t_up);
+  //   vec3f t_fr = max(t_lo,t_up);
+  //   t0 = max(t0,reduce_max(t_nr));
+  //   t1 = min(t1,reduce_min(t_fr));
+  //   return t0 < t1;
+  // }
 
 #if DDA_FAST
   inline __device__ int get(vec3i v, int dim)
@@ -60,6 +60,11 @@ namespace dda {
     return arg_min(v);
   }
 #endif
+
+  inline __device__ vec3f floor(vec3f v)
+  {
+    return { floorf(v.x),floorf(v.y),floorf(v.z) };
+  }
   
   template<typename Lambda>
   inline __device__ void dda3(vec3f org,
@@ -70,63 +75,137 @@ namespace dda {
                               bool dbg)
   {    
     const box3f bounds = { vec3f(0.f), vec3f(gridSize) };
-    vec3f rcp_dir = rcp(dir);
-    float t0 = 0.f, t1 = tMax;
-    if (!clipRay(org,rcp_dir,bounds,t0,t1)) {
-      // if (dbg) printf(" -> clipped %f %f\n",t0,t1);
-      return;
-    }
-    const vec3f P = org + t0 * dir;
-    vec3i idx = vec3i(P);
-    vec3f res = P - vec3f(idx);
+    const vec3f floor_org = floor(org);
+    const vec3f floor_org_plus_one = floor_org + vec3f(1.f);
+    const vec3f rcp_dir     = rcp(dir);
+    const vec3f abs_rcp_dir = abs(rcp(dir));
+    const vec3f f_size = vec3f(gridSize);
     
-    if (idx.x >= gridSize.x) { idx.x = gridSize.x-1; res.x = 1.f; }
-    if (idx.y >= gridSize.y) { idx.y = gridSize.y-1; res.y = 1.f; }
-    if (idx.z >= gridSize.z) { idx.z = gridSize.z-1; res.z = 1.f; }
-    if (idx.x < 0) { idx.x = 0; res.x = 0.f; }
-    if (idx.y < 0) { idx.y = 0; res.y = 0.f; }
-    if (idx.z < 0) { idx.z = 0; res.z = 0.f; }
+    vec3f t_lo = (vec3f(0.f) - org) * rcp(dir);
+    vec3f t_hi = (f_size     - org) * rcp(dir);
+    vec3f t_nr = min(t_lo,t_hi);
+    vec3f t_fr = max(t_lo,t_hi);
+    if (dir.x == 0.f) {
+      if (org.x < 0.f || org.x > f_size.x)
+        // ray passes by the volume ...
+        return;
+      t_nr.x = -CUDART_INF; t_nr.x = +CUDART_INF;
+    }
+    if (dir.y == 0.f) {
+      if (org.y < 0.f || org.y > f_size.y)
+        // ray passes by the volume ...
+        return;
+      t_nr.y = -CUDART_INF; t_nr.y = +CUDART_INF;
+    }
+    if (dir.z == 0.f) {
+      if (org.z < 0.f || org.z > f_size.z)
+        // ray passes by the volume ...
+        return;
+      t_nr.z = -CUDART_INF; t_nr.z = +CUDART_INF;
+    }
+    
+    float t0 = max(0.f,reduce_max(t_nr));
+    float t1 = min(tMax,reduce_min(t_fr));
+    if (dbg) printf("t range for volume %f %f\n",t0,t1);
+    if (t0 > t1) return; // no overlap with volume
 
-    const vec3i stop = {
-                        (dir.x < 0.f) ? -1 : (int)gridSize.x,
-                        (dir.y < 0.f) ? -1 : (int)gridSize.y,
-                        (dir.z < 0.f) ? -1 : (int)gridSize.z
+    
+    // compute first cell that ray is in:
+    vec3f org_in_volume = org + t0 * dir;
+    if (dbg) printf("org in vol %f %f %f size %i %i %i\n",
+                    org_in_volume.x,
+                    org_in_volume.y,
+                    org_in_volume.z,
+                    gridSize.x,
+                    gridSize.y,
+                    gridSize.z);
+    vec3f f_cell = max(vec3f(0.f),min(f_size-1.f,floor(org_in_volume)));
+    vec3f f_cell_end = {
+                        dir.x > 0.f ? f_cell.x+1.f : f_cell.x,
+                        dir.y > 0.f ? f_cell.y+1.f : f_cell.y,
+                        dir.z > 0.f ? f_cell.z+1.f : f_cell.z,
     };
-    // if (dbg) printf("# stop %i %i %i\n",stop.x,stop.y,stop.z);
+    if (dbg)
+      printf("f_cell_end %f %f %f\n",
+             f_cell_end.x,
+             f_cell_end.y,
+             f_cell_end.z);
     
-    if (dir.x < 0.f) {
-      res.x = (1.f-res.x) * - rcp_dir.x;
-    } else {
-      res.x = res.x / rcp_dir.x;
-    }
-    if (dir.y < 0.f) {
-      res.y = (1.f-res.y) * - rcp_dir.y;
-    } else {
-      res.y = res.y / rcp_dir.y;
-    }
-    if (dir.z < 0.f) {
-      res.z = (1.f-res.z) * - rcp_dir.z;
-    } else {
-      res.z = res.z / rcp_dir.z;
-    }
-    // if (dbg) printf("# res %i %i %i\n",res.x,res.y,res.z);
-
-    // int step = 0;
+    vec3f t_step = abs(rcp_dir);
+    if (dbg)
+      printf("t_step %f %f %f\n",
+             t_step.x,
+             t_step.y,
+             t_step.z);
+    vec3f t_next
+      = {
+         ((dir.x == 0.f)
+          ? CUDART_INF
+          : (abs(f_cell_end.x - org_in_volume.x) * t_step.x)),
+         ((dir.y == 0.f)
+          ? CUDART_INF
+          : (abs(f_cell_end.y - org_in_volume.y) * t_step.y)),
+         ((dir.z == 0.f)
+          ? CUDART_INF
+          : (abs(f_cell_end.z - org_in_volume.z) * t_step.z))
+    };
+    if (dbg)
+      printf("t_next %f %f %f\n",
+             t_next.x,
+             t_next.y,
+             t_next.z);
+    const vec3i stop
+      = {
+         dir.x > 0.f ? (int)gridSize.x : -1,
+         dir.y > 0.f ? (int)gridSize.y : -1,
+         dir.z > 0.f ? (int)gridSize.z : -1
+    };
+    if (dbg)
+      printf("stop %i %i %i\n",
+             stop.x,
+             stop.y,
+             stop.z);
+    const vec3i cell_delta
+      = {
+         (dir.x > 0.f ? +1 : -1),
+         (dir.y > 0.f ? +1 : -1),
+         (dir.z > 0.f ? +1 : -1)
+    };
+    if (dbg)
+      printf("cell_delta %i %i %i\n",
+             cell_delta.x,
+             cell_delta.y,
+             cell_delta.z);
+    vec3i cell = vec3i(f_cell);
+    float next_cell_begin = t0;
     while (1) {
-      // if (dbg) printf("# ---- step %i -> calling %i %i %i\n",
-      //                 step,idx.x,idx.y,idx.z);
-      const bool userWantsToGoOn = lambda(idx);
-      if (userWantsToGoOn) break;
-
-      const int dim = smallestDim(res);
-      res -= reduce_min(res);
-      int idx_dim = get(idx,dim);
-      float rcp_dir_dim = get(rcp_dir,dim);
-      idx_dim = idx_dim + ((rcp_dir_dim < 0.f) ? -1 : +1);
-      if (idx_dim == get(stop,dim)) break;
-      set(idx,dim,idx_dim);
-      set(res,dim,abs(rcp_dir_dim));
-      // ++step;
+      float t_closest = reduce_min(t_next);
+      const float cell_t0 = next_cell_begin;
+      const float cell_t1   = min(t_closest,tMax);
+      if (dbg)
+        printf("cell %i %i %i dists %f %f %f closest %f t %f %f\n",
+               cell.x,cell.y,cell.z,
+               t_next.x,t_next.y,t_next.z,
+               t_closest,cell_t0,cell_t1);
+      bool wantToGoOn = lambda(cell,cell_t0,cell_t1);
+      if (!wantToGoOn)
+        return;
+      next_cell_begin = t_closest;
+      if (t_next.x == t_closest) {
+        t_next.x += t_step.x;
+        cell.x += cell_delta.x;
+        if (cell.x == stop.x) return;
+      }
+      if (t_next.y == t_closest) {
+        t_next.y += t_step.y;
+        cell.y += cell_delta.y;
+        if (cell.y == stop.y) return;
+      }
+      if (t_next.z == t_closest) {
+        t_next.z += t_step.z;
+        cell.z += cell_delta.z;
+        if (cell.z == stop.z) return;
+      }
     }
   }
 }
