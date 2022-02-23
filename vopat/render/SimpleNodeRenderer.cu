@@ -90,22 +90,8 @@ namespace vopat {
       f = max(0.f,min(1.f,f));
       int i = min(vopat.xf.numValues-1,int(f * vopat.xf.numValues));
       return vopat.xf.values[i];
-#if 0
-      return min(1.f,max(0.f,3.f*f-1.f));
-#else
-      return max(0.f,1.1f*f-0.1f);
-#endif
     }
 
-    static inline __device__ float transferFunction(float f)
-    {
-#if 0
-      return min(1.f,max(0.f,3.f*f-1.f));
-#else
-      return max(0.f,1.1f*f-0.1f);
-#endif
-    }
-    
     static inline __device__
     float floor(float f) { return ::floorf(f); }
   
@@ -262,7 +248,6 @@ namespace vopat {
         if (!getVolume(f,globals,P)) { t += dt; continue; }
         vec4f xf = transferFunction(vopat,f);
         f = xf.w;
-        // f = transferFunction(f);
         f *= (DENSITY * dt);
         if (rnd() >= f) {
           t += dt;
@@ -337,6 +322,7 @@ namespace vopat {
       vec3i numCells  = numVoxels - 1;
 
 #ifdef ISO_SURFACE
+      NOT WORKING YET
       float isoDistance = -1.f;
       {
         int numSegments = int(t1-t0+1);
