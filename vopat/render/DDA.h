@@ -104,14 +104,14 @@ namespace dda {
       t_nr.z = -CUDART_INF; t_nr.z = +CUDART_INF;
     }
     
-    float t0 = max(0.f,reduce_max(t_nr));
-    float t1 = min(tMax,reduce_min(t_fr));
-    if (dbg) printf("t range for volume %f %f\n",t0,t1);
-    if (t0 > t1) return; // no overlap with volume
+    float ray_t0 = max(0.f,reduce_max(t_nr));
+    float ray_t1 = min(tMax,reduce_min(t_fr));
+    if (dbg) printf("t range for volume %f %f\n",ray_t0,ray_t1);
+    if (ray_t0 > ray_t1) return; // no overlap with volume
 
     
     // compute first cell that ray is in:
-    vec3f org_in_volume = org + t0 * dir;
+    vec3f org_in_volume = org + ray_t0 * dir;
     if (dbg) printf("org in vol %f %f %f size %i %i %i\n",
                     org_in_volume.x,
                     org_in_volume.y,
@@ -177,11 +177,11 @@ namespace dda {
              cell_delta.y,
              cell_delta.z);
     vec3i cell = vec3i(f_cell);
-    float next_cell_begin = t0;
+    float next_cell_begin = 0.f;
     while (1) {
       float t_closest = reduce_min(t_next);
-      const float cell_t0 = next_cell_begin;
-      const float cell_t1   = min(t_closest,tMax);
+      const float cell_t0 = ray_t0+next_cell_begin;
+      const float cell_t1 = ray_t0+min(t_closest,tMax);
       if (dbg)
         printf("cell %i %i %i dists %f %f %f closest %f t %f %f\n",
                cell.x,cell.y,cell.z,

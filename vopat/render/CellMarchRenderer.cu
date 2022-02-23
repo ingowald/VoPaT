@@ -36,11 +36,13 @@ namespace vopat {
   {
     Ray ray = vopat.rayQueueIn[tid];
 
-#if 0
+#if 1
+# if 0
      if (!ray.dbg) {
        vopat.killRay(tid);
        return;
      }
+# endif
      bool dbg = ray.dbg;
 #else
      // force-off debug flag so compiler can dead-code eliminate ...
@@ -76,14 +78,15 @@ namespace vopat {
                   // Update current position - for now (in absence of
                   // tin/tout of the cell - let's just do sample in
                   // center of cell
-                  vec3f P = myBox.lower + vec3f(cellIdx)+0.5f;
+                  vec3f P
+                    // = myBox.lower + vec3f(cellIdx)+0.5f;
+                    = org + (.5f*(t0+t1))*dir;
                   float f;
                   if (!getVolume(f,globals,P))
                     // something fishy with this sample pos - keep on going
                     return true;
                   vec4f xf = transferFunction(vopat,f);
-                  f = xf.w;
-                  f *= (DENSITY);
+                  f = xf.w * DENSITY * (t1-t0);
                   if (rnd() >= f) 
                     // did not sample this density; keep on going
                     return true;
@@ -125,14 +128,15 @@ namespace vopat {
                   // Update current position - for now (in absence of
                   // tin/tout of the cell - let's just do sample in
                   // center of cell
-                  vec3f P = myBox.lower + vec3f(cellIdx)+0.5f;
+                  vec3f P
+                    // = myBox.lower + vec3f(cellIdx)+0.5f;
+                    = org + (.5f*(t0+t1))*dir;
                   float f;
                   if (!getVolume(f,globals,P))
                     // something fishy with this sample pos - keep on going
                     return true;
                   vec4f xf = transferFunction(vopat,f);
-                  f = xf.w;
-                  f *= (DENSITY);
+                  f = xf.w * DENSITY * (t1-t0);
                   if (rnd() >= f) 
                     // did not sample this density; keep on going
                     return true;
