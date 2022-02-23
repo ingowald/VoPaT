@@ -19,107 +19,126 @@
 
 namespace vopat {
 
+  /*! a version of the data parallel ray forwarding renderer that uses
+    DDA to step through all cells of the local volume, sampling each one */
   struct CellMarchKernels : public DeviceKernelsBase
   {
     static inline __device__
     void traceRay(int tid,
                   const VopatGlobals &vopat,
-                  const OwnGlobals &globals)
-    {
-      Ray ray = vopat.rayQueueIn[tid];
-
-      vec3f throughput = from_half(ray.throughput);
-      vec3f org = ray.origin;
-      vec3f dir = ray.getDirection();
-    
-      const box3f myBox = globals.rankBoxes[vopat.myRank];
-      float t0 = 0.f, t1 = CUDART_INF;
-      boxTest(myBox,ray,t0,t1);
-
-      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
-      vec3i numVoxels = globals.numVoxels;
-      vec3i numCells  = numVoxels - 1;
-
-      // maximum possible voxel density
-      const float dt = 1.f; // relative to voxels
-      // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
-      const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
-      float majorant = 1.f; // must be larger than the max voxel density
-      float t = t0;
-      while (true) {
-        // Sample a distance
-        t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
-
-        // A boundary has been hit
-        if (t >= t1) {
-          break;
-        }
-
-        // Update current position
-        vec3f P = org + t * dir;
-
-        // Sample heterogeneous media
-        float f;
-        if (!getVolume(f,globals,P)) { t += dt; continue; }
-        vec4f xf = transferFunction(vopat,f);
-        f = xf.w;
-        // f = transferFunction(f);
-      
-        // Check if a collision occurred (real particles / real + fake particles)
-        if (rnd() < f / majorant) {
-          if (ray.isShadow) {
-            vec3f color = lightColor() * albedo() * ambient();
-            
-            if (ray.crosshair) color = vec3f(1.f)-color;
-            vopat.addPixelContribution(ray.pixelID,color);
-            vopat.killRay(tid);            
-            return;
-          } else {
-            org = P; 
-            ray.origin = org;
-            ray.setDirection(lightDirection());
-            dir = ray.getDirection();
-            
-            throughput *= vec3f(xf.x,xf.y,xf.z);
-            ray.throughput = to_half(throughput);
-            
-            t0 = 0.f;
-            t1 = CUDART_INF;
-            boxTest(myBox,ray,t0,t1);
-            t = 0.f; // reset t to the origin
-            ray.isShadow = true;
-
-#if ISO_SURFACE
-            // eventually need to do iso-marching here, too!!!!
-            isoDistance = -1;
-#endif
-            continue;
-          }
-        }
-      }
-
-      int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
-
-      if (nextNode == -1) {
-        vec3f color
-          = (ray.isShadow)
-          /* shadow ray that did reach the light (shadow rays that got
-             blocked got terminated above) */
-          ? lightColor() * throughput //albedo()
-          /* primary ray going straight through */
-          : backgroundColor(ray,vopat);
-
-        if (ray.crosshair) color = vec3f(1.f)-color;
-        vopat.addPixelContribution(ray.pixelID,color);
-        vopat.killRay(tid);
-      } else {
-        // ray has another node to go to - add to queue
-        // ray.throughput = to_half(throughput);
-        vopat.forwardRay(tid,ray,nextNode);
-      }
-    }
+                  const OwnGlobals &globals);
   };
 
+  inline __device__
+  void CellMarchKernels::traceRay(int tid,
+                                  const VopatGlobals &vopat,
+                                  const OwnGlobals &globals)
+  {
+    Ray ray = vopat.rayQueueIn[tid];
+
+    vec3f throughput = from_half(ray.throughput);
+    vec3f org = ray.origin;
+    vec3f dir = ray.getDirection();
+    
+    const box3f myBox = globals.rankBoxes[vopat.myRank];
+    vec3f local_org = org - myBox.lower;
+    float t0 = 0.f, t1 = CUDART_INF;
+    boxTest(myBox,ray,t0,t1);
+
+    Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
+    vec3i numVoxels = globals.numVoxels;
+    vec3i numCells  = numVoxels - 1;
+    const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+    bool skipFirstStep = false;
+    if (!ray.isShadow)
+      dda::dda3(local_org,dir,CUDART_INF,
+                vec3ui(numCells),
+                [&](vec3i cellIdx)
+                {
+                  // Update current position - for now (in absence of
+                  // tin/tout of the cell - let's just do sample in
+                  // center of cell
+                  vec3f P = myBox.lower + vec3f(cellIdx)+0.5f;
+                  float f;
+                  if (!getVolume(f,globals,P))
+                    // something fishy with this sample pos - keep on going
+                    return true;
+                  vec4f xf = transferFunction(vopat,f);
+                  f = xf.w;
+                  f *= (DENSITY);
+                  if (rnd() >= f) 
+                    // did not sample this density; keep on going
+                    return true;
+
+                  // this cell WAS sampled - turn this into a shadow ray
+                  org = P; 
+                  ray.origin = org;
+                  ray.setDirection(lightDirection());
+                  dir = ray.getDirection();
+                  
+                  t0 = 0.f;
+                  t1 = CUDART_INF;
+                  boxTest(myBox,ray,t0,t1,ray.dbg);
+                  ray.isShadow = true;
+                  skipFirstStep = true;
+                  return false;
+                },
+                false);
+    // note ray may also just have BECOME a shadow ray
+    bool killThisRay = false;
+    if (ray.isShadow)
+      dda::dda3(local_org,dir,CUDART_INF,
+                vec3ui(numCells),
+                [&](vec3i cellIdx)
+                {
+                  if (skipFirstStep) {
+                    skipFirstStep = false;
+                    return true;
+                  }
+                  // Update current position - for now (in absence of
+                  // tin/tout of the cell - let's just do sample in
+                  // center of cell
+                  vec3f P = myBox.lower + vec3f(cellIdx)+0.5f;
+                  float f;
+                  if (!getVolume(f,globals,P))
+                    // something fishy with this sample pos - keep on going
+                    return true;
+                  vec4f xf = transferFunction(vopat,f);
+                  f = xf.w;
+                  f *= (DENSITY);
+                  if (rnd() >= f) 
+                    // did not sample this density; keep on going
+                    return true;
+
+                  // kill ray and terminate traversal
+                  killThisRay = true;
+                  return false;
+                },
+                false);
+    
+    int nextNode
+      = killThisRay
+      ? -1
+      : computeNextNode(vopat,globals,ray,t1,ray.dbg);
+    
+    if (nextNode == -1) {
+      vec3f color
+        = (ray.isShadow)
+        /* shadow ray that did reach the light (shadow rays that got
+           blocked got terminated above) */
+        ? lightColor() * throughput //albedo()
+        /* primary ray going straight through */
+        : backgroundColor(ray,vopat);
+      
+      if (ray.crosshair) color = vec3f(1.f)-color;
+      vopat.addPixelContribution(ray.pixelID,color);
+      vopat.killRay(tid);
+    } else {
+      // ray has another node to go to - add to queue
+      // ray.throughput = to_half(throughput);
+      vopat.forwardRay(tid,ray,nextNode);
+    }
+  }
 
   
   Renderer *createRenderer_CellMarch(CommBackend *comm,
