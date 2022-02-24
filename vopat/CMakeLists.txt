@@ -37,6 +37,13 @@ target_link_libraries(vopatSplitRaw
   vopat_model
   )
 
+add_executable(vopatGenMacrocells
+  model/macrocells.cpp
+  )
+target_link_libraries(vopatGenMacrocells
+  vopat_model
+  )
+
 add_library(vopat_render
   Renderer.cpp
   
