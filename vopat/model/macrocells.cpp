@@ -106,6 +106,7 @@ int main(int argc, char **argv)
               << OWL_TERMINAL_DEFAULT << std::endl;
       std::ofstream out(macrocellFilename);
       write(out, numMacrocells);
+      write(out, macrocellSize);
       write(out, macrocells);
       std::cout << OWL_TERMINAL_GREEN
               << "#done writing macrocells to " << macrocellFilename
