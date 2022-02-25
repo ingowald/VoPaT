@@ -479,10 +479,16 @@ namespace vopat {
 
       myBrick = model->bricks[myRank];
       const std::string fileName = Model::canonicalRankFileName(baseFileName,myRank);
+#if 1
+      std::cout << "loading (and uploading) from " << fileName << std::endl;
+      myBrick->load(voxels,fileName);
+#else
       std::vector<float> loadedVoxels = myBrick->load(fileName);
       
       voxels.upload(loadedVoxels);
+#endif
       globals.myVoxels  = voxels.get();
+      globals.valueRange = myBrick->valueRange;
       globals.numVoxels = myBrick->numVoxels;//voxelRange.size();
       globals.myRegion  = myBrick->spaceRange;
     };

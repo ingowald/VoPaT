@@ -19,6 +19,9 @@
 
 namespace vopat {
 
+  // float clamp01(float f)
+  // { return min(1.f,max(0.f,f)); }
+
   Brick::Brick(int ID,
                /*! total num voxels in the *entire* model */
                const vec3i &numVoxelsTotal,
@@ -51,6 +54,56 @@ namespace vopat {
   template<> float voxelToFloat(uint8_t ui) { return ui / float(255.f); }
   template<> float voxelToFloat(uint16_t ui) { return ui / float((1<<16)-1); }
   
+  std::string Brick::toString() const
+  {
+    std::stringstream ss;
+    ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << ", numVox=" << numVoxels << "}";
+    return ss.str();
+  }
+
+
+#if 1
+  /*! load a given time step and variable's worth of voxels from given file name */
+  void Brick::load(CUDAArray<float> &devMem,
+                   const std::string &fileName)
+  {
+    std::ifstream in(fileName,std::ios::binary);
+    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
+    std::vector<float> slice;
+    slice.resize(numVoxels.x*numVoxels.y);
+    devMem.resize(numVoxels.x*size_t(numVoxels.y)*numVoxels.z);
+    valueRange = interval<float>();
+    for (int z=0;z<numVoxels.z;z++) {
+      in.read((char*)slice.data(),slice.size()*sizeof(float));
+      for (auto &v : slice) 
+        valueRange.extend(v);
+      devMem.upload(slice,z*slice.size());
+    }
+    PRINT(valueRange);
+  }
+#else
+  /*! load a given time step and variable's worth of voxels from given file name */
+  std::vector<float> Brick::load(const std::string &fileName)
+  {
+    std::ifstream in(fileName,std::ios::binary);
+    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
+    std::vector<float> loadedVoxels;
+    loadedVoxels.resize(volume(numVoxels));
+    in.read((char*)loadedVoxels.data(),volume(numVoxels)*sizeof(float));
+
+    float lo = 0.f;
+    float hi = 0.f;
+    for (auto &v : loadedVoxels) {
+      lo = min(lo,v);
+      hi = max(hi,v);
+      // v = clamp01(v);
+    }
+    PRINT(lo);
+    PRINT(hi);
+    
+    return loadedVoxels;
+  }
+#endif
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
@@ -75,38 +128,6 @@ namespace vopat {
           voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = voxelToFloat(line[ix]);
       }
     return voxels;
-  }
-
-  std::string Brick::toString() const
-  {
-    std::stringstream ss;
-    ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << ", numVox=" << numVoxels << "}";
-    return ss.str();
-  }
-
-  float clamp01(float f)
-  { return min(1.f,max(0.f,f)); }
-  
-  /*! load a given time step and variable's worth of voxels from given file name */
-  std::vector<float> Brick::load(const std::string &fileName)
-  {
-    std::ifstream in(fileName,std::ios::binary);
-    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
-    std::vector<float> loadedVoxels;
-    loadedVoxels.resize(volume(numVoxels));
-    in.read((char*)loadedVoxels.data(),volume(numVoxels)*sizeof(float));
-
-    float lo = 0.f;
-    float hi = 0.f;
-    for (auto &v : loadedVoxels) {
-      lo = min(lo,v);
-      hi = max(hi,v);
-      v = clamp01(v);
-    }
-    PRINT(lo);
-    PRINT(hi);
-    
-    return loadedVoxels;
   }
 
   template std::vector<float> Brick::loadRegionRAW<float>(const std::string &rawFileName);

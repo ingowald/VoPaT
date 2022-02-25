@@ -17,6 +17,7 @@
 #pragma once
 
 #include "vopat/common.h"
+#include "vopat/render/CUDAArray.h"
 
 namespace vopat {
 
@@ -49,16 +50,22 @@ namespace vopat {
           const box3i &desiredCellRange);
 
     std::string toString() const;
-    
+
     /*! loads this brick's voxels - ie, only a range of the full file - from a raw file */
     template<typename T=float>
     std::vector<float> loadRegionRAW(const std::string &rawFileName);
 
+#if 1
+    /*! load a given time step and variable's worth of voxels from given file name */
+    void load(CUDAArray<float> &devMem, const std::string &fileName);
+#else
     /*! load a given time step and variable's worth of voxels from given file name */
     std::vector<float> load(const std::string &fileName);
+#endif
     
     /*! linear numbering of this brick, relative to all bricks in the parent model */
     const int ID;
+    interval<float> valueRange;
     box3i voxelRange;
     box3i cellRange;
     box3f spaceRange;

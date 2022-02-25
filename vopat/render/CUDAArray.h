@@ -55,6 +55,12 @@ namespace vopat {
     inline void upload(const std::vector<T> &vt) {
       resize(vt.size());
       CUDA_CALL(Memcpy(devMem,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
+      CUDA_SYNC_CHECK();
+    }
+    inline void upload(const std::vector<T> &vt, size_t ofsInElements) {
+      resize(vt.size());
+      CUDA_CALL(Memcpy(devMem+ofsInElements,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
+      CUDA_SYNC_CHECK();
     }
     inline void bzero() {
       CUDA_CALL(Memset(devMem,0,N*sizeof(T)));
