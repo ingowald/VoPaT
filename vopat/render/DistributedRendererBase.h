@@ -106,4 +106,5 @@ namespace vopat {
 
     CUDAArray<uint32_t> masterFB;
   };
+
 }

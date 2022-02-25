@@ -62,6 +62,7 @@ namespace vopat {
     std::cout << "-o <outpath>        : specifies common base part of output file names\n";
     std::cout << "-n|--num-bricks     : num bricks to create\n";
     std::cout << "-is|-ir|--input-res : resolution of input raw file\n";
+    std::cout << "-if|--input-format : format of input raw file\n";
     exit((error == "")?0:1);
   }
 }

@@ -72,14 +72,10 @@ namespace vopat {
     std::vector<float> slice;
     slice.resize(numVoxels.x*numVoxels.y);
     devMem.resize(numVoxels.x*size_t(numVoxels.y)*numVoxels.z);
-    valueRange = interval<float>();
     for (int z=0;z<numVoxels.z;z++) {
       in.read((char*)slice.data(),slice.size()*sizeof(float));
-      for (auto &v : slice) 
-        valueRange.extend(v);
       devMem.upload(slice,z*slice.size());
     }
-    PRINT(valueRange);
   }
 #else
   /*! load a given time step and variable's worth of voxels from given file name */
@@ -98,9 +94,6 @@ namespace vopat {
       hi = max(hi,v);
       // v = clamp01(v);
     }
-    PRINT(lo);
-    PRINT(hi);
-    
     return loadedVoxels;
   }
 #endif

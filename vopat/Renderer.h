@@ -14,10 +14,18 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "NodeRenderer.h"
+#pragma once
+
+#include "vopat/render/DistributedRendererBase.h"
+#include "vopat/model/Model.h"
 
 namespace vopat {
-
-  /* REMOVED, SPLIT INTO INDIVIDUAL FILES */
   
+  /*! creates a renderer from the given name (e.g., "woodcock" or
+    "cell-march") */
+  Renderer *createRenderer(const std::string &rendererName,
+                           CommBackend *comm,
+                           Model::SP model,
+                           const std::string &fileNameBase,
+                           int rank);
 }
