@@ -72,8 +72,15 @@ namespace vopat {
     std::vector<float> slice;
     slice.resize(numVoxels.x*numVoxels.y);
     devMem.resize(numVoxels.x*size_t(numVoxels.y)*numVoxels.z);
+    int lastPing = -1;
     for (int z=0;z<numVoxels.z;z++) {
       in.read((char*)slice.data(),slice.size()*sizeof(float));
+      const int increments = 5;// print in 5% intervals
+      int percentDone = increments * int(z * 100.f / (increments*numVoxels.z));
+      if (percentDone != lastPing) {
+        printf("\r(loaded %i%%)   ",percentDone);fflush(0);
+        lastPing = percentDone;
+      }
       devMem.upload(slice,z*slice.size());
     }
   }

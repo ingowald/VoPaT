@@ -50,6 +50,8 @@ namespace vopat {
     std::vector<Brick::SP>   bricks;
     
     vec3i                  numVoxelsTotal { -1,-1,-1 };
+    /* range of values across the entire model */
+    interval<float>        valueRange;
   };
 
 }

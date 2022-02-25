@@ -20,6 +20,9 @@
 
 namespace vopat {
 
+  size_t file_format_version = /*increment this for every change:*/1;
+  size_t file_format_magic = 0x33441232340888ull + file_format_version;
+  
   /*! given a base file name prefix (including directory name, if
     desired), return a canonical file name for the master model
     file */
@@ -50,7 +53,11 @@ namespace vopat {
               << OWL_TERMINAL_DEFAULT << std::endl;
 
     std::ofstream out(fileName);
+    size_t fileMagic = file_format_magic;
+    write(out,fileMagic);
+
     write(out,numVoxelsTotal);
+    write(out,valueRange);
     PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));
     for (int i=0;i<bricks.size();i++) {
@@ -75,7 +82,13 @@ namespace vopat {
     if (!in.good())
       throw std::runtime_error("could not open '"+fileName+"'");
     
+    size_t fileMagic;
+    read(in,fileMagic);
+    if (fileMagic != file_format_magic)
+      throw std::runtime_error("invalid model file, or wrong brick/model file format version; please rebuild your model");
+    
     read(in,model->numVoxelsTotal);
+    read(in,model->valueRange);
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
       Brick::SP brick = Brick::create(i);

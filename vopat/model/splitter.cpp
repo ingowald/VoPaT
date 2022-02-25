@@ -122,6 +122,8 @@ int main(int ac, char **av)
       scalars = brick->loadRegionRAW<uint16_t>(inFileName);
     else
       throw std::runtime_error("unsupported raw format");
+    for (auto v : scalars)
+      model->valueRange.extend(v);
     std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);
     std::ofstream out(outFileName,std::ios::binary);
     // write(out,scalars);
