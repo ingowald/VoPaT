@@ -211,7 +211,8 @@ namespace vopat {
     };
     void opacityScaleChanged(double scale)
     {
-      xfDensity = scale;
+      xfDensity = powf(1.1f,100.f*(scale-.5f));
+      PING; PRINT(scale); PRINT(xfDensity);
       master.setTransferFunction(xfValues,xfRange,xfDensity);
     };
                                      

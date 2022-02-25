@@ -59,10 +59,53 @@ namespace vopat {
     float ambient() { return 0.1f; }
 
     static inline __device__ bool getVolume(float &f,
-                                             const OwnGlobals &globals,
-                                             vec3f P)
+                                            const OwnGlobals &globals,
+                                            vec3f P)
     {
+#if 1
+      // tri-lerp:
       vec3ui cellID = vec3ui(floor(P - globals.myRegion.lower));
+      if (// cellID.x < 0 || 
+          (cellID.x >= globals.numVoxels.x-1) ||
+          // cellID.y < 0 || 
+          (cellID.y >= globals.numVoxels.y-1) ||
+          // cellID.z < 0 || 
+          (cellID.z >= globals.numVoxels.z-1))
+        return false;
+
+      vec3f  frac   = P - floor(P);
+
+      size_t cx0 = cellID.x;
+      size_t cy0 = cellID.y * size_t(globals.numVoxels.x);
+      size_t cz0 = cellID.z * (size_t(globals.numVoxels.x) * size_t(globals.numVoxels.y));
+      size_t cx1 = cx0 + 1;
+      size_t cy1 = cy0 + size_t(globals.numVoxels.x);
+      size_t cz1 = cz0 + (size_t(globals.numVoxels.x) * size_t(globals.numVoxels.y));
+      
+      float f000 = globals.myVoxels[cx0+cy0+cz0];
+      float f001 = globals.myVoxels[cx1+cy0+cz0];
+      float f010 = globals.myVoxels[cx0+cy1+cz0];
+      float f011 = globals.myVoxels[cx1+cy1+cz0];
+      float f100 = globals.myVoxels[cx0+cy0+cz1];
+      float f101 = globals.myVoxels[cx1+cy0+cz1];
+      float f110 = globals.myVoxels[cx0+cy1+cz1];
+      float f111 = globals.myVoxels[cx1+cy1+cz1];
+
+      float f00x = (1.f-frac.x)*f000 + frac.x*f001;
+      float f01x = (1.f-frac.x)*f010 + frac.x*f011;
+      float f10x = (1.f-frac.x)*f100 + frac.x*f101;
+      float f11x = (1.f-frac.x)*f110 + frac.x*f111;
+
+      float f0y = (1.f-frac.y)*f00x + frac.y*f01x;
+      float f1y = (1.f-frac.y)*f10x + frac.y*f11x;
+
+      float fz = (1.f-frac.z)*f0y + frac.z*f1y;
+      f = fz;
+      return true;
+#else
+      // nearest 
+      vec3ui cellID = vec3ui(floor(P - globals.myRegion.lower));
+      
       if (// cellID.x < 0 || 
           (cellID.x >= globals.numVoxels.x-1) ||
           // cellID.y < 0 || 
@@ -75,6 +118,7 @@ namespace vopat {
                                  +globals.numVoxels.x*(cellID.y
                                                        +globals.numVoxels.y*size_t(cellID.z))];
       return true;
+#endif
     }
     
     static inline __device__ vec4f transferFunction(const VopatGlobals &vopat,
