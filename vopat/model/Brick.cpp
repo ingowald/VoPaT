@@ -75,15 +75,15 @@ namespace vopat {
     int lastPing = -1;
     for (int z=0;z<numVoxels.z;z++) {
       in.read((char*)slice.data(),slice.size()*sizeof(float));
-      const int increments = 5;// print in 5% intervals
+      const int increments = 1;// print in 5% intervals
       int percentDone = increments * int(z * 100.f / (increments*numVoxels.z));
       if (percentDone != lastPing) {
-        printf("\r(loaded %i%%)   ",percentDone);fflush(0);
+        printf("\r(%i) loaded %i%%   ",ID,percentDone);fflush(0);
         lastPing = percentDone;
       }
       devMem.upload(slice,z*slice.size());
     }
-    printf("\r(loaded 100%%)\n");fflush(0);
+    printf("\r(%i) loaded 100%%...\n",ID);fflush(0);
   }
 #else
   /*! load a given time step and variable's worth of voxels from given file name */

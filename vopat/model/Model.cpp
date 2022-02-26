@@ -90,7 +90,6 @@ namespace vopat {
     
     read(in,model->numVoxelsTotal);
     read(in,model->valueRange);
-    PING; PRINT(model->valueRange);
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
       Brick::SP brick = Brick::create(i);
