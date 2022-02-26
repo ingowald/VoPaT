@@ -46,14 +46,6 @@ namespace vopat {
       vec2i        fbSize;
       vec3f       *accumBuffer;
 
-      struct {
-        interval<float> range;
-        float           density = 1.f;
-        vec4f          *values  = 0;
-        int             numValues = 0;
-      } xf;
-      
-
       /*! for compaction - where in the output queue to write rays for
           a given target rank */
       int         *perRankSendOffsets;
@@ -124,7 +116,7 @@ namespace vopat {
         xf.cm.upload(cm);
         globals.xf.values = xf.cm.get();
         globals.xf.numValues = cm.size();
-        globals.xf.range = range;
+        globals.xf.domain = range;
         globals.xf.density = density;
       }
       resetAccumulation();
@@ -488,5 +480,13 @@ namespace vopat {
     rayQueueIn[rayID]  = ray;
     rayNextNode[rayID] = nextNodeForThisRay;
   }
-      
+
+  inline __device__
+  float fixDir(float f) { return (f==0.f)?1e-6f:f; }
+  
+  inline __device__
+  vec3f fixDir(vec3f v)
+  { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
+  
+  
 }

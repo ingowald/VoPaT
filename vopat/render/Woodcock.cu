@@ -18,12 +18,12 @@
 
 namespace vopat {
 
-  struct WoodcockKernels : public DeviceKernelsBase
+  struct WoodcockKernels : public Vopat
   {
     static inline __device__
     void traceRay(int tid,
-                  const VopatGlobals &vopat,
-                  const OwnGlobals &globals)
+                  const typename Vopat::ForwardGlobals &vopat,
+                  const typename Vopat::VolumeGlobals  &dvr)
     {
       Ray ray = vopat.rayQueueIn[tid];
 
@@ -31,12 +31,12 @@ namespace vopat {
       vec3f org = ray.origin;
       vec3f dir = ray.getDirection();
     
-      const box3f myBox = globals.rankBoxes[vopat.myRank];
+      const box3f myBox = dvr.rankBoxes[vopat.myRank];
       float t0 = 0.f, t1 = CUDART_INF;
       boxTest(myBox,ray,t0,t1);
 
       Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
-      vec3i numVoxels = globals.numVoxels;
+      vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
 #ifdef ISO_SURFACE
@@ -65,7 +65,7 @@ namespace vopat {
       // maximum possible voxel density
       const float dt = 1.f; // relative to voxels
       // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
-      const float DENSITY = 3.f * ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
+      const float DENSITY = 3.f * ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
       float majorant = 1.f; // must be larger than the max voxel density
       float t = t0;
       while (true) {
@@ -91,16 +91,15 @@ namespace vopat {
 
         // Sample heterogeneous media
         float f;
-        if (!getVolume(f,globals,P)) { t += dt; continue; }
-        vec4f xf = transferFunction(vopat,f);
+        if (!dvr.getVolume(f,P)) { t += dt; continue; }
+        vec4f xf = dvr.transferFunction(f);
         f = xf.w;
         // f = transferFunction(f);
       
         // Check if a collision occurred (real particles / real + fake particles)
         if (rnd() < f / majorant) {
           if (ray.isShadow) {
-            vec3f color = lightColor() * albedo() * ambient();
-            
+            vec3f color = throughput * dvr.ambient();
             if (ray.crosshair) color = vec3f(1.f)-color;
             vopat.addPixelContribution(ray.pixelID,color);
             vopat.killRay(tid);            
@@ -108,7 +107,7 @@ namespace vopat {
           } else {
             org = P; 
             ray.origin = org;
-            ray.setDirection(lightDirection());
+            ray.setDirection(dvr.lightDirection());
             dir = ray.getDirection();
             
             throughput *= vec3f(xf.x,xf.y,xf.z);
@@ -129,7 +128,7 @@ namespace vopat {
         }
       }
 
-      int nextNode = computeNextNode(vopat,globals,ray,t1,ray.dbg);
+      int nextNode = computeNextNode(dvr,ray,t1,ray.dbg);
 
       if (nextNode == -1) {
         vec3f color

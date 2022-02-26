@@ -46,7 +46,10 @@ target_link_libraries(vopatSplitRaw
 
 add_library(vopat_render
   Renderer.cpp
-  
+
+  render/MacroCell.h
+  render/MacroCell.cu
+  render/VolumeRendererBase.cu
   render/LocalDeviceRenderer.cu
   
   render/DistributedRendererBase.h

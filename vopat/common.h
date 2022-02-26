@@ -20,6 +20,7 @@
 #include "owl/common/arrayND/array3D.h"
 #include "owl/common/parallel/parallel_for.h"
 #include "owl/helper/cuda.h"
+#include "owl/common/math/random.h"
 // std
 #include <sstream>
 #include <string>
@@ -81,6 +82,15 @@ namespace vopat {
   {
     return { to_half(v.x),to_half(v.y),to_half(v.z) };
   }
+  
+  using Random = owl::common::LCG<8>;
+  
+  static inline __both__
+  float floor(float f) { return ::floorf(f); }
+  
+  static inline __both__
+  vec3f floor(vec3f v) { return { floor(v.x),floor(v.y),floor(v.z) }; }
+  
   
 } // ::mini
 

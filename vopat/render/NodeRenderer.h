@@ -16,26 +16,4 @@
 
 #pragma once
 
-#include "owl/owl_device.h"
-#include "vopat/render/RayForwardingRenderer.h"
-#include "owl/common/math/random.h"
-
-namespace vopat {
-
-  using Random = owl::common::LCG<8>;
-
-  inline __device__ vec3f lightColor() { return vec3f(1.f,1.f,1.f); }
-  inline __device__ vec3f lightDirection()
-  {
-    return vec3f(1.f,.1f,.5f);
-    // return (0.f,0.f,1.f);
-  }
-
-  inline __device__
-  float fixDir(float f) { return (f==0.f)?1e-6f:f; }
-  
-  inline __device__
-  vec3f fixDir(vec3f v)
-  { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
-  
-}
+DEPRECATED
