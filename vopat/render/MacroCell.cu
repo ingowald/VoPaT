@@ -63,8 +63,8 @@ namespace vopat {
                threadIdx.y+blockIdx.y*blockDim.y,
                threadIdx.z+blockIdx.z*blockDim.z);
 
-    if (mcID == vec3i(0))
-      printf("mappin macrocells to transfer fcuntion; input value range supposedly %f %f\n",
+    if (0 && mcID == vec3i(0))
+      printf("mapping macrocells to transfer function; input value range supposedly %f %f\n",
              xfDomain.lower,xfDomain.upper);
     
     if (mcID.x >= mcDims.x) return;
@@ -90,6 +90,12 @@ namespace vopat {
     for (int i=lo_idx;i<=hi_idx;i++)
       maxOpacity = max(maxOpacity,xfValues[i].w);
     mc.maxOpacity = maxOpacity;
+    
+    if (0 && mcID == mcDims/2)
+      printf("center macrocell at %i %i %i: input range %f %f, max opacity %f\n",
+             mcID.x,mcID.y,mcID.z,
+             mc.inputRange.lower,mc.inputRange.upper,mc.maxOpacity
+             );
   }
 
 } // ::vopat

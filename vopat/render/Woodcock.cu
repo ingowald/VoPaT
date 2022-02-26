@@ -65,7 +65,7 @@ namespace vopat {
       // maximum possible voxel density
       const float dt = 1.f; // relative to voxels
       // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
-      const float DENSITY = 3.f * ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
+      const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
       float majorant = 1.f; // must be larger than the max voxel density
       float t = t0;
       while (true) {

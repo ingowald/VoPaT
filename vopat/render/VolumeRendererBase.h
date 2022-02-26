@@ -79,8 +79,8 @@ namespace vopat {
     CUDAArray<box3f>     rankBoxes;
     Brick::SP            myBrick;
     CUDAArray<MacroCell> mcData;
-    vec3i                mcDims;
     CUDAArray<float>     voxels;
+    CUDAArray<vec4f>     colorMap;
     int mcWidth = 8;
     int myRank = -1;
   };

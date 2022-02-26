@@ -209,17 +209,12 @@ namespace vopat {
     };
     void rangeChanged(range1f r) 
     {
-      xfRange.lower
-        = model->valueRange.lower
-        + r.lower * (model->valueRange.upper - model->valueRange.lower);
-      xfRange.upper
-        = model->valueRange.lower
-        + r.upper * (model->valueRange.upper - model->valueRange.lower);
       master.setTransferFunction(xfValues,xfRange,xfDensity);
     };
+    /*! 'scale' is actually a percentage, with 100 meaning 'default' */
     void opacityScaleChanged(double scale)
     {
-      xfDensity = powf(1.1f,100.f*(scale-.5f));
+      xfDensity = powf(1.1f,scale-100);
       PING; PRINT(scale); PRINT(xfDensity);
       master.setTransferFunction(xfValues,xfRange,xfDensity);
     };
@@ -324,7 +319,12 @@ namespace vopat {
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
       
       QMainWindow guiWindow;
-      qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
+      qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor(model->valueRange);
+      xfEditor->opacityScaleSpinBox->setDecimals(3);
+      xfEditor->opacityScaleSpinBox->setSingleStep(1.f);
+      xfEditor->opacityScaleSpinBox->setRange(0.f,200.f);
+      xfEditor->opacityScaleSpinBox->setValue(100.f);
+
       guiWindow.setCentralWidget(xfEditor);
 
       QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
@@ -336,9 +336,14 @@ namespace vopat {
 
       if (cmdline.xfFileName != "")
         xfEditor->loadFrom(cmdline.xfFileName);
+      else
+        xfEditor->cmSelectionChanged(0);
+
       
       viewer.show();
       guiWindow.show();
+
+      xfEditor->signal_rangeChanged();
       
       return app.exec();
     } catch (std::exception &e) {

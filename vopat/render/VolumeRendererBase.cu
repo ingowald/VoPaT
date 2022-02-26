@@ -59,10 +59,10 @@ namespace vopat {
   void VolumeRenderer::initMacroCells()
   {
     globals.mc.dims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
-    mcData.resize(volume(mcDims));
+    mcData.resize(volume(globals.mc.dims));
     globals.mc.data  = mcData.get();
-    
-    initMacroCell<<<(dim3)mcDims,(dim3)vec3i(4)>>>
+
+    initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
       (globals.mc.data,globals.mc.dims,mcWidth,
        voxels.get(),globals.volume.dims);
   }
@@ -74,13 +74,14 @@ namespace vopat {
   {
     if (myRank < 0) {
     } else {
-      // __global__ void mapMacroCell(DeviceKernelsBase::MacroCell *mcData,
-      //                              vec3i mcDims,
-      //                              vec4f *xfValues,
-      //                              int numXfValues,
-      //                              interval<float> xfDomain);
-      mapMacroCell<<<(dim3)mcDims,(dim3)vec3i(4)>>>
-        (mcData.get(),mcDims,
+      colorMap.upload(cm);
+      globals.xf.values = colorMap.get();
+      globals.xf.numValues = cm.size();
+      globals.xf.domain = xfDomain;
+      globals.xf.density = density;
+
+      mapMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
+        (mcData.get(),globals.mc.dims,
          globals.xf.values,
          globals.xf.numValues,
          globals.xf.domain);

@@ -83,6 +83,7 @@ namespace vopat {
       }
       devMem.upload(slice,z*slice.size());
     }
+    printf("\r(loaded 100%%)\n");fflush(0);
   }
 #else
   /*! load a given time step and variable's worth of voxels from given file name */

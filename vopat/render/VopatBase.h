@@ -209,7 +209,7 @@ namespace vopat {
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
                              const float density) override
-    { PING; exit(0); }
+    { VolumeRenderer::setTransferFunction(cm,range,density); }
     
   };
 
