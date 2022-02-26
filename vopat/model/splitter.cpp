@@ -106,8 +106,6 @@ int main(int ac, char **av)
     model->bricks.push_back(kdCreateBrick(brickID,numBricks,inputSize));
     std::cout << "... created brick " << model->bricks.back()->toString() << std::endl;
   }
-  std::cout << "saving meta..." << std::endl;
-  model->save(Model::canonicalMasterFileName(outFileBase));
 
   int timeStep = 0;
   std::string variable = "unknown";
@@ -124,6 +122,7 @@ int main(int ac, char **av)
       throw std::runtime_error("unsupported raw format");
     for (auto v : scalars)
       model->valueRange.extend(v);
+    PRINT(model->valueRange);
     std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);
     std::ofstream out(outFileName,std::ios::binary);
     // write(out,scalars);
@@ -131,6 +130,9 @@ int main(int ac, char **av)
     std::cout << OWL_TERMINAL_GREEN
               << " -> " << outFileName
               << OWL_TERMINAL_DEFAULT << std::endl;
-  }
+
+    std::cout << OWL_TERMINAL_BLUE << "saving meta..." << OWL_TERMINAL_DEFAULT << std::endl;
+    model->save(Model::canonicalMasterFileName(outFileBase));
+}
   
 }

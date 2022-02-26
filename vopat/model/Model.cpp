@@ -20,7 +20,7 @@
 
 namespace vopat {
 
-  size_t file_format_version = /*increment this for every change:*/1;
+  size_t file_format_version = /*increment this for every change:*/2;
   size_t file_format_magic = 0x33441232340888ull + file_format_version;
   
   /*! given a base file name prefix (including directory name, if
@@ -57,6 +57,7 @@ namespace vopat {
     write(out,fileMagic);
 
     write(out,numVoxelsTotal);
+    PING; PRINT(valueRange);
     write(out,valueRange);
     PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));
@@ -89,6 +90,7 @@ namespace vopat {
     
     read(in,model->numVoxelsTotal);
     read(in,model->valueRange);
+    PING; PRINT(model->valueRange);
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
       Brick::SP brick = Brick::create(i);

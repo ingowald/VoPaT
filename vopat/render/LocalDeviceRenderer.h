@@ -45,8 +45,8 @@ namespace vopat {
     struct MacroCell {
       /*! input values _before_ transfer function */
       interval<float> inputRange;
-      /*! data values _after_ transfer function */
-      interval<float> mappedRange;
+      /*! max opacity value _after_ transfer function */
+      float maxOpacity;
     };
     
     struct OwnGlobals {
@@ -266,11 +266,22 @@ namespace vopat {
   };
 
 
+  /*! computes initial *input* range of the macrocells; ie, min/max of
+      raw data values *excluding* any transfer fucntion */
   __global__ void initMacroCell(DeviceKernelsBase::MacroCell *mcData,
                                 vec3i mcDims,
                                 int mcWidth,
                                 float *voxelData,
                                 vec3i voxelDims);
+  
+  /*! assuming the min/max of the raw data values are already set in a
+      macrocell, this updates the *mapped* min/amx values from a given
+      transfer function */
+  __global__ void mapMacroCell(DeviceKernelsBase::MacroCell *mcData,
+                               vec3i mcDims,
+                               vec4f *xfValues,
+                               int numXfValues,
+                               interval<float> xfDomain);
   
   template<typename DeviceKernels>
   struct LocalDeviceRenderer

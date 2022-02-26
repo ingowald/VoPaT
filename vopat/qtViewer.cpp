@@ -75,10 +75,13 @@ namespace vopat {
     typedef qtOWL::OWLViewer inherited;
 
     MPIMaster &master;
-    
-    VoPaTViewer(MPIMaster &master)
-      : master(master)
-    {}
+    Model::SP model;
+    VoPaTViewer(MPIMaster &master, Model::SP model)
+      : master(master), model(model)
+    {
+      xfRange = model->valueRange;
+      PRINT(xfRange);
+    }
     
     void screenShot()
     {
@@ -206,7 +209,12 @@ namespace vopat {
     };
     void rangeChanged(range1f r) 
     {
-      xfRange = r;
+      xfRange.lower
+        = model->valueRange.lower
+        + r.lower * (model->valueRange.upper - model->valueRange.lower);
+      xfRange.upper
+        = model->valueRange.lower
+        + r.upper * (model->valueRange.upper - model->valueRange.lower);
       master.setTransferFunction(xfValues,xfRange,xfDensity);
     };
     void opacityScaleChanged(double scale)
@@ -288,7 +296,7 @@ namespace vopat {
       QApplication app(argc,argv);
       MPIMaster master(mpiBackend,renderer);
 
-      VoPaTViewer viewer(master);
+      VoPaTViewer viewer(master,model);
       box3f sceneBounds = model->getBounds();
       PRINT(sceneBounds);
       viewer.enableFlyMode();
@@ -325,7 +333,6 @@ namespace vopat {
                        &viewer, &VoPaTViewer::rangeChanged);
       QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
                        &viewer, &VoPaTViewer::opacityScaleChanged);
-    
 
       if (cmdline.xfFileName != "")
         xfEditor->loadFrom(cmdline.xfFileName);

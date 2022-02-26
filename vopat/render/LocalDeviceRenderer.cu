@@ -18,21 +18,27 @@
 
 namespace vopat {
 
+  /*! computes initial *input* range of the macrocells; ie, min/max of
+      raw data values *excluding* any transfer fucntion */
   __global__ void initMacroCell(DeviceKernelsBase::MacroCell *mcData,
                                 vec3i mcDims,
                                 int mcWidth,
                                 float *voxelData,
                                 vec3i voxelDims)
   {
-    int ix = threadIdx.x+blockIdx.x*blockDim.x; if (ix >= mcDims.x) return;
-    int iy = threadIdx.y+blockIdx.y*blockDim.y; if (iy >= mcDims.y) return;
-    int iz = threadIdx.z+blockIdx.z*blockDim.z; if (iz >= mcDims.z) return;
+    vec3i mcID(threadIdx.x+blockIdx.x*blockDim.x,
+               threadIdx.y+blockIdx.y*blockDim.y,
+               threadIdx.z+blockIdx.z*blockDim.z);
     
-    int mcIdx = ix + mcDims.x*(iy + mcDims.y*iz);
+    if (mcID.x >= mcDims.x) return;
+    if (mcID.y >= mcDims.y) return;
+    if (mcID.z >= mcDims.z) return;
+    
+    int mcIdx = mcID.x + mcDims.x*(mcID.y + mcDims.y*mcID.z);
     auto &mc = mcData[mcIdx];
 
     /* compute begin/end of VOXELS for this macro-cell */
-    vec3i begin = vec3i(ix,iy,iz)*mcWidth;
+    vec3i begin = mcID*mcWidth;
     vec3i end = min(begin + mcWidth + /* plus one for tri-lerp!*/1,
                     voxelDims);
     interval<float> valueRange;
@@ -41,7 +47,45 @@ namespace vopat {
         for (int ix=begin.x;ix<end.x;ix++)
           valueRange.extend(voxelData[ix+voxelDims.x*(iy+voxelDims.y*size_t(iz))]);
     mc.inputRange = valueRange;
-    mc.mappedRange = valueRange;
+    mc.maxOpacity = 1.f;
   }
 
+  /*! assuming the min/max of the raw data values are already set in a
+      macrocell, this updates the *mapped* min/amx values from a given
+      transfer function */
+  __global__ void mapMacroCell(DeviceKernelsBase::MacroCell *mcData,
+                               vec3i mcDims,
+                               vec4f *xfValues,
+                               int numXfValues,
+                               interval<float> xfDomain)
+  {
+    vec3i mcID(threadIdx.x+blockIdx.x*blockDim.x,
+               threadIdx.y+blockIdx.y*blockDim.y,
+               threadIdx.z+blockIdx.z*blockDim.z);
+    
+    if (mcID.x >= mcDims.x) return;
+    if (mcID.y >= mcDims.y) return;
+    if (mcID.z >= mcDims.z) return;
+    
+    int mcIdx = mcID.x + mcDims.x*(mcID.y + mcDims.y*mcID.z);
+    auto &mc = mcData[mcIdx];
+
+    float lo = max(mc.inputRange.lower,xfDomain.lower);
+    float hi = min(mc.inputRange.upper,xfDomain.upper);
+    if (lo > hi) {
+      mc.maxOpacity = 0.f;
+      return;
+    }
+
+    lo = (lo - xfDomain.lower) / (xfDomain.upper - xfDomain.lower);
+    hi = (hi - xfDomain.lower) / (xfDomain.upper - xfDomain.lower);
+
+    int lo_idx = max(0,int(lo*numXfValues));
+    int hi_idx = min(numXfValues-1,int(ceil(hi*numXfValues)));
+    float maxOpacity = 0.f;
+    for (int i=lo_idx;i<=hi_idx;i++)
+      maxOpacity = max(maxOpacity,xfValues[i].w);
+    mc.maxOpacity = maxOpacity;
+  }
+  
 } // ::vopat
