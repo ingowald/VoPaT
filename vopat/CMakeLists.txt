@@ -37,6 +37,14 @@ target_link_libraries(vopatSplitRaw
   vopat_model
   )
 
+# ==================================================================
+add_executable(vopatMakeMagField
+  model/makeMagField.cpp
+  )
+target_link_libraries(vopatMakeMagField
+  vopat_model
+  )
+
 #add_executable(vopatGenMacrocells
 #  model/macrocells.cpp
 #  )
