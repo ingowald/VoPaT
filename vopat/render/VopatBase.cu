@@ -14,6 +14,8 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
+#include "VopatBase.h"
 
-DEPRECATED
+namespace vopat {
+
+} // ::vopat

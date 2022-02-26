@@ -50,7 +50,7 @@ add_library(vopat_render
   render/MacroCell.h
   render/MacroCell.cu
   render/VolumeRendererBase.cu
-  render/LocalDeviceRenderer.cu
+  render/VopatBase.cu
   
   render/DistributedRendererBase.h
   render/DistributedRendererBase.cu
@@ -59,7 +59,6 @@ add_library(vopat_render
 #  render/SimpleNodeRenderer.cu
   render/Woodcock.cu
   render/CellMarchRenderer.cu
-  render/StepMarchRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp

@@ -50,10 +50,6 @@ namespace vopat {
                     vec2i pixelID,
                     vec2f pixelPos);
 
-    static inline __device__
-    vec3f backgroundColor(const Ray &ray,
-                          const ForwardGlobals &globals);
-
     static  inline __device__
     int computeNextNode(const VolumeGlobals &vopat,
                         const Ray &ray,
@@ -63,6 +59,17 @@ namespace vopat {
     int computeInitialRank(const VolumeGlobals &vopat,
                            Ray ray,
                            bool dbg=false);
+
+    static inline __device__
+    vec3f backgroundColor(const Vopat::Ray &ray,
+                          const Vopat::ForwardGlobals &globals)
+    {
+      int iy = ray.pixelID / globals.fbSize.x;
+      float t = iy / float(globals.fbSize.y);
+      const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+      return c;
+    }
+  
   };
 
 
@@ -102,18 +109,6 @@ namespace vopat {
     return (t0 <= t1);
   }
 
-
-  
-  
-  inline __device__
-  vec3f Vopat::backgroundColor(const Vopat::Ray &ray,
-                                           const Vopat::ForwardGlobals &globals)
-  {
-    int iy = ray.pixelID / globals.fbSize.x;
-    float t = iy / float(globals.fbSize.y);
-    const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
-    return c;
-  }
   
   inline __device__
   Vopat::Ray Vopat::generateRay(const Vopat::ForwardGlobals &globals,
@@ -210,6 +205,11 @@ namespace vopat {
                         const Ray &ray,
                         const float t_already_travelled,
                         bool dbg = false);
+
+    void setTransferFunction(const std::vector<vec4f> &cm,
+                             const interval<float> &range,
+                             const float density) override
+    { PING; exit(0); }
     
   };
 
@@ -258,7 +258,7 @@ namespace vopat {
     ray.dbg    = false;
 #endif
     ray.crosshair = (ix == vopat.fbSize.x/2) || (iy == vopat.fbSize.y/2);
-    int dest   = DeviceKernels::computeInitialRank(vopat,globals,ray);
+    int dest   = DeviceKernels::computeInitialRank(globals,ray);
 
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */

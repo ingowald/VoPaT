@@ -26,10 +26,6 @@ namespace vopat {
                                      Model::SP model,
                                      const std::string &fileNameBase,
                                      int rank);
-  Renderer *createRenderer_StepMarch(CommBackend *comm,
-                                     Model::SP model,
-                                     const std::string &fileNameBase,
-                                     int rank);
 
   /*! creates a renderer from the given name (e.g., "woodcock" or
       "cell-march") */
@@ -43,8 +39,6 @@ namespace vopat {
       return createRenderer_Woodcock(comm,model,fileNameBase,rank);
     if (rendererName == "cm" || rendererName == "cell-march")
       return createRenderer_CellMarch(comm,model,fileNameBase,rank);
-    if (rendererName == "sm" || rendererName == "step-march")
-      return createRenderer_StepMarch(comm,model,fileNameBase,rank);
     throw std::runtime_error("unknown renderer mode '"+rendererName+"'");
   }
 

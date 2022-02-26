@@ -14,26 +14,27 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "LocalDeviceRenderer.h"
+#include "vopat/render/VopatBase.h"
 #include "DDA.h"
 
 namespace vopat {
 
   /*! a version of the data parallel ray forwarding renderer that uses
     DDA to step through all cells of the local volume, sampling each one */
-  struct CellMarchKernels : public DeviceKernelsBase
+  struct CellMarchKernels : public Vopat
   {
     static inline __device__
     void traceRay(int tid,
-                  const VopatGlobals &vopat,
-                  const OwnGlobals &globals);
+                  const typename Vopat::ForwardGlobals &vopat,
+                  const typename Vopat::VolumeGlobals  &dvr);
   };
 
   inline __device__
   void CellMarchKernels::traceRay(int tid,
-                                  const VopatGlobals &vopat,
-                                  const OwnGlobals &globals)
+                                  const typename Vopat::ForwardGlobals &vopat,
+                                  const typename Vopat::VolumeGlobals  &dvr)
   {
+#if 0
     Ray ray = vopat.rayQueueIn[tid];
 
 #if 1
@@ -175,6 +176,7 @@ namespace vopat {
       ray.throughput = to_half(throughput);
       vopat.forwardRay(tid,ray,nextNode);
     }
+#endif
   }
 
   
@@ -183,8 +185,8 @@ namespace vopat {
                                      const std::string &fileNameBase,
                                      int rank)
   {
-    LocalDeviceRenderer<CellMarchKernels> *nodeRenderer
-      = new LocalDeviceRenderer<CellMarchKernels>
+    VopatNodeRenderer<CellMarchKernels> *nodeRenderer
+      = new VopatNodeRenderer<CellMarchKernels>
       (model,fileNameBase,rank);
     return new RayForwardingRenderer<CellMarchKernels::Ray>(comm,nodeRenderer);
   }

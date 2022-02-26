@@ -74,6 +74,9 @@ namespace vopat {
     /*! abstraction for any sort of renderer that will generate and/or
         shade/modify/bounce rays within this ray forwardign context */
     struct NodeRenderer {
+      virtual void setTransferFunction(const std::vector<vec4f> &cm,
+                                       const interval<float> &range,
+                                       const float density) {};
       virtual void generatePrimaryWave(const Globals &globals) = 0;
       virtual void traceLocally(const Globals &globals) = 0;
     };
@@ -107,27 +110,31 @@ namespace vopat {
     void createSendQueue();
     int  exchangeRays();
 
-    void setTransferFunction(const std::vector<vec4f> &cm,
-                             const interval<float> &range,
-                             const float density) override
+     void setTransferFunction(const std::vector<vec4f> &cm,
+                              const interval<float> &range,
+                              const float density) override
     {
-      if (isMaster()) {
-      } else {
-        xf.cm.upload(cm);
-        globals.xf.values = xf.cm.get();
-        globals.xf.numValues = cm.size();
-        globals.xf.domain = range;
-        globals.xf.density = density;
-      }
+      nodeRenderer->setTransferFunction(cm,range,density);
       resetAccumulation();
     }
+    // {
+    //   if (isMaster()) {
+    //   } else {
+    //     xf.cm.upload(cm);
+    //     globals.xf.values = xf.cm.get();
+    //     globals.xf.numValues = cm.size();
+    //     globals.xf.domain = range;
+    //     globals.xf.density = density;
+    //   }
+    //   resetAccumulation();
+    // }
 
-    struct {
-      CUDAArray<vec4f> cm;
-      // std::vector<vec4f> cm;
-      const interval<float> range = {0.f,1.f};
-      float density = 1.f;
-    } xf;
+    // struct {
+    //   CUDAArray<vec4f> cm;
+    //   // std::vector<vec4f> cm;
+    //   const interval<float> range = {0.f,1.f};
+    //   float density = 1.f;
+    // } xf;
       
     
     

@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "LocalDeviceRenderer.h"
+#include "vopat/render/VopatBase.h"
 
 namespace vopat {
 
@@ -135,9 +135,9 @@ namespace vopat {
           = (ray.isShadow)
           /* shadow ray that did reach the light (shadow rays that got
              blocked got terminated above) */
-          ? lightColor() * throughput //albedo()
+          ? dvr.lightColor() * throughput //albedo()
           /* primary ray going straight through */
-          : backgroundColor(ray,vopat);
+          : Vopat::backgroundColor(ray,vopat);
 
         if (ray.crosshair) color = vec3f(1.f)-color;
         vopat.addPixelContribution(ray.pixelID,color);
@@ -155,8 +155,8 @@ namespace vopat {
                                     const std::string &fileNameBase,
                                     int rank)
   {
-    LocalDeviceRenderer<WoodcockKernels> *nodeRenderer
-      = new LocalDeviceRenderer<WoodcockKernels>
+    VopatNodeRenderer<WoodcockKernels> *nodeRenderer
+      = new VopatNodeRenderer<WoodcockKernels>
       (model,fileNameBase,rank);
     return new RayForwardingRenderer<WoodcockKernels::Ray>(comm,nodeRenderer);
   }
