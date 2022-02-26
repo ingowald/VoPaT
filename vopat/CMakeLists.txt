@@ -47,6 +47,8 @@ target_link_libraries(vopatSplitRaw
 add_library(vopat_render
   Renderer.cpp
   
+  render/LocalDeviceRenderer.cu
+  
   render/DistributedRendererBase.h
   render/DistributedRendererBase.cu
   render/RayForwardingRenderer.h

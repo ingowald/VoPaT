@@ -41,6 +41,13 @@ namespace vopat {
     };
 
     using VopatGlobals = typename RayForwardingRenderer<Ray>::Globals;
+
+    struct MacroCell {
+      /*! input values _before_ transfer function */
+      interval<float> inputRange;
+      /*! data values _after_ transfer function */
+      interval<float> mappedRange;
+    };
     
     struct OwnGlobals {
       box3f *rankBoxes;
@@ -48,6 +55,8 @@ namespace vopat {
       float *myVoxels;
       vec3i  numVoxels;
       interval<float> valueRange;
+      MacroCell *mcData;
+      vec3i      mcDims;
     };
 
     static inline __device__
@@ -255,8 +264,14 @@ namespace vopat {
     }
   
   };
-  
 
+
+  __global__ void initMacroCell(DeviceKernelsBase::MacroCell *mcData,
+                                vec3i mcDims,
+                                int mcWidth,
+                                float *voxelData,
+                                vec3i voxelDims);
+  
   template<typename DeviceKernels>
   struct LocalDeviceRenderer
     : public RayForwardingRenderer<typename DeviceKernels::Ray>::NodeRenderer
@@ -264,7 +279,7 @@ namespace vopat {
     using Ray          = typename DeviceKernels::Ray;
     using OwnGlobals   = typename DeviceKernels::OwnGlobals;
     using VopatGlobals = typename DeviceKernels::VopatGlobals;
-    
+    using MacroCell    = typename DeviceKernels::MacroCell;
     LocalDeviceRenderer(Model::SP model,
                        const std::string &baseFileName,
                        int myRank)
@@ -294,6 +309,8 @@ namespace vopat {
       globals.myVoxels  = voxels.get();
       globals.numVoxels = myBrick->numVoxels;//voxelRange.size();
       globals.myRegion  = myBrick->spaceRange;
+      
+      initMacroCells();
     };
 
     /*! one box per rank, which rays can use to find neext rank to send to */
@@ -301,6 +318,20 @@ namespace vopat {
     OwnGlobals       globals;
     Brick::SP        myBrick;
     CUDAArray<float> voxels;
+    
+    CUDAArray<MacroCell> mcData;
+    vec3i                mcDims;
+    
+    void initMacroCells()
+    {
+      int mcWidth = 8;
+      mcDims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
+      mcData.resize(volume(mcDims));
+      initMacroCell<<<(dim3)mcDims,(dim3)vec3i(4)>>>
+        (mcData.get(),mcDims,
+         mcWidth,
+         voxels.get(),globals.numVoxels);
+    }
 
     void generatePrimaryWave(const VopatGlobals &globals) override;
     void traceLocally(const VopatGlobals &globals) override;
