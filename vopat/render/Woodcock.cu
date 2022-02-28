@@ -15,6 +15,7 @@
 // ======================================================================== //
 
 #include "vopat/render/VopatBase.h"
+#include "DDA.h"
 
 namespace vopat {
 
@@ -39,6 +40,94 @@ namespace vopat {
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
+      vec3i numMacrovoxels = dvr.mc.dims;
+      vec3i numMacrocells  = numMacrovoxels - 1;
+
+      #if 0
+
+      // first do direct, then shadow
+      bool rayKilled = false;
+      for (int tmp = 0; tmp < 1; ++tmp) {
+
+      
+
+        dda::dda3(org - myBox.lower,dir,CUDART_INF,
+          vec3ui(numMacrovoxels),
+          [&](const vec3i &cellIdx, float t0, float t1) -> bool
+          {
+            float majorant = dvr.mc.data[
+              cellIdx.x + 
+              cellIdx.y * dvr.mc.dims.x + 
+              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
+            ].maxOpacity;
+
+
+            // maximum possible voxel density
+            const float dt = 1.f; // relative to voxels
+            const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
+            float t = t0;
+            while (true) {
+              // Sample a distance
+              t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
+
+              // A boundary has been hit
+              if (t >= t1) {
+                return true; // march to the next cell
+              }
+
+              // Update current position
+              vec3f P = org + t * dir;
+
+              // Sample heterogeneous media
+              float f;
+              if (!dvr.getVolume(f,P)) { 
+                /*t += dt;*/ // NM: not necessary, the sampled distance moves t forward.
+                continue; 
+              }
+              vec4f xf = dvr.transferFunction(f);
+              f = xf.w;
+              // f = transferFunction(f);
+            
+              // Check if a collision occurred (real particles / real + fake particles)
+              if (rnd() < f / majorant) {
+                if (ray.isShadow) {
+                  vec3f color = throughput * dvr.ambient();
+                  if (ray.crosshair) color = vec3f(1.f)-color;
+                  vopat.addPixelContribution(ray.pixelID,color);
+                  vopat.killRay(tid);            
+                  rayKilled = true;
+                  return false; // terminate DDA
+                } else {
+                  org = P; 
+                  ray.origin = org;
+                  ray.setDirection(dvr.lightDirection());
+                  dir = ray.getDirection();
+                  
+                  throughput *= vec3f(xf.x,xf.y,xf.z);
+                  ray.throughput = to_half(throughput);
+                  
+                  t0 = 0.f;
+                  t1 = CUDART_INF;
+                  boxTest(myBox,ray,t0,t1);
+                  t = 0.f; // reset t to the origin
+                  ray.isShadow = true;
+                  rayKilled = false;
+                  return false; // terminate DDA
+                }
+              }
+
+            }
+          },
+          false);          
+
+        if (rayKilled) return;
+
+        
+      }
+
+      #endif
+
+      #if 1
 #ifdef ISO_SURFACE
       NOT WORKING YET
         float isoDistance = -1.f;
@@ -127,6 +216,7 @@ namespace vopat {
           }
         }
       }
+      #endif
 
       int nextNode = computeNextNode(dvr,ray,t1,ray.dbg);
 
