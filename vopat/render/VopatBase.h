@@ -252,7 +252,7 @@ namespace vopat {
     int myRank = vopat.myRank;
     typename DeviceKernels::Ray
       ray    = DeviceKernels::generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
-#if 0
+#if 1
     ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
 #else
     ray.dbg    = false;

@@ -40,48 +40,108 @@ namespace vopat {
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
-      vec3i numMacrovoxels = dvr.mc.dims;
-      vec3i numMacrocells  = numMacrovoxels - 1;
+      vec3i singleCell = vec3i(1); // just testing...
+      vec3i numMacrocells = dvr.mc.dims;
 
-      #if 0
+
+      auto worldToUnit = affine3f(
+        linear3f(
+          vec3f((myBox.upper.x - myBox.lower.x), 0.f, 0.f),
+          vec3f(0.f, (myBox.upper.y - myBox.lower.y), 0.f),
+          vec3f(0.f, 0.f, (myBox.upper.z - myBox.lower.z))
+        ).inverse(),
+        vec3f(0.f, 0.f, 0.f)
+      );
+      auto unitToWorld = affine3f(
+        linear3f(
+          vec3f((myBox.upper.x - myBox.lower.x), 0.f, 0.f),
+          vec3f(0.f, (myBox.upper.y - myBox.lower.y), 0.f),
+          vec3f(0.f, 0.f, (myBox.upper.z - myBox.lower.z))
+        ),
+        vec3f(0.f, 0.f, 0.f)
+      );      
+      auto gridToUnit = affine3f(
+        linear3f(
+          vec3f(numMacrocells.x, 0.f, 0.f),
+          vec3f(0.f, numMacrocells.y, 0.f),
+          vec3f(0.f, 0.f, numMacrocells.z)
+        ).inverse(),
+        vec3f(0.f, 0.f, 0.f)
+      );
+      auto unitToGrid = affine3f(
+        linear3f(
+          vec3f(numMacrocells.x, 0.f, 0.f),
+          vec3f(0.f, numMacrocells.y, 0.f),
+          vec3f(0.f, 0.f, numMacrocells.z)
+        ),
+        vec3f(0.f, 0.f, 0.f)
+      );
+
+
+
+      
+      
+      
+
+      #if 1
 
       // first do direct, then shadow
       bool rayKilled = false;
       for (int tmp = 0; tmp < 1; ++tmp) {
+        vec3f gLower = xfmPoint(unitToGrid, xfmPoint(worldToUnit, myBox.lower));
+        vec3f gorg = org - myBox.lower; 
+        gorg = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org)) - gLower;
+        vec3f gdir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
 
-      
+        if (ray.dbg) {
+          printf("shadow %d lower %f %f %f origin %f %f %f direction %f %f %f\n", ray.isShadow, gLower.x, gLower.y, gLower.z, gorg.x, gorg.y, gorg.z, gdir.x, gdir.y, gdir.z);
+        }
 
-        dda::dda3(org - myBox.lower,dir,CUDART_INF,
-          vec3ui(numMacrovoxels),
-          [&](const vec3i &cellIdx, float t0, float t1) -> bool
+        dda::dda3(gorg,gdir,t1,
+          vec3ui(numMacrocells),
+          [&](const vec3i &cellIdx, float t00, float t11) -> bool
           {
+            // not sure why, but I need this to guarantee things don't loop indefinitely...
+            // if (cellIdx.x >= numMacrocells.x-1) return false;
+            // if (cellIdx.y >= numMacrocells.y-1) return false;
+            // if (cellIdx.z >= numMacrocells.z-1) return false;
+            // if (cellIdx.x < 0) return false;
+            // if (cellIdx.y < 0) return false;
+            // if (cellIdx.z < 0) return false;
+
+
+            // printf("grid %d %d %d cellID %d %d %d\n", numMacrocells.x, numMacrocells.y, numMacrocells.z, cellIdx.x, cellIdx.y, cellIdx.z);
+
+
             float majorant = dvr.mc.data[
               cellIdx.x + 
               cellIdx.y * dvr.mc.dims.x + 
               cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
-            ].maxOpacity;
+            ].maxOpacity; // now pulling majorant from macrocell, rather than just assuming 1.
 
-
+            if (majorant <= 0.f) return true; // this cell is empty, march to the next cell
+            
             // maximum possible voxel density
             const float dt = 1.f; // relative to voxels
             const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
-            float t = t0;
+            float t = t00;
             while (true) {
               // Sample a distance
               t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
 
               // A boundary has been hit
-              if (t >= t1) {
-                return true; // march to the next cell
+              if (t >= t11) {
+                break;
               }
 
               // Update current position
-              vec3f P = org + t * dir;
+              vec3f P = gorg + t * gdir;
+              vec3f worldP = xfmPoint(gridToUnit, xfmPoint(unitToWorld, P - gLower)) + myBox.lower;
 
               // Sample heterogeneous media
               float f;
-              if (!dvr.getVolume(f,P)) { 
-                /*t += dt;*/ // NM: not necessary, the sampled distance moves t forward.
+              if (!dvr.getVolume(f,worldP)) { 
+                // t += dt; // NM: not necessary, the sampled distance moves t forward.
                 continue; 
               }
               vec4f xf = dvr.transferFunction(f);
@@ -98,7 +158,7 @@ namespace vopat {
                   rayKilled = true;
                   return false; // terminate DDA
                 } else {
-                  org = P; 
+                  org = worldP; 
                   ray.origin = org;
                   ray.setDirection(dvr.lightDirection());
                   dir = ray.getDirection();
@@ -111,23 +171,32 @@ namespace vopat {
                   boxTest(myBox,ray,t0,t1);
                   t = 0.f; // reset t to the origin
                   ray.isShadow = true;
+
+      #if ISO_SURFACE
+                  // eventually need to do iso-marching here, too!!!!
+                  isoDistance = -1;
+      #endif
+                  // continue;
+                  // restart DDA
                   rayKilled = false;
                   return false; // terminate DDA
                 }
               }
-
             }
+
+            return true; // continue DDA
           },
-          false);          
+          false
+          /*ray.dbg*/);          
 
-        if (rayKilled) return;
-
-        
+        if (rayKilled) 
+        {
+          vopat.killRay(tid); 
+          return;        
+        }
       }
 
-      #endif
-
-      #if 1
+      #else
 #ifdef ISO_SURFACE
       NOT WORKING YET
         float isoDistance = -1.f;
@@ -218,7 +287,7 @@ namespace vopat {
       }
       #endif
 
-      int nextNode = computeNextNode(dvr,ray,t1,ray.dbg);
+      int nextNode = computeNextNode(dvr,ray,t1,/*ray.dbg*/false);
 
       if (nextNode == -1) {
         vec3f color
