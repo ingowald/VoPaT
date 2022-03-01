@@ -45,6 +45,20 @@ target_link_libraries(vopatMakeMagField
   vopat_model
   )
 
+# ==================================================================
+option(BUILD_NC_TO_RAW_TOOL "Build netcdf-to-raw tool" OFF)
+if (BUILD_NC_TO_RAW_TOOL)
+add_executable(ncToRaw
+  model/ncToRaw.cpp
+  )
+target_link_libraries(ncToRaw
+  vopat_model
+  netcdf_c++4
+  )
+endif()
+
+
+
 #add_executable(vopatGenMacrocells
 #  model/macrocells.cpp
 #  )

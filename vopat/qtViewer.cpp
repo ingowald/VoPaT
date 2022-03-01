@@ -209,6 +209,7 @@ namespace vopat {
     };
     void rangeChanged(range1f r) 
     {
+      xfRange = r;
       master.setTransferFunction(xfValues,xfRange,xfDensity);
     };
     /*! 'scale' is actually a percentage, with 100 meaning 'default' */
