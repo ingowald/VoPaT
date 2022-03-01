@@ -87,32 +87,16 @@ namespace vopat {
 
       // first do direct, then shadow
       bool rayKilled = false;
-      for (int tmp = 0; tmp < 1; ++tmp) {
+      for (int tmp = 0; tmp < 2; ++tmp) {
         vec3f gLower = xfmPoint(unitToGrid, xfmPoint(worldToUnit, myBox.lower));
-        vec3f gorg = org - myBox.lower; 
+        vec3f gorg = org /*- myBox.lower*/; 
         gorg = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org)) - gLower;
         vec3f gdir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
-
-        if (ray.dbg) {
-          printf("shadow %d lower %f %f %f origin %f %f %f direction %f %f %f\n", ray.isShadow, gLower.x, gLower.y, gLower.z, gorg.x, gorg.y, gorg.z, gdir.x, gdir.y, gdir.z);
-        }
 
         dda::dda3(gorg,gdir,t1,
           vec3ui(numMacrocells),
           [&](const vec3i &cellIdx, float t00, float t11) -> bool
           {
-            // not sure why, but I need this to guarantee things don't loop indefinitely...
-            // if (cellIdx.x >= numMacrocells.x-1) return false;
-            // if (cellIdx.y >= numMacrocells.y-1) return false;
-            // if (cellIdx.z >= numMacrocells.z-1) return false;
-            // if (cellIdx.x < 0) return false;
-            // if (cellIdx.y < 0) return false;
-            // if (cellIdx.z < 0) return false;
-
-
-            // printf("grid %d %d %d cellID %d %d %d\n", numMacrocells.x, numMacrocells.y, numMacrocells.z, cellIdx.x, cellIdx.y, cellIdx.z);
-
-
             float majorant = dvr.mc.data[
               cellIdx.x + 
               cellIdx.y * dvr.mc.dims.x + 
@@ -136,7 +120,7 @@ namespace vopat {
 
               // Update current position
               vec3f P = gorg + t * gdir;
-              vec3f worldP = xfmPoint(gridToUnit, xfmPoint(unitToWorld, P - gLower)) + myBox.lower;
+              vec3f worldP = xfmPoint(gridToUnit, xfmPoint(unitToWorld, P + gLower));
 
               // Sample heterogeneous media
               float f;
@@ -149,7 +133,7 @@ namespace vopat {
               // f = transferFunction(f);
             
               // Check if a collision occurred (real particles / real + fake particles)
-              if (rnd() < f / majorant) {
+              if (rnd() < f / (majorant*DENSITY)) {
                 if (ray.isShadow) {
                   vec3f color = throughput * dvr.ambient();
                   if (ray.crosshair) color = vec3f(1.f)-color;
