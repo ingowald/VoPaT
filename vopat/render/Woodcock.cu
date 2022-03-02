@@ -83,7 +83,7 @@ namespace vopat {
       
       
 
-      #if 1
+#if 1
 
       // first do direct, then shadow
       bool rayKilled = false;

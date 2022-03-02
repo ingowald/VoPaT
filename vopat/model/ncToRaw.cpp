@@ -10,11 +10,26 @@ using namespace vopat;
 
 int main(int ac, char **av)
 {
-  std::string inFileName = av[1];
+  std::string inFileName = "";//av[1];
   std::string varName = "qi";
   std::string outFileBase = "/space/ncToRaw";
 
+  for (int i=1;i<ac;i++) {
+    const std::string arg = av[i];
+    if (arg[0] != '-')
+      inFileName = arg;
+    else if (arg == "-o")
+      outFileBase = av[++i];
+    else if (arg == "-v" || arg == "--variable")
+      varName = av[++i];
+    else throw std::runtime_error("unknown cmdline arg '"+arg+"'");
+  }
+  if (inFileName.empty())
+    throw std::runtime_error("no input file name specified....");
+  
   NcFile dataFile(inFileName, NcFile::read);
+  
+  
   // std::multimap<std::string,NcVar> vars = dataFile.getVars();
   // for (auto _var : vars) {
   //   auto var = _var.second;

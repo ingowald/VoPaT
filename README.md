@@ -1,92 +1,204 @@
-# Distributed Volume Path Tracing
+# Data-Parallel Volume Path Tracing (with Ray Forwarding)
+
+This project aims at enabling the data-parallel rendering of (so
+far-)structured volumetric data on one or more ranks with one or more
+GPUs. Note we currently assume each GPU will be used through its own
+MPI rank, even if there are multiple GPUs in the same physical nodes.
+
+Below some very brief information on building VOPAT; followed by some
+brief description of what one needs to do to get a data set
+converted/imported into vopat until it can be renderered, as well as
+on how to control the viewer once a model is running.
+
+# Building
+
+Vopat (or VoPaT, for VOlumePAthTracing) is built with CMake. You need
+CUDA, a relatively recent NVIDIA driver, Cmake, and MPI. For the
+viewers you'll also want to have QT installed, as well as glfw.
+
+## Prerequisites
+
+- libraries: QT, glfw, possibly netcdf for the ncToRaw tool (see below)
+- CUDA, version 11 should do
+- OptiX, any version of 7.0
+- CUDA Aware MPI: We use OpenMPI 4.1.2, configured and built with ``--with-cuda` flag; but any other CUDA aware MPI should do, too.
+
+## Source Dependencies
+
+All source dependencies come int he form of git submodules. Do initial
+close with `--recursive` flag, or, if you forgot that, do a `git
+submodule init; git submodule update`.
+
+## Building w/ CMake
+
+build w/ cmake as usual; currently no extra build flags to be
+mentioned here. When configuring cmake assumes that MPI and CUDA
+(nvcc) are in the path; OWL may also require to find OptiX, for which
+you can set a `OptiX_INSTALL_DIR` environment or cmdline variable.
+
+Once built, you should have binaries `vopatQtViewer`, `vopatSplitter`,
+and, if enabled during build, a `ncToRaw` tool.
 
 
 
-## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+# Getting vopat to render a volume
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## NetCDF to raw conversion
 
-## Add your files
+The vopat splitter can currently only read 'raw' volume data sets. To
+convert form (uncompressed float) netcdf you can use the `ncToRaw`
+tool as follows:
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+    ./ncToRaw mkow030-bigdomain-uncompressed.00252000.nc -o /space/mkow
+	
+Two notes:
 
-```
-cd existing_repo
-git remote add origin https://gitlab.com/ingowald/distributed-volume-path-tracing.git
-git branch -M main
-git push -uf origin main
-```
+a) The value specified with `-o` is only the *prefix* of the generated
+file name; the tool will automatically append dimension, dtatype, and
+`.raw` extension.
 
-## Integrate with your tools
+b) this tools is disabled in cmake by default (to avoid the
+`libnetcdf` dependency).  If you have those libs installed you have to
+enable it through cmake.
 
-- [ ] [Set up project integrations](https://gitlab.com/ingowald/distributed-volume-path-tracing/-/settings/integrations)
+## Splitting a model into "bricks"
 
-## Collaborate with your team
+Though the vopat *renderer* can probably also be attached to data
+provided through other means, the current viewers require some special
+`.vopat` file format that contains a structured volume that has been
+split into `N` "bricks". To split a given model (e.g, `magnetic.raw`), use this:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+    ./vopatSplitter /path/to/magnetic.raw -n 8 -if float -is 512 512 512 -o /nfs/magnetic-n8 
 
-## Test and Deploy
+Explanation of parameters:
 
-Use the built-in continuous integration in GitLab.
+- `-n <int>` number of bricks to split this into. This should be the desired number of worker ranks.
+- `-is <int> <int> <int>` "input size" (ie dimensions) of the input volume in the given raw file.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- `-if float|uint16|uint8` "input format" (scalar type of the input
+  model). Float models get read as in, uint8 and uint16 get normalized
+  to [0,1] values.
+  
+- `-o <path>` base prefix of all files generated by the splitter; this
+  will be one `<path>.vopat` with the metadata, and several
+  `<path>/...brick` files for the generated bricks (so each rank needs
+  to load only its brick).
 
-***
+## MPI-Launching the vopat viewer
 
-# Editing this README
+In this section I assume you split your model into `/nfs/myModel`
+(which means there should be a `/nfs/myModel.vopat` file, as well as
+several `/nfs/myModel...brick` files). I also assume that this folder
+is nfs-shared readable by all the ranks you intend to start (though it
+is also possible to use local folders, as long as every rank can open
+the respective files).
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+*Number of ranks:* You always *have* to use one more rank than you have bricks
+in your model; rank 0 will always run the viewer, window, transfer
+function editor, etc, as well as the "master" controlling the workers;
+ranks 1..N will be workers.
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+*MPI host list:* Multiple GPUs on the same node are used by listing
+the same rank with several MPI processses on the same rank; Vopat will
+automatically figure out if there's multiple processes on the same
+node, and will use those GPUs round robin. 
 
-## Name
-Choose a self-explaining name for your project.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### Example: Running on own cluster with OpenMPI: 
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+E.g., on my host cluster (with display/master machine `envy` and four
+dual-GPU workers `moggy`, `shady`, `hasky`, and `wally`, I would
+launch an 8-way split model using
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+    export HOSTS=envy,wally:2,shady:2,hasky:2,moggy:2
+    /home/wald/opt/bin/mpirun -n 9 -host $HOSTS /mnt/nfs/vopatQTViewer /mnt/nfs/vopat/qi8
+	
+Note the above assumes a CUDA-aware build of OpenMPI (ie *not* the
+default linux install of it!), that `/mnt/nfs` is mounted and
+accessible on all ranks, and that `/home/wald/opt/bin` is the local
+install dir for openmpi (and acessible to all ranks).
+	
+### Example: Running on Frontera
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+JOAO TO WRITE THIS
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Controlling the Viewer (once Lauched)
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Camera movement
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Camera motion is controlled by dragging the mouse in the main display window: 
 
-## License
-For open source projects, say how it is licensed.
+- `right button drag` : move in/out
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- `middle button drag`: "strafe" sideways
+
+- `left button drag`: rotate either around the lookat point (if in
+  "inspect" mode), or around the camera position (if in "fly" mode)
+
+Note all camera motion is influenced by the "up direction", which can
+be different for each model, but which can be controlled by the
+(uppercase) `X`, `Y`, and `Z` keystrokes). Camera motion is also
+sligthly different based on inspect mode vs fly mode (which be
+switched via pressing `F` or `I`), and by the "motion speed" (which
+can be controlled via the `+`/`-` keys.
+
+## Important Keystrokes
+
+### Keystrokes to control camera position / motion
+
+- `X`,`Y`,`Z` (uppercase): switch up direction ("upvector") to +/-
+  X,Y, or Z direction (pressing twice inverts up/down).
+
+- `I` : switch to "inspect" mode (rotate around the current lookat point)
+
+- 'F' : "fly mode" with no lookat point; free flight around the entire
+  model, and camera rotation around the camera position
+
+- `+`/`-`: increase/decrease motion speed (how much you move for any mouse tick) by 1.5x
+
+### Other useful keystrokes
+
+- `C`: print current camera position on terminal, in a form that can be copy-n-pasted
+   on next run
+   
+- `!`: dump some screenshot of current position (possibly includgin some
+  extra images for per-rank partial frame buffers)
+  
+- `@`: dump current transfer function to "vopat.xf" (allows for using same xf on next run)
+
+  
+
+## Transfer Function Editor
+
+In the main editor field, you can "draw" with left mouse button to
+modify the opacity value; setting the opacity value to match the
+current mounse position. Drawing with the *right* mouse button works
+the same, but sets opacity of that bin to either 0 or 1, whichever is
+closer.
+
+In the edit fields/spin boxes:
+
+- `opacity scale` allows for modifying the "density" of the volume, on
+  a logarithmic scale. "100" is a (relatively high) default density;
+  reducing this value will make the volume more transparent,
+  increasing it will make it more opaque.
+  
+- `abs domain` allows for clamping the tranfer function to a (sub)
+  region of the model's input data values. I.e., if the input values
+  go from -1 to +10, but the abs domain fields specify 0 and 2, then
+  the used transfer fucntion will actually only affect data values
+  from 0 to 2, with all values below or above that range clamped into
+  that range.
+  
+- `rel domain`: same as the abs domain, but (percentage-)relative to
+  the abs domain. Ie, a rel domain of [0,100] means the tranfer
+  function domain is exactly the abs domain described in the previous
+  bullet; a rel domain of [25,50] for a abs domain of [0,10] would
+  mean the actual domain of the transfer function is [2.5,5] (ie, 25
+  percent and 50 percent inside the [0,10] range).
+
