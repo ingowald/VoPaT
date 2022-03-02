@@ -169,7 +169,7 @@ namespace vopat {
       closest = i;
       t_closest = t_min;
     }
-    if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
+    // if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
     return closest;
   }
   

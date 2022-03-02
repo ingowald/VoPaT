@@ -27,6 +27,15 @@ namespace vopat {
       about */
   struct ModelConfig {
     struct {
+      inline interval<float> getRange() const {
+        return {
+                absDomain.lower + (relDomain.lower/100.f) * (absDomain.upper-absDomain.lower),
+                absDomain.lower + (relDomain.upper/100.f) * (absDomain.upper-absDomain.lower)
+        };
+      }
+      inline float getDensity() const
+      { return powf(1.1f,opacityScale-100); }
+        
       interval<float>    absDomain;
       interval<float>    relDomain;
       std::vector<vec4f> colorMap;

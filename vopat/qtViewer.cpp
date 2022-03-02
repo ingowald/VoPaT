@@ -224,7 +224,7 @@ namespace vopat {
     };
     /*! 'scale' is actually a percentage, with 100 meaning 'default' */
     void opacityScaleChanged(double scale)
-    {
+    { 
       xfDensity = powf(1.1f,scale-100);
       PING; PRINT(scale); PRINT(xfDensity);
       master.setTransferFunction(xfValues,xfRange,xfDensity);

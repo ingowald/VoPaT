@@ -33,11 +33,11 @@ namespace vopat {
 
       /*! put a scalar field throught he transfer function, and reutnr
         RGBA result */
-      inline __device__ vec4f transferFunction(float f) const;
+      inline __device__ vec4f transferFunction(float f, bool dbg = false) const;
 
       /*! look up the given (world-space) 3D point in the volume, and
         return interpolated scalar value */
-      inline __device__ bool getVolume(float &f, vec3f P) const;
+      inline __device__ bool getVolume(float &f, vec3f P, bool dbg = false) const;
       
       
       
@@ -92,8 +92,13 @@ namespace vopat {
   
   /*! put a scalar field throught he transfer function, and reutnr
     RGBA result */
-  inline __device__ vec4f VolumeRenderer::Globals::transferFunction(float f) const
+  inline __device__ vec4f VolumeRenderer::Globals::transferFunction(float f, bool dbg) const
   {
+    if (dbg)
+      printf("mapping %f domain %f %f numvals %i ptr %lx...\n",
+             f,xf.domain.lower,xf.domain.upper,
+             this->xf.numValues,this->xf.values
+             );
     if (this->xf.numValues == 0)
       return vec4f(0.f);
     if (this->xf.domain.lower >= this->xf.domain.upper)
@@ -106,11 +111,12 @@ namespace vopat {
   }
   
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */
-  inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P) const
+  inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
   {
 #if 1
     // tri-lerp:
     vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
+    if (dbg) printf("cell %i %i %i\n",cellID.x,cellID.y,cellID.z);
     if (// cellID.x < 0 || 
         (cellID.x >= this->volume.dims.x-1) ||
         // cellID.y < 0 || 

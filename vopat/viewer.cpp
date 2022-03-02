@@ -20,6 +20,7 @@
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
 #include "vopat/Renderer.h"
+#include "vopat/ModelConfig.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
@@ -33,22 +34,15 @@ namespace vopat {
   struct {
     int spp = 1; //4;
     struct {
-#if 1
       // auto-generate
       vec3f vp = vec3f(0.f);
       vec3f vu = vec3f(0.f);
       vec3f vi = vec3f(0.f);
       float fovy = 70;
-#else
-      // magnetic
-      vec3f vp = vec3f(-0.1957508922f, 1.78088963f, 1.166904449f);
-      vec3f vi = vec3f(0.4999998808f, 0.4999995232f, 0.5000001788f );
-      vec3f vu = vec3f(0.f,0.f,1.f);
-      float fovy = 70;
-#endif
     } camera;
     vec2i windowSize  = vec2i(1024,1024);
     float windowScale = 1.f;
+    std::string configFileName = "";
   } cmdline;
   
   void usage(const std::string &msg)
@@ -119,15 +113,8 @@ namespace vopat {
       static double t_last = -1;
 
       {
-        static double t0 = getCurrentTime();
+        // static double t0 = getCurrentTime();
         master.renderFrame(fbPointer);
-
-        // if (cmdline.measure && (getCurrentTime()-t0 > 10.f)) {
-        //   std::cout << "done measuring ..." << std::endl;
-        //   master.screenShot();
-        //   master.terminate();
-        //   exit(0);
-        // }
       }      
       
       double t_now = getCurrentTime();
@@ -198,6 +185,9 @@ namespace vopat {
         else if (arg == "-fovy") {
           cmdline.camera.fovy = std::atof(argv[++i]);
         }
+        else if (arg == "-c" || "--config") {
+          cmdline.configFileName = argv[++i];
+        }
         else if (arg == "--camera") {
           cmdline.camera.vp.x = std::atof(argv[++i]);
           cmdline.camera.vp.y = std::atof(argv[++i]);
@@ -255,6 +245,23 @@ namespace vopat {
       viewer.enableInspectMode();
 
 
+      PING; PRINT(cmdline.configFileName);
+      if (!cmdline.configFileName.empty()) {
+        ModelConfig mc = ModelConfig::load(cmdline.configFileName);
+        viewer.setCameraOrientation(mc.camera.from,
+                                    mc.camera.at,
+                                    mc.camera.up,
+                                    mc.camera.fovy);
+        viewer.camera.setUpVector(mc.camera.up);
+
+        PRINT(mc.xf.getRange());
+        PRINT(mc.xf.getDensity());
+        PRINT(mc.xf.colorMap.size());
+        master.setTransferFunction(mc.xf.colorMap,
+                                      mc.xf.getRange(),
+                                      mc.xf.getDensity());
+      } 
+
       if (cmdline.camera.vu != vec3f(0.f)) {
         std::cout << "Camera from command line!"
                   << std::endl;
@@ -262,7 +269,7 @@ namespace vopat {
                                     /*lookat   */cmdline.camera.vi,
                                     /*up-vector*/cmdline.camera.vu,
                                     /*fovy(deg)*/cmdline.camera.fovy);
-      } else {
+      } else if (cmdline.configFileName.empty()) {
         std::cout << "No camera in model, nor on command line - generating from bounds ...."
                   << std::endl;
         viewer.setCameraOrientation(/*origin   */

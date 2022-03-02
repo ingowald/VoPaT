@@ -43,7 +43,15 @@ namespace vopat {
       vec3i singleCell = vec3i(1); // just testing...
       vec3i numMacrocells = dvr.mc.dims;
 
-
+      if (ray.dbg) printf("Woodcock (%f %f %f) mc (%i %i %i)!\n"
+                          ,myBox.upper.x
+                          ,myBox.upper.y
+                          ,myBox.upper.z
+                          ,numMacrocells.x
+                          ,numMacrocells.y
+                          ,numMacrocells.z
+                          );
+      
       auto worldToUnit = affine3f(
         linear3f(
           vec3f((myBox.upper.x - myBox.lower.x), 0.f, 0.f),
@@ -124,12 +132,14 @@ namespace vopat {
 
               // Sample heterogeneous media
               float f;
-              if (!dvr.getVolume(f,worldP)) { 
+              if (!dvr.getVolume(f,worldP,ray.dbg)) { 
                 // t += dt; // NM: not necessary, the sampled distance moves t forward.
                 continue; 
               }
-              vec4f xf = dvr.transferFunction(f);
+              vec4f xf = dvr.transferFunction(f,ray.dbg);
               f = xf.w;
+              if (ray.dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
+                              t,f,xf.x,xf.y,xf.z,xf.w);
               // f = transferFunction(f);
             
               // Check if a collision occurred (real particles / real + fake particles)
@@ -180,7 +190,7 @@ namespace vopat {
         }
       }
 
-      #else
+#else
 #ifdef ISO_SURFACE
       NOT WORKING YET
         float isoDistance = -1.f;
@@ -235,6 +245,8 @@ namespace vopat {
         float f;
         if (!dvr.getVolume(f,P)) { t += dt; continue; }
         vec4f xf = dvr.transferFunction(f);
+        if (dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
+                        t,f,xf.x,xf.y,xf.z,xf.w);
         f = xf.w;
         // f = transferFunction(f);
       
