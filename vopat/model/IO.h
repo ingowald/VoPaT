@@ -25,6 +25,7 @@ namespace vopat {
   template<typename T> inline void write(std::ofstream &out, const std::vector<T> &t);
   template<typename T> inline void write(std::ofstream &out, const T &t);
   
+  template<typename T> inline void read(std::ifstream &in, std::vector<T> &t);
   template<typename T> inline void read(std::ifstream &in, T &t) { t = read<T>(in); }
 
   // ==================================================================
@@ -49,5 +50,16 @@ namespace vopat {
 
   template<typename T> inline void write(std::ofstream &out, const std::vector<T> &t)
   { write(out,t.size()); out.write((const char*)t.data(),sizeof(T)*t.size()); }
+
+  template<typename T> inline void read(std::ifstream &in, std::vector<T> &t)
+  {
+    size_t sz;
+    PING; 
+    read(in,sz);
+    PRINT(sz);
+    t.resize(sz);
+    for (int i=0;i<sz;i++)
+      read(in,t[i]);
+  }
   
 }

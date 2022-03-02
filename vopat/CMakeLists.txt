@@ -68,7 +68,8 @@ endif()
 
 add_library(vopat_render
   Renderer.cpp
-
+  ModelConfig.cpp
+  
   render/MacroCell.h
   render/MacroCell.cu
   render/VolumeRendererBase.cu
