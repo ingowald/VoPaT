@@ -85,6 +85,7 @@ add_library(vopat_render
   mpi/MPIWorker.cpp
   mpi/MPIMaster.cpp
   )
+
 target_link_libraries(vopat_render
   PUBLIC
   vopat_model
