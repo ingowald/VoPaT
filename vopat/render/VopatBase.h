@@ -213,10 +213,7 @@ namespace vopat {
 
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
-    {
-      VolumeRenderer::setLights(ambient,dirLights);
-      PING; PRINT(dirLights.size());
-    }
+    { VolumeRenderer::setLights(ambient,dirLights); }
     
   };
 

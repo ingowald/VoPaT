@@ -35,7 +35,10 @@ namespace vopat {
     {
       lights.directional.push_back({vec3f(.1,1.f,.1f),vec3f(1.f)});
     }
-    
+
+    ModelConfig(const ModelConfig &) = default;
+    ModelConfig &operator=(const ModelConfig &) = default;
+
     // ==================================================================
     struct {
       inline interval<float> getRange() const {

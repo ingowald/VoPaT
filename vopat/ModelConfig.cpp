@@ -23,7 +23,7 @@ namespace vopat {
   
   void ModelConfig::save(const std::string &fileName)
   {
-    std::ofstream out(fileName);
+    std::ofstream out(fileName,std::ios::binary);
     size_t magic = modelConfigMagic;
     write(out,magic);
     write(out,xf.absDomain);
@@ -31,25 +31,35 @@ namespace vopat {
     write(out,xf.colorMap);
     write(out,xf.opacityScale);
     write(out,camera);
-    write(out,lights);
+    write(out,lights.ambient);
+    write(out,lights.directional);
+    PRINT(lights.directional.size());
+    if (lights.directional.size() > 0)
+      PRINT(lights.directional[0].dir);
   }
   
   ModelConfig ModelConfig::load(const std::string &fileName)
   {
-    std::ifstream in(fileName);
+    std::ifstream in(fileName,std::ios::binary);
     size_t magic;
     ModelConfig mc;
     read(in,magic);
-    if (magic != modelConfigMagic)
+    if (magic != modelConfigMagic) {
+      PRINT(modelConfigMagic);
+      PRINT(magic);
       throw std::runtime_error("invalid or outdated .vtp file");
+    }
     read(in,mc.xf.absDomain);
     read(in,mc.xf.relDomain);
     read(in,mc.xf.colorMap);
     read(in,mc.xf.opacityScale);
     read(in,mc.camera);
-    PRINT(mc.xf.opacityScale);
-    PRINT(mc.camera.up);
-    read(in,mc.lights);
+    read(in,mc.lights.ambient);
+    read(in,mc.lights.directional);
+    PRINT(mc.lights.directional.size());
+    if (mc.lights.directional.size() > 0)
+      PRINT(mc.lights.directional[0].dir);
+    
     return mc;
   }
   

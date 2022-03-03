@@ -89,18 +89,16 @@ namespace vopat {
     MPI_Bcast((void*)&ambient,sizeof(ambient),MPI_BYTE,0,MPI_COMM_WORLD);
     int count;
     MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
-    std::vector<MPIRenderer::DirectionalLight> dirLights(count);
-    MPI_Bcast((void*)dirLights.data(),count*sizeof(dirLights[0]),MPI_BYTE,0,MPI_COMM_WORLD);
+    std::vector<MPIRenderer::DirectionalLight> dirLights;
+    dirLights.resize(count);
+    for (int i=0;i<count;i++) {
+      MPI_Bcast((void*)&dirLights[i],sizeof(dirLights[i]),MPI_BYTE,0,MPI_COMM_WORLD);
+    }
     
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    PING; PRINT(ambient); PRINT(dirLights.size());
-    PRINT(dirLights[0].dir);
-    PRINT(dirLights[0].rad);
     renderer->setLights(ambient,dirLights);
-
-    PING;
   }
 
   void MPIWorker::cmd_script()

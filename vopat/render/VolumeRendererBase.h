@@ -90,7 +90,6 @@ namespace vopat {
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights)
     {
-      PING;
       globals.lights.ambient = ambient;
       globals.lights.numDirectional = dirLights.size();
       for (int i=0;i<min((int)dirLights.size(),(int)MAX_DIR_LIGHTS);i++) {

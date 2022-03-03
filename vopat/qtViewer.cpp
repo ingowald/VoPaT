@@ -144,11 +144,34 @@ namespace vopat {
       t_last = t_now;
     }
     
+
+    void setKeyLight(uint32_t lightID)
+    {
+      std::vector<vec3f> lightDirs = {
+                                      vec3f(1.f,.1f,.1f),
+                                      vec3f(-1.f,.1f,.1f),
+                                      vec3f(.1f,+1.f,.1f),
+                                      vec3f(.1f,-1.f,.1f),
+                                      vec3f(.1f,.1f,+1.f),
+                                      vec3f(.1f,.1f,-1.f) };
+      vec3f lightDir = lightDirs[lightID % lightDirs.size()];
+      modelConfig->lights.directional.resize(1);
+      modelConfig->lights.directional[0].dir = lightDir;
+      updateLights();
+    }
     
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
     {
+      static uint32_t keyLightID = 0;
+      
       switch (key) {
+      case 'l':
+        setKeyLight(++keyLightID);
+        break;
+      case 'L':
+        setKeyLight(--keyLightID);
+        break;
       case '!':
         screenShot();
         break;
@@ -229,6 +252,14 @@ namespace vopat {
 
   extern "C" int main(int argc, char **argv)
   {
+    // ******************************************************************
+    // cmdline parsed, set up mpi
+    // ******************************************************************
+    MPIBackend mpiBackend(argc,argv,0);
+    
+    // ******************************************************************
+    // parse OUR stuff
+    // ******************************************************************
     ModelConfig::SP modelConfig = std::make_shared<ModelConfig>();
     try {
       std::string inFileBase = "";
@@ -241,7 +272,10 @@ namespace vopat {
           rendererName = argv[++i];
         }
         else if (arg == "-c" || "--config") {
-          *modelConfig = ModelConfig::load(argv[++i]);
+          const std::string configFileName = argv[++i];
+          if (mpiBackend.isMaster) {
+            *modelConfig = ModelConfig::load(configFileName);
+          }
         }
         else if (arg == "--camera") {
           modelConfig->camera.from.x = std::atof(argv[++i]);
@@ -272,34 +306,11 @@ namespace vopat {
       }
 
       // ******************************************************************
-      // cmdline parsed, set up mpi
-      // ******************************************************************
-      MPIBackend mpiBackend(argc,argv,0);
-
-      // ******************************************************************
       // load model, and check that it meets our mpi config
       // ******************************************************************
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
-
-      // ******************************************************************
-      // initialize all not-yet-set values in our model config from model
-      // ******************************************************************
-      if (modelConfig->xf.absDomain.is_empty())
-        modelConfig->xf.absDomain = model->valueRange;
-      if (modelConfig->xf.colorMap.empty())
-        modelConfig->xf.colorMap
-          = qtOWL::ColorMapLibrary().getMap(0);
-      box3f sceneBounds = model->getBounds();
-      if (modelConfig->camera.up == vec3f(0.f)) {
-        modelConfig->camera.from
-          = sceneBounds.center()
-          + vec3f(-.7f,.3f,+1.f)*1.5f*sceneBounds.span();
-        modelConfig->camera.at = sceneBounds.center();
-        modelConfig->camera.up = vec3f(0.f, 1.f, 0.f);
-        modelConfig->camera.fovy = 70.f;
-      }
 
       // ******************************************************************
       // create renderer, workers, etc.
@@ -319,6 +330,24 @@ namespace vopat {
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
+      }
+
+      // ******************************************************************
+      // initialize all not-yet-set values in our model config from model
+      // ******************************************************************
+      if (modelConfig->xf.absDomain.is_empty())
+        modelConfig->xf.absDomain = model->valueRange;
+      if (modelConfig->xf.colorMap.empty())
+        modelConfig->xf.colorMap
+          = qtOWL::ColorMapLibrary().getMap(0);
+      box3f sceneBounds = model->getBounds();
+      if (modelConfig->camera.up == vec3f(0.f)) {
+        modelConfig->camera.from
+          = sceneBounds.center()
+          + vec3f(-.7f,.3f,+1.f)*1.5f*sceneBounds.span();
+        modelConfig->camera.at = sceneBounds.center();
+        modelConfig->camera.up = vec3f(0.f, 1.f, 0.f);
+        modelConfig->camera.fovy = 70.f;
       }
 
       // ******************************************************************
@@ -356,10 +385,17 @@ namespace vopat {
       QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
                        &viewer, &VoPaTViewer::opacityScaleChanged);
 
+      // save both here, because the first call to the set() function
+      // below will overwrite BOTH
+      const interval<float> relDomain = modelConfig->xf.relDomain;
+      const interval<float> absDomain = modelConfig->xf.absDomain;
+      const float opacityScale = modelConfig->xf.opacityScale;
+      
+      
       xfEditor->setColorMap(modelConfig->xf.colorMap);
-      xfEditor->setOpacityScale(modelConfig->xf.opacityScale);
-      xfEditor->setRelDomain(modelConfig->xf.relDomain);
-      xfEditor->setAbsDomain(modelConfig->xf.absDomain);
+      xfEditor->setOpacityScale(opacityScale);
+      xfEditor->setRelDomain(relDomain);
+      xfEditor->setAbsDomain(absDomain);
       
       // xfEditor->cmSelectionChanged(0);
       // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());

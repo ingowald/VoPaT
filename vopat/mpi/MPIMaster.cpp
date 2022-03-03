@@ -150,7 +150,10 @@ namespace vopat {
     MPI_Bcast((void*)&ambient,sizeof(ambient),MPI_BYTE,0,MPI_COMM_WORLD);
     int count = dirLights.size();
     MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)dirLights.data(),count*sizeof(dirLights[0]),MPI_BYTE,0,MPI_COMM_WORLD);
+    for (int i=0;i<count;i++) {
+      MPI_Bcast((void*)&dirLights[i],sizeof(dirLights[i]),MPI_BYTE,0,MPI_COMM_WORLD);
+    }
+    
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
