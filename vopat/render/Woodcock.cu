@@ -124,7 +124,7 @@ namespace vopat {
                }
                
                const int numLights = dvr.numDirLights();
-               if (numLights == 0.f) {
+               if (numLights == 0) {
                  rayKilled = true;
                  return false;
                }

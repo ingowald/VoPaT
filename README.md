@@ -202,3 +202,34 @@ In the edit fields/spin boxes:
   mean the actual domain of the transfer function is [2.5,5] (ie, 25
   percent and 50 percent inside the [0,10] range).
 
+
+
+TODO
+
+- getting to work on TACC: then also get to run on large data (dns?
+  cloud or llnl animatied?)
+
+- optimization: have all ranks exhcnage their macrocell info, then
+  have 'getNextNode()' use this to try and skip the next rank if
+  possible: if currnet rank knows what random number the next ray
+  would use for that rank, and has the same macrocells, AND tracing
+  the ray through the next ray's macrocells doesn't yeild a single
+  scatter event, then that next rank can be skipped w/ needing to
+  forward the ray!
+  
+- optimization: partial frame buffers could probably be sent w/ lower
+  bandwidth if we look at 8x8 tiles and send only those that aren't
+  entirely empty.
+  
+- visualizations: woodock w/ ray forwarding, woodcock with *local*
+  only shadows (no forwarding fo shadow rays), as emission absorption
+  only.
+  
+- clouds: done' tuse transfer function, but do PHOTOREAL cloud
+
+- iso-surfaces
+
+- clouds - animation?
+
+- multiple samples per pixel (maybe w/ control from user)
+

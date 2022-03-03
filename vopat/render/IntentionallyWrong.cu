@@ -66,51 +66,52 @@ namespace vopat {
 
         // Sample heterogeneous media
         float f;
-        if (!dvr.getVolume(f,P)) { t += dt; continue; }
+        if (!dvr.getVolume(f,P)) { continue; }
         vec4f xf = dvr.transferFunction(f);
         f = xf.w;
       
         // Check if a collision occurred (real particles / real + fake particles)
-        if (rnd() < f / majorant) {
-          if (ray.isShadow) {
-            vec3f color = throughput * dvr.ambient();
-            if (ray.crosshair) color = vec3f(1.f)-color;
-            vopat.addPixelContribution(ray.pixelID,color);
-            vopat.killRay(tid);            
-            return;
-          } else {
-            org = P; 
-            ray.origin = org;
-            throughput *= vec3f(xf.x,xf.y,xf.z);
-            {
-              // add ambient illumination 
-              vec3f color = throughput * dvr.ambient();
-              if (ray.crosshair) color = vec3f(1.f)-color;
-              vopat.addPixelContribution(ray.pixelID,color);
-            }
-
-            const int numLights = dvr.numDirLights();
-            if (numLights == 0.f) {
-              vopat.killRay(tid);            
-              return;
-            }
-            
-            int which = int(rnd() * numLights); if (which == numLights) which = 0;
-            throughput *= ((float)numLights * dvr.lightRadiance(which));
-            ray.throughput = to_half(throughput);
-            
-            ray.setDirection(dvr.lightDirection(which));
-            dir = ray.getDirection();
-            
-            t0 = 0.f;
-            t1 = CUDART_INF;
-            boxTest(myBox,ray,t0,t1);
-            t = 0.f; // reset t to the origin
-            ray.isShadow = true;
-
-            continue;
-          }
+        if (rnd() >= f / majorant)
+          continue;
+        
+        if (ray.isShadow) {
+          // vec3f color = throughput * dvr.ambient();
+          // if (ray.crosshair) color = vec3f(1.f)-color;
+          // vopat.addPixelContribution(ray.pixelID,color);
+          vopat.killRay(tid);            
+          return;
         }
+        
+        org = P; 
+        ray.origin = org;
+        throughput *= vec3f(xf.x,xf.y,xf.z);
+        {
+          // add ambient illumination 
+          vec3f color = throughput * dvr.ambient();
+          if (ray.crosshair) color = vec3f(1.f)-color;
+          vopat.addPixelContribution(ray.pixelID,color);
+        }
+          
+        const int numLights = dvr.numDirLights();
+        if (numLights == 0) {
+          vopat.killRay(tid);            
+          return;
+        }
+          
+        int which = int(rnd() * numLights); if (which == numLights) which = 0;
+        throughput *= ((float)numLights * dvr.lightRadiance(which));
+        ray.throughput = to_half(throughput);
+            
+        ray.setDirection(dvr.lightDirection(which));
+        dir = ray.getDirection();
+            
+        t0 = 0.f;
+        t1 = CUDART_INF;
+        boxTest(myBox,ray,t0,t1);
+        t = 0.f; // reset t to the origin
+        ray.isShadow = true;
+
+        continue;
       }
 
       int nextNode = ray.isShadow ? -1 : computeNextNode(dvr,ray,t1,/*ray.dbg*/false);
