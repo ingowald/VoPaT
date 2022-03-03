@@ -81,6 +81,7 @@ add_library(vopat_render
   render/RayForwardingRenderer.cu
 #  render/SimpleNodeRenderer.cu
   render/Woodcock.cu
+  render/IntentionallyWrong.cu
   render/CellMarchRenderer.cu
   mpi/MPIBackend.cpp
   mpi/MPIWorker.cpp

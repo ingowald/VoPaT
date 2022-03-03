@@ -26,6 +26,20 @@ namespace vopat {
                                      Model::SP model,
                                      const std::string &fileNameBase,
                                      int rank);
+  
+  /*! woodcock-"style" renderer without forwarding of shadow rays, as
+      if one did woodcock in each rank, and used compositing */
+  Renderer *createRenderer_WrongShadows(CommBackend *comm,
+                                        Model::SP model,
+                                        const std::string &fileNameBase,
+                                        int rank);
+
+  /*! woodcock-"style" renderer that doesn't do any shadows, just
+      emisison-absoption style rendering */
+  Renderer *createRenderer_NoShadows(CommBackend *comm,
+                                     Model::SP model,
+                                     const std::string &fileNameBase,
+                                     int rank);
 
   /*! creates a renderer from the given name (e.g., "woodcock" or
       "cell-march") */
@@ -37,6 +51,10 @@ namespace vopat {
   {
     if (rendererName == "wc" || rendererName == "woodock")
       return createRenderer_Woodcock(comm,model,fileNameBase,rank);
+    if (rendererName == "ws" || rendererName == "wrong-shadows")
+      return createRenderer_WrongShadows(comm,model,fileNameBase,rank);
+    if (rendererName == "ns" || rendererName == "no-shadows")
+      return createRenderer_NoShadows(comm,model,fileNameBase,rank);
     if (rendererName == "cm" || rendererName == "cell-march")
       return createRenderer_CellMarch(comm,model,fileNameBase,rank);
     throw std::runtime_error("unknown renderer mode '"+rendererName+"'");
