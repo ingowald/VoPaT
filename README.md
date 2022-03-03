@@ -233,3 +233,7 @@ TODO
 
 - multiple samples per pixel (maybe w/ control from user)
 
+- CUDA hardware textures :-/
+
+- POSSIBLY rendering directly on zfp compressed data, OR at least
+  upload zfp and decompress.
