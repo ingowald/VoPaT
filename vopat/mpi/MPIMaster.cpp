@@ -138,5 +138,38 @@ namespace vopat {
     // ------------------------------------------------------------------
     renderer->setTransferFunction(cm,range,density);
   }
+
+  void MPIMaster::setLights(float ambient,
+                            const std::vector<MPIRenderer::DirectionalLight> &dirLights)
+  {
+    // ------------------------------------------------------------------
+    // send request....
+    // ------------------------------------------------------------------
+    int cmd = SET_LIGHTS;
+    MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&ambient,sizeof(ambient),MPI_BYTE,0,MPI_COMM_WORLD);
+    int count = dirLights.size();
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)dirLights.data(),count*sizeof(dirLights[0]),MPI_BYTE,0,MPI_COMM_WORLD);
+    // ------------------------------------------------------------------
+    // and do our own....
+    // ------------------------------------------------------------------
+    renderer->setLights(ambient,dirLights);
+  }
+
+  void MPIMaster::setShadeMode(int value)
+  {
+    // ------------------------------------------------------------------
+    // send request....
+    // ------------------------------------------------------------------
+    int cmd = SET_SHADE_MODE;
+    MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)&value,sizeof(value),MPI_BYTE,0,MPI_COMM_WORLD);
+    // ------------------------------------------------------------------
+    // and do our own....
+    // ------------------------------------------------------------------
+    renderer->setShadeMode(value);
+  }
+
   
 } // ::vopat

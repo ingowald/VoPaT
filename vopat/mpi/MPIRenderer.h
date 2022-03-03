@@ -23,6 +23,11 @@ namespace vopat {
       does with the commands (like 'resize', 'render' etc), is up the
       derived class */
   struct MPIRenderer {
+    struct DirectionalLight {
+      vec3f dir;
+      vec3f rad;
+    };
+    
     /*! render into the provided application frame buffer; this
         pointer will be 0 on workers */
     virtual void render(uint32_t *appFbPointer)          = 0;
@@ -39,6 +44,12 @@ namespace vopat {
         screenshots (mostly for debugging; it should be the app that
         provides the "real" screen shots) */
     virtual void screenShot()                            = 0;
+
+    /*! unformatted script-like command - assuems renderer can parse this */
+    virtual void script(const std::string &s) {};
+    virtual void setShadeMode(int mode) {};
+    virtual void setLights(float ambient,
+                           const std::vector<MPIRenderer::DirectionalLight> &dirLights) {};
   };
   
 }

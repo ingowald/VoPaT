@@ -50,6 +50,7 @@ namespace vopat {
 
     // throw std::runtime_error("HARD EXIT FOR DEBUG");
   }
+
   void MPIWorker::cmd_resizeFrameBuffer()
   {
     // ------------------------------------------------------------------
@@ -63,6 +64,61 @@ namespace vopat {
     renderer->resizeFrameBuffer(newSize);
 
     mpi.barrierAll();
+  }
+
+  void MPIWorker::cmd_setShadeMode()
+  {
+    // ------------------------------------------------------------------
+    // get args....
+    // ------------------------------------------------------------------
+    int value;
+    MPI_Bcast((void*)&value,sizeof(value),MPI_BYTE,0,MPI_COMM_WORLD);
+    
+    // ------------------------------------------------------------------
+    // and execute
+    // ------------------------------------------------------------------
+    renderer->setShadeMode(value);
+  }
+
+  void MPIWorker::cmd_setLights()
+  {
+    // ------------------------------------------------------------------
+    // get args....
+    // ------------------------------------------------------------------
+    float ambient;
+    MPI_Bcast((void*)&ambient,sizeof(ambient),MPI_BYTE,0,MPI_COMM_WORLD);
+    int count;
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    std::vector<MPIRenderer::DirectionalLight> dirLights(count);
+    MPI_Bcast((void*)dirLights.data(),count*sizeof(dirLights[0]),MPI_BYTE,0,MPI_COMM_WORLD);
+    
+    // ------------------------------------------------------------------
+    // and execute
+    // ------------------------------------------------------------------
+    PING; PRINT(ambient); PRINT(dirLights.size());
+    PRINT(dirLights[0].dir);
+    PRINT(dirLights[0].rad);
+    renderer->setLights(ambient,dirLights);
+
+    PING;
+  }
+
+  void MPIWorker::cmd_script()
+  {
+    // ------------------------------------------------------------------
+    // get args....
+    // ------------------------------------------------------------------
+    int len;
+    MPI_Bcast((void*)&len,sizeof(len),MPI_BYTE,0,MPI_COMM_WORLD);
+    // std::string cmd(len);
+    std::vector<char> cmd(len+1);
+    MPI_Bcast((void *)cmd.data(),len,MPI_BYTE,0,MPI_COMM_WORLD);
+    cmd[len] = 0;
+    
+    // ------------------------------------------------------------------
+    // and execute
+    // ------------------------------------------------------------------
+    renderer->script(std::string(cmd.data()));
   }
 
   void MPIWorker::cmd_resetAccumulation()
@@ -182,6 +238,15 @@ namespace vopat {
         break;
       case SET_TRANSFER_FUNCTION:
         cmd_setTransferFunction();
+        break;
+      case SET_LIGHTS:
+        cmd_setLights();
+        break;
+      case SET_SHADE_MODE:
+        cmd_setShadeMode();
+        break;
+      case CALL_SCRIPT:
+        cmd_script();
         break;
       default:
         throw std::runtime_error("unknown command ...");

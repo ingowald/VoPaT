@@ -210,6 +210,13 @@ namespace vopat {
                              const interval<float> &range,
                              const float density) override
     { VolumeRenderer::setTransferFunction(cm,range,density); }
+
+    void setLights(float ambient,
+                   const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
+    {
+      VolumeRenderer::setLights(ambient,dirLights);
+      PING; PRINT(dirLights.size());
+    }
     
   };
 

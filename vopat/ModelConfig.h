@@ -17,6 +17,7 @@
 #pragma once
 
 #include "vopat/common.h"
+#include "vopat/mpi/MPIRenderer.h"
 
 namespace vopat {
 
@@ -26,6 +27,16 @@ namespace vopat {
       gui-speicific values that the renderer may not even know
       about */
   struct ModelConfig {
+    typedef std::shared_ptr<ModelConfig> SP;
+    
+    enum { maxDirectionalLights = 2 };
+
+    ModelConfig()
+    {
+      lights.directional.push_back({vec3f(.1,1.f,.1f),vec3f(1.f)});
+    }
+    
+    // ==================================================================
     struct {
       inline interval<float> getRange() const {
         return {
@@ -37,14 +48,22 @@ namespace vopat {
       { return powf(1.1f,opacityScale-100); }
         
       interval<float>    absDomain;
-      interval<float>    relDomain;
+      interval<float>    relDomain { 0.f, 100.f };
       std::vector<vec4f> colorMap;
-      float              opacityScale;
+      float              opacityScale { 100.f };
     } xf;
+
+    // ==================================================================
     struct {
-      vec3f from, at, up;
-      float fovy;
+      vec3f from, at, up { 0, 0, 0 };
+      float fovy = 70.f;
     } camera;
+
+    // ==================================================================
+    struct {
+      float ambient = .1f;
+      std::vector<MPIRenderer::DirectionalLight> directional;
+    } lights;
 
     void save(const std::string &fileName);
     static ModelConfig load(const std::string &fileName);

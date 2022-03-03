@@ -25,6 +25,8 @@ namespace vopat {
       {
        SET_CAMERA = 0 ,
        SET_SHADE_MODE,
+       SET_LIGHTS,
+       CALL_SCRIPT,
        RESIZE_FRAME_BUFFER,
        RENDER_FRAME,
        SCREEN_SHOT,

@@ -43,6 +43,7 @@ namespace vopat {
       int          myRank, numWorkers;
       int          sampleID;
       Camera       camera;
+
       vec2i        fbSize;
       vec3f       *accumBuffer;
 
@@ -79,6 +80,8 @@ namespace vopat {
                                        const float density) {};
       virtual void generatePrimaryWave(const Globals &globals) = 0;
       virtual void traceLocally(const Globals &globals) = 0;
+      virtual void setLights(float ambient,
+                             const std::vector<MPIRenderer::DirectionalLight> &dirLights) = 0;
     };
     
     RayForwardingRenderer(CommBackend *comm,
@@ -103,7 +106,7 @@ namespace vopat {
                    const vec3f &at,
                    const vec3f &up,
                    const float fov) override;
-
+    
     void resetAccumulation() override
     { AddWorkersRenderer::resetAccumulation(); accumBuffer.bzero(); }
     void traceRaysLocally();
@@ -117,25 +120,12 @@ namespace vopat {
       nodeRenderer->setTransferFunction(cm,range,density);
       resetAccumulation();
     }
-    // {
-    //   if (isMaster()) {
-    //   } else {
-    //     xf.cm.upload(cm);
-    //     globals.xf.values = xf.cm.get();
-    //     globals.xf.numValues = cm.size();
-    //     globals.xf.domain = range;
-    //     globals.xf.density = density;
-    //   }
-    //   resetAccumulation();
-    // }
-
-    // struct {
-    //   CUDAArray<vec4f> cm;
-    //   // std::vector<vec4f> cm;
-    //   const interval<float> range = {0.f,1.f};
-    //   float density = 1.f;
-    // } xf;
-      
+    void setLights(float ambient,
+                   const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
+    {
+      nodeRenderer->setLights(ambient,dirLights); 
+      resetAccumulation();
+    }
     
     
     /*! ray queues we are expected to trace in the next step */

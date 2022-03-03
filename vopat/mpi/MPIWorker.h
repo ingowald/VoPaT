@@ -44,6 +44,8 @@ namespace vopat {
     void cmd_setShadeMode();
     void cmd_setNodeSelection();
     void cmd_screenShot();
+    void cmd_setLights();
+    void cmd_script();
     /* @} */
     
     MPIRenderer *renderer = nullptr;

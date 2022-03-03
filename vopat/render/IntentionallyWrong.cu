@@ -81,11 +81,26 @@ namespace vopat {
           } else {
             org = P; 
             ray.origin = org;
-            ray.setDirection(dvr.lightDirection());
-            dir = ray.getDirection();
-            
             throughput *= vec3f(xf.x,xf.y,xf.z);
+            {
+              // add ambient illumination 
+              vec3f color = throughput * dvr.ambient();
+              if (ray.crosshair) color = vec3f(1.f)-color;
+              vopat.addPixelContribution(ray.pixelID,color);
+            }
+
+            const int numLights = dvr.numDirLights();
+            if (numLights == 0.f) {
+              vopat.killRay(tid);            
+              return;
+            }
+            
+            int which = int(rnd() * numLights); if (which == numLights) which = 0;
+            throughput *= ((float)numLights * dvr.lightRadiance(which));
             ray.throughput = to_half(throughput);
+            
+            ray.setDirection(dvr.lightDirection(which));
+            dir = ray.getDirection();
             
             t0 = 0.f;
             t1 = CUDART_INF;
@@ -105,7 +120,7 @@ namespace vopat {
           = (ray.isShadow)
           /* shadow ray that did reach the light (shadow rays that got
              blocked got terminated above) */
-          ? dvr.lightColor() * throughput //albedo()
+          ? throughput //albedo()
           /* primary ray going straight through */
           : Vopat::backgroundColor(ray,vopat);
 
@@ -177,7 +192,18 @@ namespace vopat {
           //   return;
           // } else {
 
-          vec3f color = throughput * dvr.lightColor();//dvr.ambient();
+          throughput *= vec3f(xf);
+          
+          const int numLights = dvr.numDirLights();
+          if (numLights == 0.f) {
+            throughput *= dvr.ambient();
+            return;
+          } else {
+            int which = int(rnd() * numLights); if (which == numLights) which = 0;
+            throughput *= dvr.lightRadiance(which);
+          }
+
+          vec3f color = throughput;
           if (ray.crosshair) color = vec3f(1.f)-color;
           vopat.addPixelContribution(ray.pixelID,color);
           vopat.killRay(tid);            
@@ -202,16 +228,10 @@ namespace vopat {
         }
       }
 
-      int nextNode = ray.isShadow ? -1 : computeNextNode(dvr,ray,t1,/*ray.dbg*/false);
+      int nextNode = computeNextNode(dvr,ray,t1,/*ray.dbg*/false);
 
       if (nextNode == -1) {
-        vec3f color
-          = (ray.isShadow)
-          /* shadow ray that did reach the light (shadow rays that got
-             blocked got terminated above) */
-          ? dvr.lightColor() * throughput //albedo()
-          /* primary ray going straight through */
-          : Vopat::backgroundColor(ray,vopat);
+        vec3f color = throughput * Vopat::backgroundColor(ray,vopat);
 
         if (ray.crosshair) color = vec3f(1.f)-color;
         vopat.addPixelContribution(ray.pixelID,color);

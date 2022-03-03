@@ -61,7 +61,8 @@ namespace vopat {
     globals.mc.dims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
     mcData.resize(volume(globals.mc.dims));
     globals.mc.data  = mcData.get();
-
+    globals.mc.width = mcWidth;
+    
     initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
       (globals.mc.data,globals.mc.dims,mcWidth,
        voxels.get(),globals.volume.dims);

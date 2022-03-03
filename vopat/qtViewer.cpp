@@ -43,16 +43,8 @@ namespace vopat {
   
   struct {
     int spp = 1; //4;
-    struct {
-      // auto-generate
-      vec3f vp = vec3f(0.f);
-      vec3f vu = vec3f(0.f);
-      vec3f vi = vec3f(0.f);
-      float fovy = 70;
-    } camera;
     vec2i windowSize  = vec2i(1024,1024);
     float windowScale = 1.f;
-    std::string configFileName = "";
   } cmdline;
   
   void usage(const std::string &msg)
@@ -71,11 +63,14 @@ namespace vopat {
     Model::SP model;
     VoPaTViewer(MPIMaster &master,
                 Model::SP model,
+                ModelConfig::SP _modelConfig,
                 qtOWL::XFEditor *xfEditor)
-      : master(master), model(model), xfEditor(xfEditor)
+      : master(master),
+        model(model),
+        xfEditor(xfEditor),
+        modelConfig(_modelConfig)
     {
-      xfRange = model->valueRange;
-      PRINT(xfRange);
+      // xfRange = model->valueRange;
     }
     
     void screenShot()
@@ -93,11 +88,14 @@ namespace vopat {
       const vec3f at = camera.getPOI();
       const vec3f up = camera.upVector;
       const float fovy = camera.fovyInDegrees;
-      // master.setCamera(Camera(getWindowSize(),
-      //                         from,at,up,fovy));
+      
+      modelConfig->camera.from = from;
+      modelConfig->camera.at = at;
+      modelConfig->camera.up = up;
+      modelConfig->camera.fovy = fovy;
+
       master.setCamera(from,at,up,fovy);
       master.resetAccumulation();
-      // glutPostRedisplay();
     }
     
     /*! window notifies us that we got resized */
@@ -131,13 +129,6 @@ namespace vopat {
       {
         static double t0 = getCurrentTime();
         master.renderFrame(fbPointer);
-
-        // if (cmdline.measure && (getCurrentTime()-t0 > 10.f)) {
-        //   std::cout << "done measuring ..." << std::endl;
-        //   master.screenShot();
-        //   master.terminate();
-        //   exit(0);
-        // }
       }      
       
       double t_now = getCurrentTime();
@@ -149,10 +140,10 @@ namespace vopat {
         char title[1000];
         sprintf(title,"owlVoPaT - %.2f FPS",(1.f/avg_t));
         setTitle(title);
-        // glfwSetWindowTitle(this->handle,title);
       }
       t_last = t_now;
     }
+    
     
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
@@ -167,17 +158,7 @@ namespace vopat {
       case '@': {
         const std::string xfFileName = "vopat.vpt";
         std::cout << "('@' key:) dumping transfer function/vopat model config to " << xfFileName << std::endl;
-        ModelConfig mc;
-        auto &fc = getCamera();
-        mc.camera.from = fc.position;
-        mc.camera.at = fc.getPOI();
-        mc.camera.up = fc.upVector;
-        mc.camera.fovy = fc.fovyInDegrees;
-        mc.xf.colorMap = xfEditor->getColorMap();
-        mc.xf.relDomain = xfEditor->getRelDomain();
-        mc.xf.absDomain = xfEditor->getAbsDomain();
-        mc.xf.opacityScale = xfEditor->getOpacityScale();
-        mc.save(xfFileName);
+        modelConfig->save(xfFileName);
       } break;
       case 'C': {
         auto &fc = getCamera();
@@ -205,40 +186,50 @@ namespace vopat {
       }
     }
 
+    void updateLights()
+    {
+      master.setLights(modelConfig->lights.ambient,
+                       modelConfig->lights.directional);
+    }
+    
     vec2i fbSize { -1,-1 };
     bool  displayFPS = true;
-
 
     // signals:
     //   ;
   public slots:
     void colorMapChanged(qtOWL::XFEditor *xf)
     {
-      xfValues = xf->getColorMap();
-      master.setTransferFunction(xfValues,xfRange,xfDensity);
+      modelConfig->xf.colorMap = xf->getColorMap();
+      master.setTransferFunction(modelConfig->xf.colorMap,
+                                 modelConfig->xf.getRange(),
+                                 modelConfig->xf.getDensity());
     };
     void rangeChanged(range1f r) 
     {
-      xfRange = r;
-      master.setTransferFunction(xfValues,xfRange,xfDensity);
+      modelConfig->xf.relDomain = xfEditor->getRelDomain();
+      modelConfig->xf.absDomain = xfEditor->getAbsDomain();
+      master.setTransferFunction(modelConfig->xf.colorMap,
+                                 modelConfig->xf.getRange(),
+                                 modelConfig->xf.getDensity());
     };
     /*! 'scale' is actually a percentage, with 100 meaning 'default' */
     void opacityScaleChanged(double scale)
-    { 
-      xfDensity = powf(1.1f,scale-100);
-      PING; PRINT(scale); PRINT(xfDensity);
-      master.setTransferFunction(xfValues,xfRange,xfDensity);
+    {
+      modelConfig->xf.opacityScale = xfEditor->getOpacityScale();
+      master.setTransferFunction(modelConfig->xf.colorMap,
+                                 modelConfig->xf.getRange(),
+                                 modelConfig->xf.getDensity());
     };
                                      
   public:
-    std::vector<vec4f> xfValues;
-    range1f xfRange = { 0.f,1.f };
-    float   xfDensity = 1.f;
     qtOWL::XFEditor *xfEditor;
+    ModelConfig::SP modelConfig;
   };
 
   extern "C" int main(int argc, char **argv)
   {
+    ModelConfig::SP modelConfig = std::make_shared<ModelConfig>();
     try {
       std::string inFileBase = "";
       for (int i=1;i<argc;i++) {
@@ -249,22 +240,22 @@ namespace vopat {
         else if (arg == "--renderer" || arg == "-r") {
           rendererName = argv[++i];
         }
-        else if (arg == "-fovy") {
-          cmdline.camera.fovy = std::atof(argv[++i]);
-        }
         else if (arg == "-c" || "--config") {
-          cmdline.configFileName = argv[++i];
+          *modelConfig = ModelConfig::load(argv[++i]);
         }
         else if (arg == "--camera") {
-          cmdline.camera.vp.x = std::atof(argv[++i]);
-          cmdline.camera.vp.y = std::atof(argv[++i]);
-          cmdline.camera.vp.z = std::atof(argv[++i]);
-          cmdline.camera.vi.x = std::atof(argv[++i]);
-          cmdline.camera.vi.y = std::atof(argv[++i]);
-          cmdline.camera.vi.z = std::atof(argv[++i]);
-          cmdline.camera.vu.x = std::atof(argv[++i]);
-          cmdline.camera.vu.y = std::atof(argv[++i]);
-          cmdline.camera.vu.z = std::atof(argv[++i]);
+          modelConfig->camera.from.x = std::atof(argv[++i]);
+          modelConfig->camera.from.y = std::atof(argv[++i]);
+          modelConfig->camera.from.z = std::atof(argv[++i]);
+          modelConfig->camera.at.x = std::atof(argv[++i]);
+          modelConfig->camera.at.y = std::atof(argv[++i]);
+          modelConfig->camera.at.z = std::atof(argv[++i]);
+          modelConfig->camera.up.x = std::atof(argv[++i]);
+          modelConfig->camera.up.y = std::atof(argv[++i]);
+          modelConfig->camera.up.z = std::atof(argv[++i]);
+        }
+        else if (arg == "-fovy") {
+          modelConfig->camera.fovy = std::atof(argv[++i]);
         }
         else if (arg == "-win" || arg == "--size") {
           cmdline.windowSize.x = std::atoi(argv[++i]);
@@ -280,14 +271,39 @@ namespace vopat {
           usage("unknown cmdline arg '"+arg+"'");
       }
 
-    
       // ******************************************************************
-      // all input loaded, and all parameters parsed ... set-up comms
+      // cmdline parsed, set up mpi
       // ******************************************************************
       MPIBackend mpiBackend(argc,argv,0);
+
+      // ******************************************************************
+      // load model, and check that it meets our mpi config
+      // ******************************************************************
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
+
+      // ******************************************************************
+      // initialize all not-yet-set values in our model config from model
+      // ******************************************************************
+      if (modelConfig->xf.absDomain.is_empty())
+        modelConfig->xf.absDomain = model->valueRange;
+      if (modelConfig->xf.colorMap.empty())
+        modelConfig->xf.colorMap
+          = qtOWL::ColorMapLibrary().getMap(0);
+      box3f sceneBounds = model->getBounds();
+      if (modelConfig->camera.up == vec3f(0.f)) {
+        modelConfig->camera.from
+          = sceneBounds.center()
+          + vec3f(-.7f,.3f,+1.f)*1.5f*sceneBounds.span();
+        modelConfig->camera.at = sceneBounds.center();
+        modelConfig->camera.up = vec3f(0.f, 1.f, 0.f);
+        modelConfig->camera.fovy = 70.f;
+      }
+
+      // ******************************************************************
+      // create renderer, workers, etc.
+      // ******************************************************************
       const bool isMaster = mpiBackend.isMaster;
       int myRank = mpiBackend.myRank();
       if (!isMaster)
@@ -298,68 +314,39 @@ namespace vopat {
                          inFileBase,myRank);
 
       if (!isMaster) {
+        /* this is a worker - run the worker mpi backend, which will
+           not return */
         MPIWorker worker(mpiBackend,renderer);
         worker.run();
         exit(0);
       }
 
+      // ******************************************************************
+      // this is the master - set up window
+      // ******************************************************************
       QApplication app(argc,argv);
       MPIMaster master(mpiBackend,renderer);
       
       QMainWindow guiWindow;
       qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor(model->valueRange);
 
-      VoPaTViewer viewer(master,model,xfEditor);
-      box3f sceneBounds = model->getBounds();
-      PRINT(sceneBounds);
+      // -------------------------------------------------------
+      // set up the main viewer class
+      // -------------------------------------------------------
+      VoPaTViewer viewer(master,model,modelConfig,xfEditor);
       viewer.enableFlyMode();
       viewer.enableInspectMode();
+      viewer.setCameraOrientation(modelConfig->camera.from,
+                                  modelConfig->camera.at,
+                                  modelConfig->camera.up,
+                                  modelConfig->camera.fovy);
+      viewer.camera.setUpVector(modelConfig->camera.up);
 
-      if (!cmdline.configFileName.empty()) {
-        PING;
-        ModelConfig mc = ModelConfig::load(cmdline.configFileName);
-        PRINT(xfEditor);
-        PRINT(mc.xf.colorMap.size());
-        xfEditor->setColorMap(mc.xf.colorMap);
-        xfEditor->setOpacityScale(mc.xf.opacityScale);
-        xfEditor->setRelDomain(mc.xf.relDomain);
-        xfEditor->setAbsDomain(mc.xf.absDomain);
-        PRINT(mc.camera.at);
-        PRINT(mc.camera.up);
-        viewer.setCameraOrientation(mc.camera.from,
-                                    mc.camera.at,
-                                    mc.camera.up,
-                                    mc.camera.fovy);
-        PING; PRINT(mc.camera.up);
-        viewer.camera.setUpVector(mc.camera.up);
-
-      } 
-
-      if (cmdline.camera.vu != vec3f(0.f)) {
-        std::cout << "Camera from command line!"
-                  << std::endl;
-        viewer.setCameraOrientation(/*origin   */cmdline.camera.vp,
-                                    /*lookat   */cmdline.camera.vi,
-                                    /*up-vector*/cmdline.camera.vu,
-                                    /*fovy(deg)*/cmdline.camera.fovy);
-      } else if (cmdline.configFileName.empty()) {
-        std::cout << "No camera in model, nor on command line - generating from bounds ...."
-                  << std::endl;
-        viewer.setCameraOrientation(/*origin   */
-                                    sceneBounds.center()
-                                    + vec3f(-.7f,.3f,+1.f)*1.5f*sceneBounds.span(),
-                                    // + vec3f(-.3f,.7f,+1.f)*1.5f*sceneBounds.span(),
-                                    /*lookat   */sceneBounds.center(),
-                                    /*up-vector*/vec3f(0.f, 1.f, 0.f),
-                                    /*fovy(deg)*/cmdline.camera.fovy);
-      }
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
-      
-      // xfEditor->opacityScaleSpinBox->setDecimals(3);
-      // xfEditor->opacityScaleSpinBox->setSingleStep(1.f);
-      // xfEditor->opacityScaleSpinBox->setRange(0.f,200.f);
-      // xfEditor->opacityScaleSpinBox->setValue(100.f);
 
+      // -------------------------------------------------------
+      // initialize gui widgets from saved config
+      // -------------------------------------------------------
       guiWindow.setCentralWidget(xfEditor);
 
       QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
@@ -369,17 +356,21 @@ namespace vopat {
       QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
                        &viewer, &VoPaTViewer::opacityScaleChanged);
 
-      // if (cmdline.xfFileName != "")
-      //   xfEditor->loadFrom(cmdline.xfFileName);
-      // else
-      //   xfEditor->cmSelectionChanged(0);
-      xfEditor->cmSelectionChanged(0);
-
+      xfEditor->setColorMap(modelConfig->xf.colorMap);
+      xfEditor->setOpacityScale(modelConfig->xf.opacityScale);
+      xfEditor->setRelDomain(modelConfig->xf.relDomain);
+      xfEditor->setAbsDomain(modelConfig->xf.absDomain);
       
-      viewer.show();
-      guiWindow.show();
+      // xfEditor->cmSelectionChanged(0);
+      // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
 
-      xfEditor->signal_rangeChanged();
+      // -------------------------------------------------------
+      // and create the window ...
+      // -------------------------------------------------------
+      viewer.show();
+      viewer.updateLights();
+      
+      guiWindow.show();
       
       return app.exec();
     } catch (std::exception &e) {

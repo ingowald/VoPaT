@@ -23,13 +23,17 @@
 namespace vopat {
 
   struct VolumeRenderer {
+    enum { MAX_DIR_LIGHTS = 2 };
+    
     struct Globals {
       /*! hardcoded these, for now */
-      inline __device__ float ambient()        const { return 0.1f; }
-      /*! hardcoded these, for now */
-      inline __device__ vec3f lightColor()     const { return vec3f(1.f,1.f,1.f); }
-      /*! hardcoded these, for now */
-      inline __device__ vec3f lightDirection() const { return vec3f(1.f,.1f,.5f); }
+      inline __device__ float ambient()        const { return lights.ambient; }
+      inline __device__ int   numDirLights()   const { return lights.numDirectional; }
+      inline __device__ vec3f lightRadiance(int which)     const {
+        return lights.directional[which].rad;
+      }
+      inline __device__ vec3f lightDirection(int which) const {
+        return lights.directional[which].dir; }
 
       /*! put a scalar field throught he transfer function, and reutnr
         RGBA result */
@@ -38,7 +42,6 @@ namespace vopat {
       /*! look up the given (world-space) 3D point in the volume, and
         return interpolated scalar value */
       inline __device__ bool getVolume(float &f, vec3f P, bool dbg = false) const;
-      
       
       
       /* transfer function */
@@ -58,7 +61,17 @@ namespace vopat {
       struct {
         MacroCell *data;
         vec3i      dims;
+        int        width;
       } mc;
+
+      struct {
+        float ambient = .1f;
+        int numDirectional = 0;
+        struct {
+          vec3f dir = { .1f, 1.f, .1f };
+          vec3f rad = { 1.f, 1.f, 1.f };
+        } directional[MAX_DIR_LIGHTS];
+      } lights;
       
       int    myRank;
       box3f *rankBoxes;
@@ -73,6 +86,19 @@ namespace vopat {
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &xfDomain,
                              const float density);
+    
+    void setLights(float ambient,
+                   const std::vector<MPIRenderer::DirectionalLight> &dirLights)
+    {
+      PING;
+      globals.lights.ambient = ambient;
+      globals.lights.numDirectional = dirLights.size();
+      for (int i=0;i<min((int)dirLights.size(),(int)MAX_DIR_LIGHTS);i++) {
+        globals.lights.directional[i].dir = normalize(dirLights[i].dir);
+        globals.lights.directional[i].rad = dirLights[i].rad;
+      }
+    }
+
 
     Globals              globals;
     Model::SP            model;
@@ -122,8 +148,10 @@ namespace vopat {
         // cellID.y < 0 || 
         (cellID.y >= this->volume.dims.y-1) ||
         // cellID.z < 0 || 
-        (cellID.z >= this->volume.dims.z-1))
+        (cellID.z >= this->volume.dims.z-1)) {
+      f = 0.f;
       return false;
+    }
 
     vec3f  frac   = P - floor(P);
 
@@ -153,6 +181,10 @@ namespace vopat {
 
     float fz = (1.f-frac.z)*f0y + frac.z*f1y;
     f = fz;
+
+    if (isnan(f)) {
+      printf("f is NAN! P %f %f %f lerp %f %f %f\n",P.x,P.y,P.z,frac.x,frac.y,frac.z);
+    }
     return true;
 #else
     // nearest 

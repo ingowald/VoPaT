@@ -40,7 +40,6 @@ namespace vopat {
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
-      vec3i singleCell = vec3i(1); // just testing...
       vec3i numMacrocells = dvr.mc.dims;
 
       if (ray.dbg) printf("Woodcock (%f %f %f) mc (%i %i %i)!\n"
@@ -52,220 +51,183 @@ namespace vopat {
                           ,numMacrocells.z
                           );
       
-      auto worldToUnit = affine3f(
-        linear3f(
-          vec3f((myBox.upper.x - myBox.lower.x), 0.f, 0.f),
-          vec3f(0.f, (myBox.upper.y - myBox.lower.y), 0.f),
-          vec3f(0.f, 0.f, (myBox.upper.z - myBox.lower.z))
-        ).inverse(),
-        vec3f(0.f, 0.f, 0.f)
-      );
-      auto unitToWorld = affine3f(
-        linear3f(
-          vec3f((myBox.upper.x - myBox.lower.x), 0.f, 0.f),
-          vec3f(0.f, (myBox.upper.y - myBox.lower.y), 0.f),
-          vec3f(0.f, 0.f, (myBox.upper.z - myBox.lower.z))
-        ),
-        vec3f(0.f, 0.f, 0.f)
-      );      
-      auto gridToUnit = affine3f(
-        linear3f(
-          vec3f(numMacrocells.x, 0.f, 0.f),
-          vec3f(0.f, numMacrocells.y, 0.f),
-          vec3f(0.f, 0.f, numMacrocells.z)
-        ).inverse(),
-        vec3f(0.f, 0.f, 0.f)
-      );
-      auto unitToGrid = affine3f(
-        linear3f(
-          vec3f(numMacrocells.x, 0.f, 0.f),
-          vec3f(0.f, numMacrocells.y, 0.f),
-          vec3f(0.f, 0.f, numMacrocells.z)
-        ),
-        vec3f(0.f, 0.f, 0.f)
-      );
-
-
-
-      
-      
-      
+      vec3f stretch = vec3f(numMacrocells)*dvr.mc.width / vec3f(dvr.volume.dims-1);
+      const vec3f mcScale = vec3f(numMacrocells) * rcp(stretch);
 
 #if 1
-
       // first do direct, then shadow
       bool rayKilled = false;
-      for (int tmp = 0; tmp < 2; ++tmp) {
-        vec3f gLower = xfmPoint(unitToGrid, xfmPoint(worldToUnit, myBox.lower));
-        vec3f gorg = org /*- myBox.lower*/; 
-        gorg = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org)) - gLower;
-        vec3f gdir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
+      for (int rayType = 0; rayType < 2; ++rayType) {
+        if (rayType == 0 && ray.isShadow) continue;
+        if (rayType == 1 && rayKilled) continue;
 
-        dda::dda3(gorg,gdir,t1,
-          vec3ui(numMacrocells),
-          [&](const vec3i &cellIdx, float t00, float t11) -> bool
-          {
-            float majorant = dvr.mc.data[
-              cellIdx.x + 
-              cellIdx.y * dvr.mc.dims.x + 
-              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
-            ].maxOpacity; // now pulling majorant from macrocell, rather than just assuming 1.
+        vec3f mcOrg = (org - myBox.lower) * rcp(myBox.size()) * mcScale;
+        vec3f mcDir = dir * rcp(myBox.size()) * mcScale;
+        
+        dda::dda3
+          (mcOrg,mcDir,t1,vec3ui(numMacrocells),
+           [&](const vec3i &cellIdx, float t00, float t11) -> bool
+           {
+             float majorant
+               = dvr.mc.data[cellIdx.x + 
+                             cellIdx.y * dvr.mc.dims.x + 
+                             cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
+                             ].maxOpacity;
+             
+             if (majorant <= 0.f) return true; // this cell is empty, march to the next cell
+             
+             // maximum possible voxel density
+             const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
+             float t = t00;
+             while (true) {
+               // Sample a distance
+               t = t - (log(1.0f - rnd()) / (majorant*DENSITY)); 
+               
+               if (/*we left the cell: */t >= t11)
+                 /* leave this cell, but tell DDA to keep on going */
+                 return true;
+               
+                      // Update current position
+               vec3f P = org + t * dir;
+               
+               // Sample heterogeneous media
+               float f;
+               if (!dvr.getVolume(f,P,ray.dbg))
+                 /* could not even sample his volume; assume
+                    it's 0 and move on */
+                 continue; 
+               
+               vec4f xf = dvr.transferFunction(f,ray.dbg);
+               f = xf.w;
+               if (ray.dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
+                                   t,f,xf.x,xf.y,xf.z,xf.w);
+               
+               // Check if a collision occurred (real particles / real + fake particles)
+               if (rnd() >= (f / (majorant*DENSITY)))
+                 // sampled a virtual volume; keep on going
+                 continue;
+               
+               if (ray.isShadow) {
+                 rayKilled = true;
+                 return false; // terminate DDA
+               }
 
-            if (majorant <= 0.f) return true; // this cell is empty, march to the next cell
-            
-            // maximum possible voxel density
-            const float dt = 1.f; // relative to voxels
-            const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
-            float t = t00;
-            while (true) {
-              // Sample a distance
-              t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
-
-              // A boundary has been hit
-              if (t >= t11) {
-                break;
-              }
-
-              // Update current position
-              vec3f P = gorg + t * gdir;
-              vec3f worldP = xfmPoint(gridToUnit, xfmPoint(unitToWorld, P + gLower));
-
-              // Sample heterogeneous media
-              float f;
-              if (!dvr.getVolume(f,worldP,ray.dbg)) { 
-                // t += dt; // NM: not necessary, the sampled distance moves t forward.
-                continue; 
-              }
-              vec4f xf = dvr.transferFunction(f,ray.dbg);
-              f = xf.w;
-              if (ray.dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
-                              t,f,xf.x,xf.y,xf.z,xf.w);
-              // f = transferFunction(f);
-            
-              // Check if a collision occurred (real particles / real + fake particles)
-              if (rnd() < f / (majorant*DENSITY)) {
-                if (ray.isShadow) {
-                  vec3f color = throughput * dvr.ambient();
-                  if (ray.crosshair) color = vec3f(1.f)-color;
-                  vopat.addPixelContribution(ray.pixelID,color);
-                  vopat.killRay(tid);            
-                  rayKilled = true;
-                  return false; // terminate DDA
-                } else {
-                  org = worldP; 
-                  ray.origin = org;
-                  ray.setDirection(dvr.lightDirection());
-                  dir = ray.getDirection();
-                  
-                  throughput *= vec3f(xf.x,xf.y,xf.z);
-                  ray.throughput = to_half(throughput);
-                  
-                  t0 = 0.f;
-                  t1 = CUDART_INF;
-                  boxTest(myBox,ray,t0,t1);
-                  t = 0.f; // reset t to the origin
-                  ray.isShadow = true;
-
-      #if ISO_SURFACE
-                  // eventually need to do iso-marching here, too!!!!
-                  isoDistance = -1;
-      #endif
-                  // continue;
-                  // restart DDA
-                  rayKilled = false;
-                  return false; // terminate DDA
-                }
-              }
-            }
-
-            return true; // continue DDA
-          },
-          false
-          /*ray.dbg*/);          
-
-        if (rayKilled) 
-        {
+               org = P;//worldP; 
+               ray.origin = org;
+               
+               throughput *= vec3f(xf.x,xf.y,xf.z);
+               {
+                 // add ambient illumination 
+                 vec3f color = throughput * dvr.ambient();
+                 if (ray.crosshair) color = vec3f(1.f)-color;
+                 vopat.addPixelContribution(ray.pixelID,color);
+               }
+               
+               const int numLights = dvr.numDirLights();
+               if (numLights == 0.f) {
+                 rayKilled = true;
+                 return false;
+               }
+               
+               int which = int(rnd() * numLights); if (which == numLights) which = 0;
+               throughput *= ((float)numLights * dvr.lightRadiance(which));
+               ray.throughput = to_half(throughput);
+               
+               ray.setDirection(dvr.lightDirection(which));
+               dir = ray.getDirection();
+               
+               t0 = 0.f;
+               t1 = CUDART_INF;
+               boxTest(myBox,ray,t0,t1);
+               t = 0.f; // reset t to the origin
+               ray.isShadow = true;
+               
+               // restart DDA
+               rayKilled = false;
+               return false; // terminate DDA
+             }
+           },
+           false
+           /*ray.dbg*/);          
+        
+        if (rayKilled) {
           vopat.killRay(tid); 
           return;        
         }
       }
-
+      
 #else
-#ifdef ISO_SURFACE
-      NOT WORKING YET
-        float isoDistance = -1.f;
-      {
-        int numSegments = int(t1-t0+1);
-        vec3f P1 = org + t0 * dir;
-        float f1 = getClampVolume(f,globals,P);
-        for (int i=1;i<=numSegments;i++) {
-          float f0 = f1;
-
-          float seg_t1 = t0 + float(i)/(t1-t0);
-          P1 = org + seg_t1 * dir;
-          f1 = getClampVolume(f,globals,P);
-
-          if ((f0 != f1) && (f1 - ISO_VALUE)*(f0 - ISO_VALUE) <= 0.f) {
-            isoDistance = (ISO_VALUE - f0) / (f1 - f0);
-            break;
-          }
-        }
-      }
-      if (isoDistance >= 0.f)
-        t1 = isoDistance;
-#endif
       // maximum possible voxel density
-      const float dt = 1.f; // relative to voxels
       // const float DENSITY = .03f / ((vopat.xf.density == 0.f) ? 1.f : vopat.xf.density);//.03f;
       const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
       float majorant = 1.f; // must be larger than the max voxel density
       float t = t0;
+      if (isnan(t)) printf("t is NAN at start!\n");
+
+# if 0
+      if (!ray.dbg)  { vopat.killRay(tid); return; }
+# endif
+      
       while (true) {
         // Sample a distance
-        t = t - (log(1.0f - rnd()) / (majorant*DENSITY)) * dt; 
+        const float xi = rnd();
+        const float dt = - (log(1.0f - xi) / (majorant*DENSITY)); 
+        t = t + dt;
+        if (isnan(t)) printf("t is NAN xi %f dt %f dens %f org %f %f %f dir %f %f %f!\n",
+                             xi,dt,DENSITY,org.x,org.y,org.z,dir.x,dir.y,dir.z);
 
         // A boundary has been hit
         if (t >= t1) {
-#if ISO_SURFACE
-          if (isoDistance >= 0.f) {
-            // we DID have an iso-surface hit!
-            org = org + isoDistance * dir;
-            vec3f N = normalize(gradient(org,globals));
-            if (dot(N,dir) > 0.f) N = -N;
-            vec3f r = sampleCosineHemisphere();
-          }
-#endif
           break;
         }
 
         // Update current position
         vec3f P = org + t * dir;
+        if (isnan(P.x+P.y+P.z))
+          printf("P is NAN xi %f dt %f dens %f org %f %f %f dir %f %f %f!\n",
+                 xi,dt,DENSITY,org.x,org.y,org.z,dir.x,dir.y,dir.z);
 
         // Sample heterogeneous media
         float f;
-        if (!dvr.getVolume(f,P)) { t += dt; continue; }
+        if (!dvr.getVolume(f,P)) { vopat.killRay(tid); return; }
+
+        // if (!dvr.getVolume(f,P)) { t += dt; continue; }
         vec4f xf = dvr.transferFunction(f);
-        if (dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
-                        t,f,xf.x,xf.y,xf.z,xf.w);
+        if (ray.dbg) printf("volume (t=%f) %f dens %f,xf %f %f %f : %f\n",
+                            t,f,DENSITY,xf.x,xf.y,xf.z,xf.w);
         f = xf.w;
-        // f = transferFunction(f);
       
         // Check if a collision occurred (real particles / real + fake particles)
         if (rnd() < f / majorant) {
           if (ray.isShadow) {
-            vec3f color = throughput * dvr.ambient();
-            if (ray.crosshair) color = vec3f(1.f)-color;
-            vopat.addPixelContribution(ray.pixelID,color);
+            // vec3f color = throughput * dvr.ambient();
+            // if (ray.crosshair) color = vec3f(1.f)-color;
+            // vopat.addPixelContribution(ray.pixelID,color);
             vopat.killRay(tid);            
             return;
           } else {
             org = P; 
             ray.origin = org;
-            ray.setDirection(dvr.lightDirection());
-            dir = ray.getDirection();
-            
             throughput *= vec3f(xf.x,xf.y,xf.z);
+            {
+              // add ambient illumination 
+              vec3f color = throughput * dvr.ambient();
+              if (ray.crosshair) color = vec3f(1.f)-color;
+              vopat.addPixelContribution(ray.pixelID,color);
+            }
+
+            const int numLights = dvr.numDirLights();
+            if (numLights == 0.f) {
+              vopat.killRay(tid);            
+              return;
+            }
+            
+            int which = int(rnd() * numLights); if (which == numLights) which = 0;
+            throughput *= ((float)numLights * dvr.lightRadiance(which));
             ray.throughput = to_half(throughput);
+            
+            ray.setDirection(dvr.lightDirection(which));
+            dir = ray.getDirection();
             
             t0 = 0.f;
             t1 = CUDART_INF;
@@ -273,15 +235,11 @@ namespace vopat {
             t = 0.f; // reset t to the origin
             ray.isShadow = true;
 
-#if ISO_SURFACE
-            // eventually need to do iso-marching here, too!!!!
-            isoDistance = -1;
-#endif
             continue;
           }
         }
       }
-      #endif
+#endif
 
       int nextNode = computeNextNode(dvr,ray,t1,/*ray.dbg*/false);
 
@@ -290,7 +248,7 @@ namespace vopat {
           = (ray.isShadow)
           /* shadow ray that did reach the light (shadow rays that got
              blocked got terminated above) */
-          ? dvr.lightColor() * throughput //albedo()
+          ? throughput //albedo()
           /* primary ray going straight through */
           : Vopat::backgroundColor(ray,vopat);
 

@@ -61,8 +61,6 @@ namespace vopat {
     return ss.str();
   }
 
-
-#if 1
   /*! load a given time step and variable's worth of voxels from given file name */
   void Brick::load(CUDAArray<float> &devMem,
                    const std::string &fileName)
@@ -85,36 +83,13 @@ namespace vopat {
     }
     printf("\r(%i) loaded 100%%...\n",ID);fflush(0);
   }
-#else
-  /*! load a given time step and variable's worth of voxels from given file name */
-  std::vector<float> Brick::load(const std::string &fileName)
-  {
-    std::ifstream in(fileName,std::ios::binary);
-    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
-    std::vector<float> loadedVoxels;
-    loadedVoxels.resize(volume(numVoxels));
-    in.read((char*)loadedVoxels.data(),volume(numVoxels)*sizeof(float));
 
-    float lo = 0.f;
-    float hi = 0.f;
-    for (auto &v : loadedVoxels) {
-      lo = min(lo,v);
-      hi = max(hi,v);
-      // v = clamp01(v);
-    }
-    return loadedVoxels;
-  }
-#endif
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
     std::ifstream in(rawFileName,std::ios::binary);
     std::vector<float> voxels(volume(numVoxels));
     std::vector<T> line(numVoxels.x);
-    PRINT(numVoxelsParent);
-    PRINT(rawFileName);
-    PRINT(voxelRange);
-    PRINT(numVoxels);
     for (int iz=0;iz<numVoxels.z;iz++)
       for (int iy=0;iy<numVoxels.y;iy++) {
         size_t idxOfs

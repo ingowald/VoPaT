@@ -57,7 +57,7 @@ namespace vopat {
     write(out,fileMagic);
 
     write(out,numVoxelsTotal);
-    PING; PRINT(valueRange);
+    PRINT(valueRange);
     write(out,valueRange);
     PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));

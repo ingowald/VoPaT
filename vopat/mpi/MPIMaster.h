@@ -40,6 +40,12 @@ namespace vopat {
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
                              const float density);
+
+    void backdoor(const std::string &command);
+    void setShadeMode(int mode);
+    void setLights(float ambient,
+                   const std::vector<MPIRenderer::DirectionalLight> &dirLights);
+    
     MPIRenderer *renderer = nullptr;
     MPIBackend  &mpi;
   };
