@@ -237,3 +237,6 @@ TODO
 
 - POSSIBLY rendering directly on zfp compressed data, OR at least
   upload zfp and decompress.
+  
+- offline rendering, with high-res and/or high sample count
+
