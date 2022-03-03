@@ -59,7 +59,7 @@ namespace vopat {
       bool rayKilled = false;
       for (int rayType = 0; rayType < 2; ++rayType) {
         if (rayType == 0 && ray.isShadow) continue;
-        if (rayType == 1 && rayKilled) continue;
+        if (rayType == 1 && (rayKilled || !ray.isShadow)) continue;
 
         vec3f mcOrg = (org - myBox.lower) * rcp(myBox.size()) * mcScale;
         vec3f mcDir = dir * rcp(myBox.size()) * mcScale;
