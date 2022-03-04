@@ -39,7 +39,11 @@ you can set a `OptiX_INSTALL_DIR` environment or cmdline variable.
 Once built, you should have binaries `vopatQtViewer`, `vopatSplitter`,
 and, if enabled during build, a `ncToRaw` tool.
 
+## Build on Frontera
 
+Building on frontera requires requesting a rtx-dev since it requires mvapich2-gdr/2.3.5.
+
+On a rtx-dev node load modules cuda/11.0 and mvapich2-gdr/2.3.5. (Note mpi cuda aware currently only works with cuda 11.0 on frontera). Use the instructions above to build.  
 
 
 # Getting vopat to render a volume
@@ -121,7 +125,21 @@ install dir for openmpi (and acessible to all ranks).
 	
 ### Example: Running on Frontera
 
-JOAO TO WRITE THIS
+Frontera provides 4 NVidia GPU's per node. For best performance allocate for MPI tasks per requested node to avoid GPU oversubscription. Request a DCV job, which provides a better graphical support than VNC.
+
+```
+sbatch -A <Allocation> -N <#Number of Nodes> -n <#Number of nodes * 4> /share/doc/slurm/job.dcv
+```
+
+Inside the DCV section
+```
+ml load cuda/11.0 mvapich2-gdr/2.3.5
+export LD_PRELOAD=/opt/apps/intel19/mvapich2-gdr/2.3.5/lib64/libmpi.so
+
+ibrun ./vopatQTViewer <data location>
+```
+
+
 
 
 
