@@ -3,4 +3,4 @@
 	url = https://github.com/owl-project/owl
 [submodule "submodules/cuteeOWL"]
 	path = submodules/cuteeOWL
-	url = git@github.com:owl-project/cuteeOWL
+	url = https://github.com/owl-project/cuteeOWL
