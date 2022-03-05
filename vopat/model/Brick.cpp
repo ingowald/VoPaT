@@ -88,6 +88,7 @@ namespace vopat {
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
     std::ifstream in(rawFileName,std::ios::binary);
+    if (!in) throw std::runtime_error("could not open '"+rawFileName+"'");
     std::vector<float> voxels(volume(numVoxels));
     std::vector<T> line(numVoxels.x);
     for (int iz=0;iz<numVoxels.z;iz++)
@@ -99,6 +100,7 @@ namespace vopat {
         in.seekg(idxOfs*sizeof(T),std::ios::beg);
         in.read((char *)line.data(),
                 numVoxels.x * sizeof(T));
+        if (!in || in.bad()) throw std::runtime_error("error reading from '"+rawFileName+"'");
         // PING; PRINT(idxOfs); PRINT(line[0]);
         for (int ix=0;ix<numVoxels.x;ix++)
           voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = voxelToFloat(line[ix]);
