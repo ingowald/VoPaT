@@ -65,7 +65,7 @@ endif()
 #target_link_libraries(vopatGenMacrocells
 #  vopat_model
 #  )
-
+option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the device" ON)
 add_library(vopat_render
   Renderer.cpp
   ModelConfig.cpp
@@ -94,7 +94,10 @@ target_link_libraries(vopat_render
   owl_viewer
   MPI::MPI_CXX
   )
-set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
+if(VOPAT_VOXELS_AS_TEXTURE)
+  target_compile_definitions(vopat_render PUBLIC VOPAT_VOXELS_AS_TEXTURE=1)
+endif()
 
 # ==================================================================
 add_executable(vopatViewer

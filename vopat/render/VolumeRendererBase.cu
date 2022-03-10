@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <string.h>
 #include "VolumeRendererBase.h"
 
 namespace vopat {
@@ -43,8 +44,44 @@ namespace vopat {
     std::vector<float> loadedVoxels = myBrick->load(fileName);
     voxels.upload(loadedVoxels);
 #endif
-      
+    
+#if VOPAT_VOXELS_AS_TEXTURE
+    // Copy voxels to cuda array
+    cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
+    cudaExtent extent{(unsigned)myBrick->numVoxels.x,
+                      (unsigned)myBrick->numVoxels.y,
+                      (unsigned)myBrick->numVoxels.z};
+    CUDA_CALL(Malloc3DArray(&voxelArray,&desc,extent,0));
+    cudaMemcpy3DParms copyParms;
+    memset(&copyParms,0,sizeof(copyParms));
+    copyParms.srcPtr = make_cudaPitchedPtr(voxels.get(),
+                                           (size_t)myBrick->numVoxels.x*sizeof(float),
+                                           (size_t)myBrick->numVoxels.x,
+                                           (size_t)myBrick->numVoxels.y);
+    copyParms.dstArray = voxelArray;
+    copyParms.extent   = extent;
+    copyParms.kind     = cudaMemcpyHostToDevice; // works b/c this is using managed mem
+    CUDA_CALL(Memcpy3D(&copyParms));
+
+    // Create a texture object
+    cudaResourceDesc resourceDesc;
+    memset(&resourceDesc,0,sizeof(resourceDesc));
+    resourceDesc.resType         = cudaResourceTypeArray;
+    resourceDesc.res.array.array = voxelArray;
+
+    cudaTextureDesc textureDesc;
+    memset(&textureDesc,0,sizeof(textureDesc));
+    textureDesc.addressMode[0]   = cudaAddressModeClamp;
+    textureDesc.addressMode[1]   = cudaAddressModeClamp;
+    textureDesc.addressMode[2]   = cudaAddressModeClamp;
+    textureDesc.filterMode       = cudaFilterModeLinear;
+    textureDesc.readMode         = cudaReadModeElementType;
+    textureDesc.normalizedCoords = false;
+
+    CUDA_CALL(CreateTextureObject(&globals.volume.texObj,&resourceDesc,&textureDesc,0));
+#else
     globals.volume.voxels = voxels.get();
+#endif
     globals.volume.dims   = myBrick->numVoxels;//voxelRange.size();
     globals.myRegion      = myBrick->spaceRange;
     /* initialize to model value range; xf editor may mess with that

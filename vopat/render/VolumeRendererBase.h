@@ -54,7 +54,11 @@ namespace vopat {
       } xf;
       /*! my *lcoal* per-rank data */
       struct {
+#if VOPAT_VOXELS_AS_TEXTURE
+        cudaTextureObject_t texObj;
+#else
         float *voxels;
+#endif
         vec3i  dims;
       } volume;
       /* macro cells */
@@ -104,6 +108,9 @@ namespace vopat {
     CUDAArray<box3f>     rankBoxes;
     Brick::SP            myBrick;
     CUDAArray<MacroCell> mcData;
+#if VOPAT_VOXELS_AS_TEXTURE
+    cudaArray_t          voxelArray;
+#endif
     CUDAArray<float>     voxels;
     CUDAArray<vec4f>     colorMap;
     int mcWidth = 8;
@@ -138,6 +145,21 @@ namespace vopat {
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */
   inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
   {
+#if VOPAT_VOXELS_AS_TEXTURE
+    vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
+    if (// cellID.x < 0 || 
+        (cellID.x >= this->volume.dims.x-1) ||
+        // cellID.y < 0 || 
+        (cellID.y >= this->volume.dims.y-1) ||
+        // cellID.z < 0 || 
+        (cellID.z >= this->volume.dims.z-1)) {
+      f = 0.f;
+      return false;
+    }
+    vec3f pos = vec3f(cellID) + vec3f(.5f); // Transform to CUDA texture cell-centric
+    tex3D(&f,this->volume.texObj,pos.x,pos.y,pos.z);
+    return true;
+#else
 #if 1
     // tri-lerp:
     vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
@@ -201,6 +223,7 @@ namespace vopat {
                             +this->volume.dims.x*(cellID.y
                                                   +this->volume.dims.y*size_t(cellID.z))];
     return true;
+#endif
 #endif
   }
 
