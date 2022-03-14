@@ -58,6 +58,9 @@ namespace vopat {
 #if 1
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(CUDAArray<float> &devMem, const std::string &fileName);
+
+    /*! load a given time step and variable's worth of voxels from given file name */
+    void load(std::vector<float> &hostMem, const std::string &fileName);
 #else
     /*! load a given time step and variable's worth of voxels from given file name */
     std::vector<float> load(const std::string &fileName);

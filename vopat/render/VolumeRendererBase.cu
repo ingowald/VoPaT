@@ -38,14 +38,12 @@ namespace vopat {
 
     myBrick = model->bricks[myRank];
     const std::string fileName = Model::canonicalRankFileName(baseFileName,myRank);
-#if 1
-    myBrick->load(voxels,fileName);
-#else
-    std::vector<float> loadedVoxels = myBrick->load(fileName);
-    voxels.upload(loadedVoxels);
-#endif
-    
 #if VOPAT_VOXELS_AS_TEXTURE
+    std::vector<float> hostVoxels;
+    myBrick->load(hostVoxels,fileName);
+    // 2nd copy to compute MCs
+    voxels.upload(hostVoxels);
+
     // Copy voxels to cuda array
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
     cudaExtent extent{(unsigned)myBrick->numVoxels.x,
@@ -54,13 +52,13 @@ namespace vopat {
     CUDA_CALL(Malloc3DArray(&voxelArray,&desc,extent,0));
     cudaMemcpy3DParms copyParms;
     memset(&copyParms,0,sizeof(copyParms));
-    copyParms.srcPtr = make_cudaPitchedPtr(voxels.get(),
+    copyParms.srcPtr = make_cudaPitchedPtr(hostVoxels.data(),
                                            (size_t)myBrick->numVoxels.x*sizeof(float),
                                            (size_t)myBrick->numVoxels.x,
                                            (size_t)myBrick->numVoxels.y);
     copyParms.dstArray = voxelArray;
     copyParms.extent   = extent;
-    copyParms.kind     = cudaMemcpyHostToDevice; // works b/c this is using managed mem
+    copyParms.kind     = cudaMemcpyHostToDevice;
     CUDA_CALL(Memcpy3D(&copyParms));
 
     // Create a texture object
@@ -80,6 +78,12 @@ namespace vopat {
 
     CUDA_CALL(CreateTextureObject(&globals.volume.texObj,&resourceDesc,&textureDesc,0));
 #else
+#if 1
+    myBrick->load(voxels,fileName);
+#else
+    std::vector<float> loadedVoxels = myBrick->load(fileName);
+    voxels.upload(loadedVoxels);
+#endif
     globals.volume.voxels = voxels.get();
 #endif
     globals.volume.dims   = myBrick->numVoxels;//voxelRange.size();
