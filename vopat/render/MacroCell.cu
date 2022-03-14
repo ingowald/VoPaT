@@ -23,8 +23,7 @@ namespace vopat {
   __global__ void initMacroCell(MacroCell *mcData,
                                 vec3i mcDims,
                                 int mcWidth,
-                                float *voxelData,
-                                vec3i voxelDims)
+                                VoxelData volume)
   {
     vec3i mcID(threadIdx.x+blockIdx.x*blockDim.x,
                threadIdx.y+blockIdx.y*blockDim.y,
@@ -40,12 +39,19 @@ namespace vopat {
     /* compute begin/end of VOXELS for this macro-cell */
     vec3i begin = mcID*mcWidth;
     vec3i end = min(begin + mcWidth + /* plus one for tri-lerp!*/1,
-                    voxelDims);
+                    volume.dims);
     interval<float> valueRange;
     for (int iz=begin.z;iz<end.z;iz++)
       for (int iy=begin.y;iy<end.y;iy++)
-        for (int ix=begin.x;ix<end.x;ix++)
-          valueRange.extend(voxelData[ix+voxelDims.x*(iy+voxelDims.y*size_t(iz))]);
+        for (int ix=begin.x;ix<end.x;ix++) {
+#if VOPAT_VOXELS_AS_TEXTURE
+          float f;
+          tex3D(&f,volume.texObjNN,ix,iy,iz);
+          valueRange.extend(f);
+#else
+          valueRange.extend(volume.devPtr[ix+volume.dims.x*(iy+volume.dims.y*size_t(iz))]);
+#endif
+        }
     mc.inputRange = valueRange;
     mc.maxOpacity = 1.f;
   }

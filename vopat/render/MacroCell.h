@@ -27,13 +27,22 @@ namespace vopat {
     float maxOpacity;
   };
 
+  struct VoxelData {
+#if VOPAT_VOXELS_AS_TEXTURE
+    cudaTextureObject_t texObj;
+    cudaTextureObject_t texObjNN;
+#else
+    float *devPtr;
+#endif
+    vec3i dims;
+  };
+
   /*! computes initial *input* range of the macrocells; ie, min/max of
     raw data values *excluding* any transfer fucntion */
   __global__ void initMacroCell(MacroCell *mcData,
                                 vec3i mcDims,
                                 int mcWidth,
-                                float *voxelData,
-                                vec3i voxelDims);
+                                VoxelData volume);
   
   /*! assuming the min/max of the raw data values are already set in a
     macrocell, this updates the *mapped* min/amx values from a given

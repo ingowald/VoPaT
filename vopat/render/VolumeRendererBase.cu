@@ -41,8 +41,6 @@ namespace vopat {
 #if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
     myBrick->load(hostVoxels,fileName);
-    // 2nd copy to compute MCs
-    voxels.upload(hostVoxels);
 
     // Copy voxels to cuda array
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
@@ -77,6 +75,10 @@ namespace vopat {
     textureDesc.normalizedCoords = false;
 
     CUDA_CALL(CreateTextureObject(&globals.volume.texObj,&resourceDesc,&textureDesc,0));
+
+    // 2nd texture object for nearest filtering
+    textureDesc.filterMode       = cudaFilterModePoint;
+    CUDA_CALL(CreateTextureObject(&globals.volume.texObjNN,&resourceDesc,&textureDesc,0));
 #else
 #if 1
     myBrick->load(voxels,fileName);
@@ -103,10 +105,10 @@ namespace vopat {
     mcData.resize(volume(globals.mc.dims));
     globals.mc.data  = mcData.get();
     globals.mc.width = mcWidth;
-    
+  
+    VoxelData voxelData = *(VoxelData*)&globals.volume;
     initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
-      (globals.mc.data,globals.mc.dims,mcWidth,
-       voxels.get(),globals.volume.dims);
+      (globals.mc.data,globals.mc.dims,mcWidth,voxelData);
   }
 
   

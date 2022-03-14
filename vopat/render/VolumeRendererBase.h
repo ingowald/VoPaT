@@ -56,6 +56,7 @@ namespace vopat {
       struct {
 #if VOPAT_VOXELS_AS_TEXTURE
         cudaTextureObject_t texObj;
+        cudaTextureObject_t texObjNN;
 #else
         float *voxels;
 #endif
