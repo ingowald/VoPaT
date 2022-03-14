@@ -157,7 +157,9 @@ namespace vopat {
       f = 0.f;
       return false;
     }
-    vec3f pos = vec3f(cellID) + vec3f(.5f); // Transform to CUDA texture cell-centric
+
+    vec3f pos = P - this->myRegion.lower;
+    pos += vec3f(.5f); // Transform to CUDA texture cell-centric
     tex3D(&f,this->volume.texObj,pos.x,pos.y,pos.z);
     return true;
 #else
