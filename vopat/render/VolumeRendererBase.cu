@@ -95,7 +95,11 @@ namespace vopat {
     globals.xf.domain = model->valueRange;
     globals.myRank = myRank;
     globals.numRanks = model->bricks.size();
-    
+  
+    globals.gradientDelta = vec3f(1.f/model->numVoxelsTotal.x,
+                                  1.f/model->numVoxelsTotal.y,
+                                  1.f/model->numVoxelsTotal.z);
+
     initMacroCells();
   }
 

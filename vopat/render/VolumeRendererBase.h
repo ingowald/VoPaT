@@ -35,6 +35,12 @@ namespace vopat {
       inline __device__ vec3f lightDirection(int which) const {
         return lights.directional[which].dir; }
 
+      inline __device__ int uniformSampleOneLight(Random &rnd) const {
+        const int numLights = numDirLights();
+        int which = int(rnd() * numLights); if (which == numLights) which = 0;
+        return which;
+      }
+
       /*! put a scalar field throught he transfer function, and reutnr
         RGBA result */
       inline __device__ vec4f transferFunction(float f, bool dbg = false) const;
@@ -42,6 +48,10 @@ namespace vopat {
       /*! look up the given (world-space) 3D point in the volume, and
         return interpolated scalar value */
       inline __device__ bool getVolume(float &f, vec3f P, bool dbg = false) const;
+      
+      /*! look up the given (world-space) 3D point in the volume, and
+        return the gradient */
+      inline __device__ bool getGradient(vec3f &g, vec3f P, bool dbg = false) const;
       
       
       /* transfer function */
@@ -77,7 +87,9 @@ namespace vopat {
           vec3f rad = { 1.f, 1.f, 1.f };
         } directional[MAX_DIR_LIGHTS];
       } lights;
-      
+    
+      vec3f gradientDelta;
+
       int    myRank;
       box3f *rankBoxes;
       int    numRanks;
@@ -230,5 +242,19 @@ namespace vopat {
 #endif
   }
 
+  /*! look up the given 3D (world-space) point in the volume, and return the gradient */
+  inline __device__ bool VolumeRenderer::Globals::getGradient(vec3f &g, vec3f P, bool dbg) const
+  {
+    const vec3f delta = gradientDelta;
+    float right,left,top,bottom,front,back;
+    getVolume(right, P+vec3f(delta.x,0.f,0.f),dbg);
+    getVolume(left,  P-vec3f(delta.x,0.f,0.f),dbg);
+    getVolume(top,   P+vec3f(0.f,delta.y,0.f),dbg);
+    getVolume(bottom,P-vec3f(0.f,delta.y,0.f),dbg);
+    getVolume(front, P+vec3f(0.f,0.f,delta.z),dbg);
+    getVolume(back,  P-vec3f(0.f,0.f,delta.z),dbg);
+    g = vec3f(right-left,top-bottom,front-back);
+    return true;
+  }
 } // :vopat
 

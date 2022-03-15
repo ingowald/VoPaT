@@ -116,6 +116,18 @@ namespace vopat {
                ray.origin = org;
                
                throughput *= vec3f(xf.x,xf.y,xf.z);
+               if (f > 1e-4f) {
+                 // add BRDF shading
+                 vec3f g;
+                 if (dvr.getGradient(g,P,ray.dbg)) {
+                   g = g / (length(g + 1e-4f));
+                   int which = dvr.uniformSampleOneLight(rnd);
+                   vec3f kd(.8f);
+                   throughput += fabsf(dot(g,dvr.lightDirection(which)))
+                        * kd * dvr.lightRadiance(which);
+                 }
+               }
+
                {
                  // add ambient illumination 
                  vec3f color = throughput * dvr.ambient();
@@ -129,7 +141,7 @@ namespace vopat {
                  return false;
                }
                
-               int which = int(rnd() * numLights); if (which == numLights) which = 0;
+               int which = dvr.uniformSampleOneLight(rnd);
                throughput *= ((float)numLights * dvr.lightRadiance(which));
                ray.throughput = to_half(throughput);
                
