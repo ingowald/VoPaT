@@ -58,6 +58,21 @@ target_link_libraries(ncToRaw
 endif()
 
 
+# ==================================================================
+option(BUILD_FITS_TO_RAW_TOOL "Build fits-to-raw tool" OFF)
+if (BUILD_FITS_TO_RAW_TOOL)
+find_package(cfitsio REQUIRED)
+add_executable(fitsToRaw
+  model/fitsToRaw.cpp
+  )
+target_include_directories(fitsToRaw PUBLIC ${CFITSIO_INCLUDE_DIRS})
+target_link_libraries(fitsToRaw
+  vopat_model
+  ${CFITSIO_LIBRARIES}
+  )
+endif()
+
+
 
 #add_executable(vopatGenMacrocells
 #  model/macrocells.cpp
