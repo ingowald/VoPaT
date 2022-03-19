@@ -271,7 +271,7 @@ namespace vopat {
         else if (arg == "--renderer" || arg == "-r") {
           rendererName = argv[++i];
         }
-        else if (arg == "-c" || "--config") {
+        else if (arg == "-c" || arg == "--config") {
           const std::string configFileName = argv[++i];
           if (mpiBackend.isMaster) {
             *modelConfig = ModelConfig::load(configFileName);
