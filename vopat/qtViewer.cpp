@@ -65,7 +65,8 @@ namespace vopat {
                 Model::SP model,
                 ModelConfig::SP _modelConfig,
                 qtOWL::XFEditor *xfEditor)
-      : master(master),
+      : inherited("",cmdline.windowSize),
+        master(master),
         model(model),
         xfEditor(xfEditor),
         modelConfig(_modelConfig)
