@@ -19,6 +19,7 @@
 #include "owl/owl_device.h"
 #include "vopat/render/RayForwardingRenderer.h"
 #include "vopat/render/MacroCell.h"
+#include "vopat/render/VoxelData.h"
 
 namespace vopat {
 
@@ -63,15 +64,7 @@ namespace vopat {
         int             numValues = 0;
       } xf;
       /*! my *lcoal* per-rank data */
-      struct {
-#if VOPAT_VOXELS_AS_TEXTURE
-        cudaTextureObject_t texObj;
-        cudaTextureObject_t texObjNN;
-#else
-        float *voxels;
-#endif
-        vec3i  dims;
-      } volume;
+      VoxelData volume;
       /* macro cells */
       struct {
         MacroCell *data;
@@ -158,7 +151,6 @@ namespace vopat {
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */
   inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
   {
-#if VOPAT_VOXELS_AS_TEXTURE
     vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
     if (// cellID.x < 0 || 
         (cellID.x >= this->volume.dims.x-1) ||
@@ -170,91 +162,25 @@ namespace vopat {
       return false;
     }
 
-    vec3f pos = P - this->myRegion.lower;
-    pos += vec3f(.5f); // Transform to CUDA texture cell-centric
-    tex3D(&f,this->volume.texObj,pos.x,pos.y,pos.z);
-    return true;
-#else
-#if 1
-    // tri-lerp:
-    vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
-    if (dbg) printf("cell %i %i %i\n",cellID.x,cellID.y,cellID.z);
-    if (// cellID.x < 0 || 
-        (cellID.x >= this->volume.dims.x-1) ||
-        // cellID.y < 0 || 
-        (cellID.y >= this->volume.dims.y-1) ||
-        // cellID.z < 0 || 
-        (cellID.z >= this->volume.dims.z-1)) {
-      f = 0.f;
-      return false;
-    }
-
-    vec3f  frac   = P - floor(P);
-
-    size_t cx0 = cellID.x;
-    size_t cy0 = cellID.y * size_t(this->volume.dims.x);
-    size_t cz0 = cellID.z * (size_t(this->volume.dims.x) * size_t(this->volume.dims.y));
-    size_t cx1 = cx0 + 1;
-    size_t cy1 = cy0 + size_t(this->volume.dims.x);
-    size_t cz1 = cz0 + (size_t(this->volume.dims.x) * size_t(this->volume.dims.y));
-      
-    float f000 = this->volume.voxels[cx0+cy0+cz0];
-    float f001 = this->volume.voxels[cx1+cy0+cz0];
-    float f010 = this->volume.voxels[cx0+cy1+cz0];
-    float f011 = this->volume.voxels[cx1+cy1+cz0];
-    float f100 = this->volume.voxels[cx0+cy0+cz1];
-    float f101 = this->volume.voxels[cx1+cy0+cz1];
-    float f110 = this->volume.voxels[cx0+cy1+cz1];
-    float f111 = this->volume.voxels[cx1+cy1+cz1];
-
-    float f00x = (1.f-frac.x)*f000 + frac.x*f001;
-    float f01x = (1.f-frac.x)*f010 + frac.x*f011;
-    float f10x = (1.f-frac.x)*f100 + frac.x*f101;
-    float f11x = (1.f-frac.x)*f110 + frac.x*f111;
-
-    float f0y = (1.f-frac.y)*f00x + frac.y*f01x;
-    float f1y = (1.f-frac.y)*f10x + frac.y*f11x;
-
-    float fz = (1.f-frac.z)*f0y + frac.z*f1y;
-    f = fz;
-
-    if (isnan(f)) {
-      printf("f is NAN! P %f %f %f lerp %f %f %f\n",P.x,P.y,P.z,frac.x,frac.y,frac.z);
-    }
-    return true;
-#else
-    // nearest 
-    vec3ui cellID = vec3ui(floor(P - this->myRegion.lower));
-      
-    if (// cellID.x < 0 || 
-        (cellID.x >= this->volume.dims.x-1) ||
-        // cellID.y < 0 || 
-        (cellID.y >= this->volume.dims.y-1) ||
-        // cellID.z < 0 || 
-        (cellID.z >= this->volume.dims.z-1))
-      return false;
-      
-    f = this->volume.voxels[cellID.x
-                            +this->volume.dims.x*(cellID.y
-                                                  +this->volume.dims.y*size_t(cellID.z))];
-    return true;
-#endif
-#endif
+    return volume.sample(f,P-this->myRegion.lower,dbg);
   }
 
   /*! look up the given 3D (world-space) point in the volume, and return the gradient */
   inline __device__ bool VolumeRenderer::Globals::getGradient(vec3f &g, vec3f P, bool dbg) const
   {
+    vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
+    if (// cellID.x < 0 || 
+        (cellID.x >= this->volume.dims.x-1) ||
+        // cellID.y < 0 || 
+        (cellID.y >= this->volume.dims.y-1) ||
+        // cellID.z < 0 || 
+        (cellID.z >= this->volume.dims.z-1)) {
+      g = vec3f(0.f);
+      return false;
+    }
+
     const vec3f delta = gradientDelta;
-    float right,left,top,bottom,front,back;
-    getVolume(right, P+vec3f(delta.x,0.f,0.f),dbg);
-    getVolume(left,  P-vec3f(delta.x,0.f,0.f),dbg);
-    getVolume(top,   P+vec3f(0.f,delta.y,0.f),dbg);
-    getVolume(bottom,P-vec3f(0.f,delta.y,0.f),dbg);
-    getVolume(front, P+vec3f(0.f,0.f,delta.z),dbg);
-    getVolume(back,  P-vec3f(0.f,0.f,delta.z),dbg);
-    g = vec3f(right-left,top-bottom,front-back);
-    return true;
+    return volume.gradient(g,P-this->myRegion.lower,delta,dbg);
   }
 } // :vopat
 

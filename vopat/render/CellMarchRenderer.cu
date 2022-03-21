@@ -26,13 +26,15 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr);
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf);
   };
 
   inline __device__
   void CellMarchKernels::traceRay(int tid,
                                   const typename Vopat::ForwardGlobals &vopat,
-                                  const typename Vopat::VolumeGlobals  &dvr)
+                                  const typename Vopat::VolumeGlobals  &dvr,
+                                  const typename Vopat::SurfaceGlobals &surf)
   {
 #if 0
     Ray ray = vopat.rayQueueIn[tid];

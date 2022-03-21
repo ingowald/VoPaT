@@ -28,7 +28,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 
@@ -141,7 +142,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 

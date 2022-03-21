@@ -49,7 +49,7 @@ namespace vopat {
           tex3D(&f,volume.texObjNN,ix,iy,iz);
           valueRange.extend(f);
 #else
-          valueRange.extend(volume.devPtr[ix+volume.dims.x*(iy+volume.dims.y*size_t(iz))]);
+          valueRange.extend(volume.voxels[ix+volume.dims.x*(iy+volume.dims.y*size_t(iz))]);
 #endif
         }
     mc.inputRange = valueRange;

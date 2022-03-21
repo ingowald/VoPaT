@@ -17,6 +17,7 @@
 #pragma once
 
 #include "VolumeRendererBase.h"
+#include "SurfaceIntersector.h"
 
 namespace vopat {
 
@@ -44,6 +45,7 @@ namespace vopat {
     
     using ForwardGlobals = typename RayForwardingRenderer<Ray>::Globals;
     using VolumeGlobals  = typename VolumeRenderer::Globals;
+    using SurfaceGlobals = typename SurfaceIntersector::Globals;
     
     static inline __device__
     Ray generateRay(const ForwardGlobals &globals,
@@ -178,12 +180,14 @@ namespace vopat {
   template<typename DeviceKernels>
   struct VopatNodeRenderer
     : public RayForwardingRenderer<typename DeviceKernels::Ray>::NodeRenderer,
-      public VolumeRenderer
+      public VolumeRenderer,
+      public SurfaceIntersector
   {
     using inherited    = typename RayForwardingRenderer<typename DeviceKernels::Ray>::NodeRenderer;
     using Ray          = typename DeviceKernels::Ray;
     using ForwardGlobals = typename DeviceKernels::ForwardGlobals;
     using VolumeGlobals  = typename DeviceKernels::VolumeGlobals;
+    using SurfaceGlobals = typename DeviceKernels::SurfaceGlobals;
     
     VopatNodeRenderer(Model::SP model,
                       const std::string &baseFileName,
@@ -191,7 +195,10 @@ namespace vopat {
       : VolumeRenderer(model,baseFileName,myRank)
     // : inherited(model,baseFileName,myRank),
     //   VolumeRenderer(
-    {}
+    {
+      // Reuse for ISOs
+      SurfaceIntersector::globals.volume = VolumeRenderer::globals.volume;
+    }
 
     void generatePrimaryWave(const ForwardGlobals &forward) override;
     void traceLocally(const ForwardGlobals &forward) override;
@@ -221,12 +228,13 @@ namespace vopat {
   template<typename DeviceKernels>
   __global__
   void doTraceRaysLocally(typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals forward,
-                          typename VopatNodeRenderer<DeviceKernels>::VolumeGlobals  volume)
+                          typename VopatNodeRenderer<DeviceKernels>::VolumeGlobals  volume,
+                          typename VopatNodeRenderer<DeviceKernels>::SurfaceGlobals surf)
   {
     int tid = threadIdx.x+blockIdx.x*blockDim.x;
     if (tid >= forward.numRaysInQueue) return;
 
-    DeviceKernels::traceRay(tid,forward,volume);
+    DeviceKernels::traceRay(tid,forward,volume,surf);
   }
   
   template<typename DeviceKernels>
@@ -238,7 +246,7 @@ namespace vopat {
     int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
     if (numBlocks)
       doTraceRaysLocally<DeviceKernels><<<numBlocks,blockSize>>>
-        (forward,VolumeRenderer::globals);
+        (forward,VolumeRenderer::globals,SurfaceIntersector::globals);
     // CUDA_SYNC_CHECK();
   }
 

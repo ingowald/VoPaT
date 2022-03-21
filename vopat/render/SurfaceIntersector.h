@@ -16,33 +16,65 @@
 
 #pragma once
 
-#include "vopat/common.h"
-#include "VoxelData.h"
+#include <cfloat>
 
 namespace vopat {
 
-  struct MacroCell {
-    /*! input values _before_ transfer function */
-    interval<float> inputRange;
-    /*! max opacity value _after_ transfer function */
-    float maxOpacity;
+  struct Surflet {
+    enum Type { /*TODO:*/Mesh, ISO, None, };
+
+    /*! surface type that we intersected with */
+    Type type;
+
+    /*! t of ray/surface intersection; FLT_MAX: inval */
+    float t;
+
+    /*! intersection position */
+    vec3f isectPos;
+
+    /* primitive ID, -1 if not applicable */
+    int primID;
+
+    /* mesh ID, -1 if not applicable */
+    int meshID;
+
+    /*! geometric normal */
+    vec3f gn;
+
+    /*! shading normal */
+    vec3f sn;
+
+    /*! diffuse RGB color */
+    vec3f kd;
+
   };
 
-  /*! computes initial *input* range of the macrocells; ie, min/max of
-    raw data values *excluding* any transfer fucntion */
-  __global__ void initMacroCell(MacroCell *mcData,
-                                vec3i mcDims,
-                                int mcWidth,
-                                VoxelData volume);
-  
-  /*! assuming the min/max of the raw data values are already set in a
-    macrocell, this updates the *mapped* min/amx values from a given
-    transfer function */
-  __global__ void mapMacroCell(MacroCell *mcData,
-                               vec3i mcDims,
-                               vec4f *xfValues,
-                               int numXfValues,
-                               interval<float> xfDomain);
 
-}
-  
+  struct SurfaceIntersector {
+
+    struct Globals {
+
+      /*! my *lcoal* per-rank voxel data */
+      VoxelData volume;
+
+      constexpr static unsigned MaxISOs = 4;
+
+      struct {
+        float *values;
+        int *active;
+      } iso;
+
+      template <typename RayType>
+      inline __device__ Surflet intersect(const RayType &ray) const
+      {
+        Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
+
+        return res;
+      }
+    };
+
+    Globals globals;
+  };
+
+} // ::vopat
+

@@ -24,7 +24,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 
@@ -86,7 +87,18 @@ namespace vopat {
                if (/*we left the cell: */t >= t11)
                  /* leave this cell, but tell DDA to keep on going */
                  return true;
-               
+
+               // test if there's a closer intersection with a surface
+               Surflet srf = surf.intersect(ray);
+               if (srf.t >= 0.f && srf.t < t) {
+                 int which = dvr.uniformSampleOneLight(rnd);
+                 vec3f shadedColor = fabsf(dot(srf.sn,dvr.lightDirection(which)))
+                        * srf.kd * dvr.lightRadiance(which);
+                  throughput += shadedColor;
+                  rayKilled = true;
+                  return false; // terminate DDA
+               }
+
                       // Update current position
                vec3f P = org + t * dir;
                
