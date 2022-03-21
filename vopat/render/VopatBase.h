@@ -197,7 +197,20 @@ namespace vopat {
     //   VolumeRenderer(
     {
       // Reuse for ISOs
-      SurfaceIntersector::globals.volume = VolumeRenderer::globals.volume;
+      SurfaceIntersector::globals.gradientDelta = VolumeRenderer::globals.gradientDelta;
+      SurfaceIntersector::globals.volume        = VolumeRenderer::globals.volume;
+      SurfaceIntersector::globals.myRank        = VolumeRenderer::globals.myRank;
+      SurfaceIntersector::globals.rankBoxes     = VolumeRenderer::globals.rankBoxes;
+      SurfaceIntersector::globals.numRanks      = VolumeRenderer::globals.numRanks;
+      SurfaceIntersector::globals.myRegion      = VolumeRenderer::globals.myRegion;
+
+      std::vector<float> hIsoValues({.5f,0.f,0.f,0.f});
+      std::vector<int> hIsoActive({1,0,0,0});
+      isoValues.upload(hIsoValues);
+      isoActive.upload(hIsoActive);
+
+      SurfaceIntersector::globals.iso.values = isoValues.get();
+      SurfaceIntersector::globals.iso.active = isoActive.get();
     }
 
     void generatePrimaryWave(const ForwardGlobals &forward) override;
@@ -264,7 +277,7 @@ namespace vopat {
     int myRank = vopat.myRank;
     typename DeviceKernels::Ray
       ray    = DeviceKernels::generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
-#if 0
+#if 1
     ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
 #else
     ray.dbg    = false;

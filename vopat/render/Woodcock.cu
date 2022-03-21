@@ -69,13 +69,33 @@ namespace vopat {
           (mcOrg,mcDir,t1,vec3ui(numMacrocells),
            [&](const vec3i &cellIdx, float t00, float t11) -> bool
            {
+             // test if there's an intersection with a surface
+             Ray srfRay(ray);
+             vec3f srfColor(0.f);
+             Surflet srf = surf.intersect(srfRay,t00,t11);
+             if (srf.t < FLT_MAX) {
+               int which = dvr.uniformSampleOneLight(rnd);
+               // compute  shaded color here, but only update below
+               // if we don't integrate the volume intstead
+               srfColor = fabsf(dot(srf.sn,dvr.lightDirection(which)))
+                      * srf.kd * dvr.lightRadiance(which);
+               t11 = min(t11,srf.t);
+             }
+
              float majorant
                = dvr.mc.data[cellIdx.x + 
                              cellIdx.y * dvr.mc.dims.x + 
                              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
                              ].maxOpacity;
              
-             if (majorant <= 0.f) return true; // this cell is empty, march to the next cell
+             if (majorant <= 0.f) {
+               if (srf.t < FLT_MAX) { // surface hit instead, set color here (???)
+                 ray.throughput = to_half(srfColor);
+                 rayKilled = true;
+                 return false;
+               }
+               return true; // this cell is empty, march to the next cell
+             }
              
              // maximum possible voxel density
              const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
@@ -84,19 +104,14 @@ namespace vopat {
                // Sample a distance
                t = t - (log(1.0f - rnd()) / (majorant*DENSITY)); 
                
-               if (/*we left the cell: */t >= t11)
+               if (/*we left the cell: */t >= t11) {
+                 if (srf.t < FLT_MAX) { // but we also hit the surface, so we use that instead (???)
+                   ray.throughput = to_half(srfColor);
+                   rayKilled = true;
+                   return false;
+                 }
                  /* leave this cell, but tell DDA to keep on going */
                  return true;
-
-               // test if there's a closer intersection with a surface
-               Surflet srf = surf.intersect(ray);
-               if (srf.t >= 0.f && srf.t < t) {
-                 int which = dvr.uniformSampleOneLight(rnd);
-                 vec3f shadedColor = fabsf(dot(srf.sn,dvr.lightDirection(which)))
-                        * srf.kd * dvr.lightRadiance(which);
-                  throughput += shadedColor;
-                  rayKilled = true;
-                  return false; // terminate DDA
                }
 
                       // Update current position
