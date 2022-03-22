@@ -73,7 +73,7 @@ namespace vopat {
              Ray srfRay(ray);
              vec3f srfColor(0.f);
              Surflet srf = surf.intersect(srfRay,t00,t11);
-             if (srf.t < FLT_MAX) {
+             if (srf.wasHit()) {
                int which = dvr.uniformSampleOneLight(rnd);
                // compute  shaded color here, but only update below
                // if we don't integrate the volume intstead
@@ -88,14 +88,8 @@ namespace vopat {
                              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
                              ].maxOpacity;
              
-             if (majorant <= 0.f) {
-               if (srf.t < FLT_MAX) { // surface hit instead, set color here (???)
-                 ray.throughput = to_half(srfColor);
-                 rayKilled = true;
-                 return false;
-               }
+             if (majorant <= 0.f && !srf.wasHit())
                return true; // this cell is empty, march to the next cell
-             }
              
              // maximum possible voxel density
              const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
@@ -105,8 +99,8 @@ namespace vopat {
                t = t - (log(1.0f - rnd()) / (majorant*DENSITY)); 
                
                if (/*we left the cell: */t >= t11) {
-                 if (srf.t < FLT_MAX) { // but we also hit the surface, so we use that instead (???)
-                   ray.throughput = to_half(srfColor);
+                 if (srf.wasHit()) { // but we also hit the surface, so we use that instead (???)
+                   vopat.addPixelContribution(ray.pixelID,srfColor);
                    rayKilled = true;
                    return false;
                  }

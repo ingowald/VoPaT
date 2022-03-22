@@ -47,6 +47,10 @@ namespace vopat {
     /*! diffuse RGB color */
     vec3f kd;
 
+    inline __device__ bool wasHit() const
+    {
+      return t < FLT_MAX;
+    }
   };
 
 
