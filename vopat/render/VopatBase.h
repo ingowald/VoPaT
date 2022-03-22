@@ -204,13 +204,16 @@ namespace vopat {
       SurfaceIntersector::globals.numRanks      = VolumeRenderer::globals.numRanks;
       SurfaceIntersector::globals.myRegion      = VolumeRenderer::globals.myRegion;
 
-      std::vector<float> hIsoValues({.5f,0.f,0.f,0.f});
-      std::vector<int> hIsoActive({1,0,0,0});
-      isoValues.upload(hIsoValues);
+      std::vector<int> hIsoActive({0,0,0,0});
+      std::vector<float> hIsoValues({0.f,0.f,0.f,0.f});
+      std::vector<vec3f> hIsoColors({{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f}});
       isoActive.upload(hIsoActive);
+      isoValues.upload(hIsoValues);
+      isoColors.upload(hIsoColors);
 
-      SurfaceIntersector::globals.iso.values = isoValues.get();
       SurfaceIntersector::globals.iso.active = isoActive.get();
+      SurfaceIntersector::globals.iso.values = isoValues.get();
+      SurfaceIntersector::globals.iso.colors = isoColors.get();
     }
 
     void generatePrimaryWave(const ForwardGlobals &forward) override;
@@ -230,6 +233,11 @@ namespace vopat {
                              const interval<float> &range,
                              const float density) override
     { VolumeRenderer::setTransferFunction(cm,range,density); }
+
+    void setISO(const std::vector<int> &active,
+                const std::vector<float> &value,
+                const std::vector<vec3f> &colors)
+    { SurfaceIntersector::setISO(active,value,colors); }
 
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
@@ -277,7 +285,7 @@ namespace vopat {
     int myRank = vopat.myRank;
     typename DeviceKernels::Ray
       ray    = DeviceKernels::generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
-#if 1
+#if 0
     ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
 #else
     ray.dbg    = false;

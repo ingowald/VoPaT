@@ -139,6 +139,27 @@ namespace vopat {
     renderer->setTransferFunction(cm,range,density);
   }
 
+  void MPIMaster::setISO(const std::vector<int> &active,
+                         const std::vector<float> &values,
+                         const std::vector<vec3f> &colors)
+  {
+    // ------------------------------------------------------------------
+    // send request....
+    // ------------------------------------------------------------------
+    int cmd = SET_ISO;
+    MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+    // MPI_Bcast((void*)&camera,sizeof(camera),MPI_BYTE,0,MPI_COMM_WORLD);
+    int count = (int)active.size();
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)active.data(),count*sizeof(*active.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)values.data(),count*sizeof(*values.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)colors.data(),count*sizeof(*colors.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    // ------------------------------------------------------------------
+    // and do our own....
+    // ------------------------------------------------------------------
+    renderer->setISO(active,values,colors);
+  }
+
   void MPIMaster::setLights(float ambient,
                             const std::vector<MPIRenderer::DirectionalLight> &dirLights)
   {

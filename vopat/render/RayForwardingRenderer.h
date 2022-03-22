@@ -78,6 +78,9 @@ namespace vopat {
       virtual void setTransferFunction(const std::vector<vec4f> &cm,
                                        const interval<float> &range,
                                        const float density) {};
+      virtual void setISO(const std::vector<int> &active,
+                          const std::vector<float> &values,
+                          const std::vector<vec3f> &colors) {};
       virtual void generatePrimaryWave(const Globals &globals) = 0;
       virtual void traceLocally(const Globals &globals) = 0;
       virtual void setLights(float ambient,
@@ -118,6 +121,13 @@ namespace vopat {
                               const float density) override
     {
       nodeRenderer->setTransferFunction(cm,range,density);
+      resetAccumulation();
+    }
+    void setISO(const std::vector<int> &active,
+                const std::vector<float> &values,
+                const std::vector<vec3f> &colors) override
+    {
+      nodeRenderer->setISO(active,values,colors);
       resetAccumulation();
     }
     void setLights(float ambient,

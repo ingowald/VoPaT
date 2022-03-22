@@ -127,9 +127,19 @@ target_link_libraries(vopatViewer
 
 # ==================================================================
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
+find_package(Qt5Core)
+find_package(Qt5Gui)
+find_package(Qt5Widgets)
+qt5_wrap_cpp(WRAPPED_HEADERS isoDialog.h)
+qt5_wrap_ui(WRAPPED_UI isoDialog.ui)
 add_executable(vopatQTViewer
   qtViewer.cpp
+  isoDialog.cpp
+  ${WRAPPED_UI}
+  ${WRAPPED_HEADERS}
   )
+# moc'd headers:
+target_include_directories(vopatQTViewer PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(vopatQTViewer
   PUBLIC
   vopat_render

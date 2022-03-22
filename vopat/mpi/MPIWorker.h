@@ -41,6 +41,7 @@ namespace vopat {
     void cmd_resetAccumulation();
     void cmd_setCamera();
     void cmd_setTransferFunction();
+    void cmd_setISO();
     void cmd_setShadeMode();
     void cmd_setNodeSelection();
     void cmd_screenShot();

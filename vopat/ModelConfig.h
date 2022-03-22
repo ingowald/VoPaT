@@ -29,10 +29,14 @@ namespace vopat {
   struct ModelConfig {
     typedef std::shared_ptr<ModelConfig> SP;
     
+    enum { maxISOs = 4 };
     enum { maxDirectionalLights = 2 };
 
     ModelConfig()
     {
+      iso.active.resize(maxISOs,0);
+      iso.values.resize(maxISOs,.5f);
+      iso.colors.resize(maxISOs,.8f);
       lights.directional.push_back({vec3f(.1,1.f,.1f),vec3f(1.f)});
     }
 
@@ -55,6 +59,13 @@ namespace vopat {
       std::vector<vec4f> colorMap;
       float              opacityScale { 100.f };
     } xf;
+
+    // ==================================================================
+    struct {
+      std::vector<int> active;
+      std::vector<vec3f> colors;
+      std::vector<float> values;
+    } iso;
 
     // ==================================================================
     struct {

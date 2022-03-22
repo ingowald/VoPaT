@@ -64,8 +64,9 @@ namespace vopat {
       constexpr static unsigned MaxISOs = 4;
 
       struct {
-        float *values;
         int *active;
+        float *values;
+        vec3f *colors;
       } iso;
 
       vec3f gradientDelta;
@@ -144,7 +145,7 @@ namespace vopat {
                 resISO.isectPos = isopt;
                 resISO.gn       = N;
                 resISO.sn       = N;
-                resISO.kd       = vec3f(.8f);
+                resISO.kd       = iso.colors[i];
                 break;
               }
             }
@@ -165,8 +166,19 @@ namespace vopat {
     };
 
     Globals globals;
-    CUDAArray<float> isoValues;
     CUDAArray<int>   isoActive;
+    CUDAArray<float> isoValues;
+    CUDAArray<vec3f> isoColors;
+
+    void setISO(const std::vector<int> &active,
+                const std::vector<float> &values,
+                const std::vector<vec3f> &colors)
+    {
+      isoActive.upload(active);
+      isoValues.upload(values);
+      isoColors.upload(colors);
+    }
+
   };
 
 } // ::vopat

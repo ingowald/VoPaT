@@ -17,6 +17,7 @@
 // #include "brix/mpi/MPIMaster.h"
 
 #include "vopat/common.h"
+#include "vopat/isoDialog.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
 #include "vopat/Renderer.h"
@@ -245,6 +246,35 @@ namespace vopat {
                                  modelConfig->xf.getRange(),
                                  modelConfig->xf.getDensity());
     };
+    void isoToggled(int iso, bool enabled)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.active[iso] = (int)enabled;
+      }
+      master.setISO(modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
+    void isoColorChanged(int iso, QColor clr)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.colors[iso] = {(float)clr.redF(),
+                                        (float)clr.greenF(),
+                                        (float)clr.blueF()};
+      }
+      master.setISO(modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
+    void isoValueChanged(int iso, float value)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.values[iso] = value;
+      }
+      master.setISO(modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
                                      
   public:
     qtOWL::XFEditor *xfEditor;
@@ -392,6 +422,14 @@ namespace vopat {
       const interval<float> absDomain = modelConfig->xf.absDomain;
       const float opacityScale = modelConfig->xf.opacityScale;
       
+      IsoDialog isoDialog(absDomain);
+      QObject::connect(&isoDialog,&IsoDialog::isoToggled,
+                       &viewer, &VoPaTViewer::isoToggled);
+      QObject::connect(&isoDialog,&IsoDialog::isoColorChanged,
+                       &viewer, &VoPaTViewer::isoColorChanged);
+      QObject::connect(&isoDialog,&IsoDialog::isoValueChanged,
+                       &viewer, &VoPaTViewer::isoValueChanged);
+
       
       xfEditor->setColorMap(modelConfig->xf.colorMap);
       xfEditor->setOpacityScale(opacityScale);
@@ -408,6 +446,8 @@ namespace vopat {
       viewer.updateLights();
       
       guiWindow.show();
+      isoDialog.raise();
+      isoDialog.show();
       
       return app.exec();
     } catch (std::exception &e) {
