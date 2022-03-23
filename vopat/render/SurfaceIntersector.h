@@ -21,7 +21,7 @@
 namespace vopat {
 
   struct Surflet {
-    enum Type { /*TODO:*/Mesh, ISO, None, };
+    enum Type { /*TODO:*/Mesh, Density, ISO, None, };
 
     /*! surface type that we intersected with */
     Type type;
