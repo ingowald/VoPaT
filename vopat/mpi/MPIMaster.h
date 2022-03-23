@@ -40,7 +40,8 @@ namespace vopat {
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
                              const float density);
-    void setISO(const std::vector<int> &active,
+    void setISO(int numActive,
+                const std::vector<int> &active,
                 const std::vector<float> &values,
                 const std::vector<vec3f> &colors);
 

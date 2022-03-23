@@ -40,7 +40,8 @@ namespace vopat {
     virtual void setTransferFunction(const std::vector<vec4f> &cm,
                                      const interval<float> &range,
                                      const float density) {}
-    virtual void setISO(const std::vector<int> &active,
+    virtual void setISO(int numActive,
+                        const std::vector<int> &active,
                         const std::vector<float> &values,
                         const std::vector<vec3f> &colors) {}
     /*! dump a screenshot, possibhly including some per-rank debugging

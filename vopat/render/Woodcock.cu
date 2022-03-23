@@ -69,21 +69,39 @@ namespace vopat {
           (mcOrg,mcDir,t1,vec3ui(numMacrocells),
            [&](const vec3i &cellIdx, float t00, float t11) -> bool
            {
-             // test if there's an intersection with a surface
-             Surflet sample = surf.intersect(ray,t00,t11);
-             if (sample.wasHit()) {
-               t11 = min(t11,sample.t);
-             }
+             interval<float> inputRange
+               = dvr.mc.data[cellIdx.x + 
+                             cellIdx.y * dvr.mc.dims.x + 
+                             cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
+                             ].inputRange;
 
              float majorant
                = dvr.mc.data[cellIdx.x + 
                              cellIdx.y * dvr.mc.dims.x + 
                              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
                              ].maxOpacity;
-             
-             if (majorant <= 0.f && !sample.wasHit())
+            
+             bool noISO = true;
+
+             if (surf.iso.numActive > 0) {
+               for (int i=0; i<SurfaceIntersector::Globals::MaxISOs; ++i) {
+                 if (surf.iso.active[i] && surf.iso.values[i] >= inputRange.lo
+                                        && surf.iso.values[i] <= inputRange.hi) {
+                   noISO = false;
+                   break;
+                 }
+               }
+             }
+
+             if (majorant <= 0.f && noISO)
                return true; // this cell is empty, march to the next cell
              
+             // test if there's an intersection with a surface
+             Surflet sample = surf.intersect(ray,t00,t11);
+             if (sample.wasHit()) {
+               t11 = min(t11,sample.t);
+             }
+
              // maximum possible voxel density
              const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
              float t = t00;

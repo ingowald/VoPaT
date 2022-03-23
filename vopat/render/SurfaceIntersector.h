@@ -64,6 +64,7 @@ namespace vopat {
       constexpr static unsigned MaxISOs = 4;
 
       struct {
+        int numActive;
         int *active;
         float *values;
         vec3f *colors;
@@ -84,7 +85,7 @@ namespace vopat {
         Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
 
         // ISOs
-        {
+        if (iso.numActive > 0) {
           const float dt = .5f;
           Surflet resISO{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
           float t0 = 0.f;
@@ -170,10 +171,12 @@ namespace vopat {
     CUDAArray<float> isoValues;
     CUDAArray<vec3f> isoColors;
 
-    void setISO(const std::vector<int> &active,
+    void setISO(int numActive,
+                const std::vector<int> &active,
                 const std::vector<float> &values,
                 const std::vector<vec3f> &colors)
     {
+      globals.iso.numActive = numActive;
       isoActive.upload(active);
       isoValues.upload(values);
       isoColors.upload(colors);

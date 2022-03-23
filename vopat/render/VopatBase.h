@@ -211,9 +211,10 @@ namespace vopat {
       isoValues.upload(hIsoValues);
       isoColors.upload(hIsoColors);
 
-      SurfaceIntersector::globals.iso.active = isoActive.get();
-      SurfaceIntersector::globals.iso.values = isoValues.get();
-      SurfaceIntersector::globals.iso.colors = isoColors.get();
+      SurfaceIntersector::globals.iso.numActive = 0;
+      SurfaceIntersector::globals.iso.active    = isoActive.get();
+      SurfaceIntersector::globals.iso.values    = isoValues.get();
+      SurfaceIntersector::globals.iso.colors    = isoColors.get();
     }
 
     void generatePrimaryWave(const ForwardGlobals &forward) override;
@@ -234,10 +235,11 @@ namespace vopat {
                              const float density) override
     { VolumeRenderer::setTransferFunction(cm,range,density); }
 
-    void setISO(const std::vector<int> &active,
+    void setISO(int numActive,
+                const std::vector<int> &active,
                 const std::vector<float> &value,
                 const std::vector<vec3f> &colors)
-    { SurfaceIntersector::setISO(active,value,colors); }
+    { SurfaceIntersector::setISO(numActive,active,value,colors); }
 
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override

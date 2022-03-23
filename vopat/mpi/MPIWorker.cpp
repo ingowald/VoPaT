@@ -216,6 +216,7 @@ namespace vopat {
     // get args....
     // ------------------------------------------------------------------
     int count;
+    int numActive;
     std::vector<int> active;
     std::vector<float> values;
     std::vector<vec3f> colors;
@@ -223,6 +224,7 @@ namespace vopat {
     active.resize(count);
     values.resize(count);
     colors.resize(count);
+    MPI_Bcast((void*)&numActive,sizeof(numActive),MPI_BYTE,0,MPI_COMM_WORLD);
     MPI_Bcast((void*)active.data(),count*sizeof(*active.data()),MPI_BYTE,0,MPI_COMM_WORLD);
     MPI_Bcast((void*)values.data(),count*sizeof(*values.data()),MPI_BYTE,0,MPI_COMM_WORLD);
     MPI_Bcast((void*)colors.data(),count*sizeof(*colors.data()),MPI_BYTE,0,MPI_COMM_WORLD);
@@ -230,7 +232,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->setISO(active,values,colors);
+    renderer->setISO(numActive,active,values,colors);
   }
 
   void MPIWorker::run()

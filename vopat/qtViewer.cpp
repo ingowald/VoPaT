@@ -251,7 +251,11 @@ namespace vopat {
       if (iso>=0 && iso<ModelConfig::maxISOs) {
         modelConfig->iso.active[iso] = (int)enabled;
       }
-      master.setISO(modelConfig->iso.active,
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
                     modelConfig->iso.values,
                     modelConfig->iso.colors);
     }
@@ -262,7 +266,11 @@ namespace vopat {
                                         (float)clr.greenF(),
                                         (float)clr.blueF()};
       }
-      master.setISO(modelConfig->iso.active,
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
                     modelConfig->iso.values,
                     modelConfig->iso.colors);
     }
@@ -271,7 +279,11 @@ namespace vopat {
       if (iso>=0 && iso<ModelConfig::maxISOs) {
         modelConfig->iso.values[iso] = value;
       }
-      master.setISO(modelConfig->iso.active,
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
                     modelConfig->iso.values,
                     modelConfig->iso.colors);
     }
