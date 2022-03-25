@@ -12,6 +12,10 @@ namespace vopat {
     Q_OBJECT
   public:
     IsoDialog(interval<float> range);
+
+    bool setISOs(const std::vector<int> &active,
+                 const std::vector<float> &values,
+                 const std::vector<vec3f> &colors);
   signals:
     void isoColorChanged(int iso, QColor clr);
     void isoToggled(int iso, bool enabled);

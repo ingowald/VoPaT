@@ -1,6 +1,7 @@
 #include <cassert>
 #include <QColorDialog>
 #include "isoDialog.h"
+#include "ModelConfig.h"
 
 namespace vopat {
 
@@ -76,6 +77,39 @@ namespace vopat {
     connect(ui->sliderISO2,&QSlider::valueChanged,this,onValueChanged);
     connect(ui->sliderISO3,&QSlider::valueChanged,this,onValueChanged);
     connect(ui->sliderISO4,&QSlider::valueChanged,this,onValueChanged);
+  }
+
+  bool IsoDialog::setISOs(const std::vector<int> &active,
+                          const std::vector<float> &values,
+                          const std::vector<vec3f> &colors)
+  {
+    if (active.size() != values.size() ||
+        active.size() != colors.size() ||
+        active.size() > ModelConfig::maxISOs)
+      return false;
+
+    std::vector<QCheckBox *> checkBoxes(
+      {ui->cbISO1,ui->cbISO2,ui->cbISO3,ui->cbISO4});
+
+    std::vector<QPushButton *> colorButtons(
+      {ui->pbColor1,ui->pbColor2,ui->pbColor3,ui->pbColor4});
+
+    std::vector<QSlider *> sliders(
+      {ui->sliderISO1,ui->sliderISO2,ui->sliderISO3,ui->sliderISO4});
+
+    for (size_t i=0; i<active.size(); ++i) {
+      checkBoxes[i]->setCheckState(active[i]?Qt::Checked:Qt::Unchecked);
+      QColor clr({int(colors[i].x*255),int(colors[i].y*255),int(colors[i].z*255)});
+      colorButtons[i]->setStyleSheet( "* { background-color: "+ clr.name() + " }");
+      float val01 = (values[i]-valueRange.lo)/(valueRange.hi-valueRange.lo);
+      sliders[i]->setValue(int(1.f-val01) * sliders[i]->minimum() + val01 * sliders[i]->maximum());
+
+      emit isoToggled((int)i,active[i]?true: false);
+      emit isoColorChanged((int)i,clr);
+      emit isoValueChanged((int)i,values[i]);
+    }
+
+    return true;
   }
 
 } // ::vopat

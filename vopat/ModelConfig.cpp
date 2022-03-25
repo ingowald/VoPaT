@@ -19,7 +19,7 @@
 
 namespace vopat {
 
-  const size_t modelConfigMagic = 0x12354522ull + 3;
+  const size_t modelConfigMagic = 0x12354522ull + 4;
   
   void ModelConfig::save(const std::string &fileName)
   {
@@ -30,6 +30,9 @@ namespace vopat {
     write(out,xf.relDomain);
     write(out,xf.colorMap);
     write(out,xf.opacityScale);
+    write(out,iso.active);
+    write(out,iso.colors);
+    write(out,iso.values);
     write(out,camera);
     write(out,lights.ambient);
     write(out,lights.directional);
@@ -53,6 +56,9 @@ namespace vopat {
     read(in,mc.xf.relDomain);
     read(in,mc.xf.colorMap);
     read(in,mc.xf.opacityScale);
+    read(in,mc.iso.active);
+    read(in,mc.iso.colors);
+    read(in,mc.iso.values);
     read(in,mc.camera);
     read(in,mc.lights.ambient);
     read(in,mc.lights.directional);

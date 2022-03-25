@@ -434,6 +434,14 @@ namespace vopat {
       const interval<float> absDomain = modelConfig->xf.absDomain;
       const float opacityScale = modelConfig->xf.opacityScale;
       
+      xfEditor->setColorMap(modelConfig->xf.colorMap);
+      xfEditor->setOpacityScale(opacityScale);
+      xfEditor->setRelDomain(relDomain);
+      xfEditor->setAbsDomain(absDomain);
+      
+      // xfEditor->cmSelectionChanged(0);
+      // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
+      
       IsoDialog isoDialog(absDomain);
       QObject::connect(&isoDialog,&IsoDialog::isoToggled,
                        &viewer, &VoPaTViewer::isoToggled);
@@ -442,14 +450,10 @@ namespace vopat {
       QObject::connect(&isoDialog,&IsoDialog::isoValueChanged,
                        &viewer, &VoPaTViewer::isoValueChanged);
 
-      
-      xfEditor->setColorMap(modelConfig->xf.colorMap);
-      xfEditor->setOpacityScale(opacityScale);
-      xfEditor->setRelDomain(relDomain);
-      xfEditor->setAbsDomain(absDomain);
-      
-      // xfEditor->cmSelectionChanged(0);
-      // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
+    
+      isoDialog.setISOs(modelConfig->iso.active,
+                        modelConfig->iso.values,
+                        modelConfig->iso.colors);
 
       // -------------------------------------------------------
       // and create the window ...
