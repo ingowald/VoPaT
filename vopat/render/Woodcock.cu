@@ -105,7 +105,6 @@ namespace vopat {
              // maximum possible voxel density
              const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
              float t = t00;
-             vec3f albedo(1.f);
              while (true) {
                // Sample a distance
                t = t - (log(1.0f - rnd()) / (majorant*DENSITY)); 
@@ -127,7 +126,7 @@ namespace vopat {
                
                vec4f xf = dvr.transferFunction(f,ray.dbg);
                f = xf.w;
-               albedo = vec3f(xf);
+               vec3f albedo = vec3f(xf);
                if (ray.dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
                                    t,f,xf.x,xf.y,xf.z,xf.w);
                
@@ -145,7 +144,7 @@ namespace vopat {
                  sample.isectPos = P;
                  sample.gn       = normalize(g);
                  sample.sn       = sample.gn;
-                 sample.kd       = vec3f(.8f);
+                 sample.kd       = albedo;
                }
                break;
              }
@@ -161,16 +160,10 @@ namespace vopat {
              org = sample.isectPos;//worldP; 
              ray.origin = org;
              
-             throughput *= albedo;
-
              // add BRDF shading
              int which = dvr.uniformSampleOneLight(rnd);
-             vopat.addPixelContribution(ray.pixelID,fabsf(dot(sample.sn,dvr.lightDirection(which)))
-                  * throughput * sample.kd * dvr.lightRadiance(which));
-             if (sample.type == Surflet::ISO) {
-               rayKilled = true;
-               return false;
-             }
+             throughput *= fabsf(dot(sample.sn,dvr.lightDirection(which)))
+                  * sample.kd * dvr.lightRadiance(which);
 
              {
                // add ambient illumination 
@@ -196,7 +189,16 @@ namespace vopat {
              boxTest(myBox,ray,t0,t1);
              t = 0.f; // reset t to the origin
              ray.isShadow = true;
-             
+            
+             if (ray.dbg) {
+               printf("Shadow ray: origin: (%f,%f,%f), direction: (%f,%f,%f), t0: %f, t1: %f\n",
+                      ray.origin.x,ray.origin.y,ray.origin.z,
+                      ray.getDirection().x,
+                      ray.getDirection().y,
+                      ray.getDirection().z,
+                      t0,t1);
+             }
+
              // restart DDA
              rayKilled = false;
              return false; // terminate DDA

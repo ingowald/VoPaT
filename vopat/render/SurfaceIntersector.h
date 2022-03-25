@@ -143,7 +143,7 @@ namespace vopat {
                 wasHit = true;
                 resISO.type = Surflet::ISO;
                 resISO.t        = thit;
-                resISO.isectPos = isopt;
+                resISO.isectPos = isopt + myRegion.lower;
                 resISO.gn       = N;
                 resISO.sn       = N;
                 resISO.kd       = iso.colors[i];
