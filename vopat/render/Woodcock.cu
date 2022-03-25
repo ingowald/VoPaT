@@ -135,16 +135,17 @@ namespace vopat {
                  // sampled a virtual volume; keep on going
                  continue;
 
+               sample.type     = Surflet::Density;
+               sample.t        = t;
+               sample.isectPos = P;
+               sample.kd       = albedo;
+
                if (f > 1e-4f) {
                  vec3f g;
                  dvr.getGradient(g,P,ray.dbg);
-
-                 sample.type     = Surflet::Density;
-                 sample.t        = t;
-                 sample.isectPos = P;
-                 sample.gn       = normalize(g);
-                 sample.sn       = sample.gn;
-                 sample.kd       = albedo;
+                 sample.gn = sample.sn = normalize(g);
+               } else {
+                 sample.gn = sample.sn = vec3f(0.f);
                }
                break;
              }
@@ -162,8 +163,12 @@ namespace vopat {
              
              // add BRDF shading
              int which = dvr.uniformSampleOneLight(rnd);
-             throughput *= fabsf(dot(sample.sn,dvr.lightDirection(which)))
-                  * sample.kd * dvr.lightRadiance(which);
+             if (length(sample.sn) > .9f) {
+               throughput *= sample.kd * fabsf(dot(sample.sn,dvr.lightDirection(which)))
+                    * sample.kd * dvr.lightRadiance(which);
+             } else {
+               throughput *= sample.kd;
+             }
 
              {
                // add ambient illumination 
