@@ -23,9 +23,27 @@
 
 namespace vopat {
 
+  /*! misc helpers, might eventually move somewhere else */
+  inline __device__
+  void makeOrthoBasis(vec3f& u, vec3f& v, const vec3f& w)
+  {
+    v = abs(w.x) > abs(w.y)?normalize(vec3f(-w.z,0,w.x)):normalize(vec3f(0,w.z,-w.y));
+    u = cross(v, w);
+  }
+
+  inline __device__ vec3f uniformSampleCone(const vec2f &u, float cosThetaMax)
+  {
+    float cosTheta = (1.f - u.x) + u.x * cosThetaMax;
+    float sinTheta = sqrtf(1.f - cosTheta * cosTheta);
+    float phi = u.y * 2.f * float(M_PI);
+    return {cosf(phi) * sinTheta, sinf(phi) * sinTheta, cosTheta};
+  }
+
+
   struct VolumeRenderer {
     enum { MAX_DIR_LIGHTS = 2 };
-    
+  
+
     struct Globals {
       /*! hardcoded these, for now */
       inline __device__ float ambient()        const { return lights.ambient; }
@@ -34,7 +52,17 @@ namespace vopat {
         return lights.directional[which].rad;
       }
       inline __device__ vec3f lightDirection(int which) const {
-        return lights.directional[which].dir; }
+        return lights.directional[which].dir;
+      }
+      inline __device__ vec3f sampleLightDirection(int which, Random &rnd, float &pdf) const {
+        vec3f lightDir = lights.directional[which].dir;
+        vec3f u,v;
+        makeOrthoBasis(u,v,lightDir);
+        const float cosThetaMax = .001f;
+        vec3f coneSample = uniformSampleCone({rnd(),rnd()},cosThetaMax);
+        pdf = 1.f / (2.f*float(M_PI) * (1.0f - cosThetaMax));
+        return u*coneSample.x + v*coneSample.y + lightDir*coneSample.z;
+      }
 
       inline __device__ int uniformSampleOneLight(Random &rnd) const {
         const int numLights = numDirLights();

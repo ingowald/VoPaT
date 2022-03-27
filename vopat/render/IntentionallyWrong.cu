@@ -102,7 +102,7 @@ namespace vopat {
         int which = int(rnd() * numLights); if (which == numLights) which = 0;
         throughput *= ((float)numLights * dvr.lightRadiance(which));
         ray.throughput = to_half(throughput);
-            
+        
         ray.setDirection(dvr.lightDirection(which));
         dir = ray.getDirection();
             

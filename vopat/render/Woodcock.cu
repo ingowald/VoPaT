@@ -161,15 +161,6 @@ namespace vopat {
              org = sample.isectPos;//worldP; 
              ray.origin = org;
              
-             // add BRDF shading
-             int which = dvr.uniformSampleOneLight(rnd);
-             if (length(sample.sn) > .9f) {
-               throughput *= sample.kd * fabsf(dot(sample.sn,dvr.lightDirection(which)))
-                    * sample.kd * dvr.lightRadiance(which);
-             } else {
-               throughput *= sample.kd;
-             }
-
              {
                // add ambient illumination 
                vec3f color = throughput * dvr.ambient();
@@ -183,10 +174,24 @@ namespace vopat {
                return false;
              }
              
-             throughput *= ((float)numLights * dvr.lightRadiance(which));
+             // add BRDF shading
+             int which = dvr.uniformSampleOneLight(rnd);
+             if (length(sample.sn) > .9f) {
+               throughput *= sample.kd * fabsf(dot(sample.sn,dvr.lightDirection(which)))
+                    * dvr.lightRadiance(which);
+             } else {
+               throughput *= sample.kd * ((float)numLights * dvr.lightRadiance(which));
+             }
+
              ray.throughput = to_half(throughput);
-             
-             ray.setDirection(dvr.lightDirection(which));
+          
+#if 0
+             vec3f lightDir = dvr.lightDirection(which);
+#else
+             float lpdf = 0.f;
+             vec3f lightDir = dvr.sampleLightDirection(which,rnd,lpdf);
+#endif
+             ray.setDirection(lightDir);
              dir = ray.getDirection();
              
              t0 = 0.f;
