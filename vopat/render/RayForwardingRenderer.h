@@ -204,19 +204,11 @@ namespace vopat {
   {
     if (isMaster()) {
     } else {
-      // const int numWorkers = comm->numWorkers();
-
-      globals.islandRank  = comm->islandRank();//worker.withinIsland->rank;
-      globals.islandSize  = comm->islandSize();//worker.withinIsland->size;
-      globals.islandIndex = comm->islandIndex();//comm->worker.islandIdx;
-      globals.islandCount = comm->islandCount();//comm->worker.numIslands;
-      PRINT(globals.islandRank);
-      PRINT(globals.islandSize);
-      PRINT(globals.islandIndex);
-      PRINT(globals.islandCount);
+      globals.islandRank  = comm->islandRank();
+      globals.islandSize  = comm->islandSize();
+      globals.islandIndex = comm->islandIndex();
+      globals.islandCount = comm->islandCount();
             
-      // globals.myRank   = myRank();
-      // globals.numWorkers = numWorkers;
       perRankSendCounts.resize(globals.islandSize);
       perRankSendOffsets.resize(globals.islandSize);
       globals.perRankSendOffsets = perRankSendOffsets.get();
@@ -233,7 +225,6 @@ namespace vopat {
     } else {
       accumBuffer.resize(islandFbSize.x*islandFbSize.y);
       globals.accumBuffer  = accumBuffer.get();
-      PING; PRINT(islandFbSize); PRINT(globals.accumBuffer);
       
       globals.islandFbSize = islandFbSize;
       globals.worldFbSize  = worldFbSize;
@@ -268,10 +259,9 @@ namespace vopat {
   void RayForwardingRenderer<T>::renderLocal()
   {
     vec2i blockSize(16);
-    PRINT(islandFbSize);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
     
-    int numSPP = 1;
+    int numSPP = 16;
     for (int s = 0; s < numSPP; s++) {
       globals.sampleID = numSPP * accumID + s;
     
@@ -279,7 +269,6 @@ namespace vopat {
       CUDA_SYNC_CHECK();
       if (numBlocks != vec2i(0))
         nodeRenderer->generatePrimaryWave(globals);
-      // generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
       CUDA_SYNC_CHECK();
       host_sendCounts = perRankSendCounts.download();
       numRaysInQueue = host_sendCounts[myRank()];
@@ -300,13 +289,8 @@ namespace vopat {
     }
 
     CUDA_SYNC_CHECK();
-    PING;
-    PRINT(globals.worldFbSize);
-    PRINT(globals.islandFbSize);
-    
     if (numBlocks != vec2i(0)) {
-      PING;
-      writeLocalFB<<<numBlocks,blockSize>>>(islandFbSize,//globals.fbSize,
+      writeLocalFB<<<numBlocks,blockSize>>>(islandFbSize,
                                             localFB.get(),
                                             accumBuffer.get(),
                                             (globals.sampleID+1));

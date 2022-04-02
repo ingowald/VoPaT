@@ -54,9 +54,6 @@ namespace vopat {
         islandFbSize.y
           = (newSize.y / islandCount())
           + (islandIndex() < (newSize.y % islandCount()));
-        PING;
-        PRINT(worldFbSize);
-        PRINT(islandFbSize);
       }
     }
     void resetAccumulation() override { accumID = -1; };

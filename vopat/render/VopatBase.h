@@ -25,6 +25,9 @@ namespace vopat {
   {
     struct Ray {
       struct {
+        /*! note this always refers to a GLOBAL pixel ID even if we
+            use islands; ie, this number may be LARGER than the number
+            of pixels in the local frame buffer */
         uint32_t    pixelID  : 29;
         uint32_t    dbg      :  1;
         uint32_t    crosshair:  1;
@@ -281,13 +284,6 @@ namespace vopat {
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
-    if (ix == 0 && iy == 0)
-      printf("fbs %i %i  %i %i rank %i/%i island %i/%i\n",
-             vopat.islandFbSize.x,
-             vopat.islandFbSize.y,
-             vopat.worldFbSize.x,
-             vopat.worldFbSize.y,
-             vopat.islandRank,vopat.islandSize,vopat.islandIndex,vopat.islandCount);
     
     if (ix >= vopat.islandFbSize.x) return;
     if (iy >= vopat.islandFbSize.y) return;
@@ -326,11 +322,9 @@ namespace vopat {
   void VopatNodeRenderer<DeviceKernels>::generatePrimaryWave
   (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &vopat)
   {
-    PING;
     CUDA_SYNC_CHECK();
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
-    PRINT(numBlocks);
     doGeneratePrimaryWave<DeviceKernels><<<numBlocks,blockSize>>>(vopat,VolumeRenderer::globals);
     CUDA_SYNC_CHECK();
   }

@@ -54,9 +54,7 @@ namespace vopat {
   template<typename T> inline void read(std::ifstream &in, std::vector<T> &t)
   {
     size_t sz;
-    PING; 
     read(in,sz);
-    PRINT(sz);
     t.resize(sz);
     for (int i=0;i<sz;i++)
       read(in,t[i]);
