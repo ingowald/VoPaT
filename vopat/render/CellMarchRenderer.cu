@@ -185,12 +185,12 @@ namespace vopat {
   Renderer *createRenderer_CellMarch(CommBackend *comm,
                                      Model::SP model,
                                      const std::string &fileNameBase,
-                                     int rank)
+                                     int rank,int numSPP)
   {
     VopatNodeRenderer<CellMarchKernels> *nodeRenderer
       = new VopatNodeRenderer<CellMarchKernels>
       (model,fileNameBase,rank);
-    return new RayForwardingRenderer<CellMarchKernels::Ray>(comm,nodeRenderer);
+    return new RayForwardingRenderer<CellMarchKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
 } // ::vopat

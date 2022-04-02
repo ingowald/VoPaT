@@ -332,12 +332,13 @@ namespace vopat {
   Renderer *createRenderer_Woodcock(CommBackend *comm,
                                     Model::SP model,
                                     const std::string &fileNameBase,
-                                    int rank)
+                                    int rank,
+                                    int numSPP)
   {
     VopatNodeRenderer<WoodcockKernels> *nodeRenderer
       = new VopatNodeRenderer<WoodcockKernels>
       (model,fileNameBase,rank);
-    return new RayForwardingRenderer<WoodcockKernels::Ray>(comm,nodeRenderer);
+    return new RayForwardingRenderer<WoodcockKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
 } // ::vopat

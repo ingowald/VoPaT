@@ -28,5 +28,5 @@ namespace vopat {
                            Model::SP model,
                            const std::string &fileNameBase,
                            // this is the rank WITHIN THE ISLAND
-                           int rank);
+                           int rank, int numSPP);
 }

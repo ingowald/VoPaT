@@ -90,7 +90,8 @@ namespace vopat {
     };
     
     RayForwardingRenderer(CommBackend *comm,
-                          NodeRenderer *nodeRenderer);
+                          NodeRenderer *nodeRenderer,
+                          int numSPP);
 
     // ==================================================================
     // main things we NEED to implement
@@ -163,6 +164,9 @@ namespace vopat {
     Globals globals;
     int numRaysInQueue;
     NodeRenderer *nodeRenderer;
+
+    // num paths per pixel to be used
+    int numSPP;
   };
   
 
@@ -198,9 +202,11 @@ namespace vopat {
 
   template<typename NodeRenderer>
   RayForwardingRenderer<NodeRenderer>::RayForwardingRenderer(CommBackend *comm,
-                                             NodeRenderer *nodeRenderer)
+                                                             NodeRenderer *nodeRenderer,
+                                                             int numSPP)
     : AddWorkersRenderer(comm),
-      nodeRenderer(nodeRenderer)
+      nodeRenderer(nodeRenderer),
+      numSPP(numSPP)
   {
     if (isMaster()) {
     } else {
@@ -261,7 +267,6 @@ namespace vopat {
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
     
-    int numSPP = 16;
     for (int s = 0; s < numSPP; s++) {
       globals.sampleID = numSPP * accumID + s;
     

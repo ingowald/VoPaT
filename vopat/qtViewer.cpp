@@ -380,7 +380,7 @@ namespace vopat {
       Renderer *renderer
         = createRenderer(rendererName,
                          &mpiBackend,model,
-                         inFileBase,myRank);
+                         inFileBase,myRank,cmdline.spp);
 
       if (!isMaster) {
         /* this is a worker - run the worker mpi backend, which will

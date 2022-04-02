@@ -232,7 +232,7 @@ namespace vopat {
       Renderer *renderer
         = createRenderer(rendererName,
                          &mpiBackend,model,
-                         inFileBase,myRank);
+                         inFileBase,myRank,cmdline.spp);
       
       if (!isMaster) {
         MPIWorker worker(mpiBackend,renderer);

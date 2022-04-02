@@ -250,23 +250,23 @@ namespace vopat {
   Renderer *createRenderer_WrongShadows(CommBackend *comm,
                                     Model::SP model,
                                     const std::string &fileNameBase,
-                                    int rank)
+                                        int rank, int numSPP)
   {
     VopatNodeRenderer<WrongShadowsKernels> *nodeRenderer
       = new VopatNodeRenderer<WrongShadowsKernels>
       (model,fileNameBase,rank);
-    return new RayForwardingRenderer<WrongShadowsKernels::Ray>(comm,nodeRenderer);
+    return new RayForwardingRenderer<WrongShadowsKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
   Renderer *createRenderer_NoShadows(CommBackend *comm,
                                      Model::SP model,
                                      const std::string &fileNameBase,
-                                     int rank)
+                                     int rank, int numSPP)
   {
     VopatNodeRenderer<EmissionAbsorptionKernels> *nodeRenderer
       = new VopatNodeRenderer<EmissionAbsorptionKernels>
       (model,fileNameBase,rank);
-    return new RayForwardingRenderer<EmissionAbsorptionKernels::Ray>(comm,nodeRenderer);
+    return new RayForwardingRenderer<EmissionAbsorptionKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
 } // ::vopat
