@@ -153,7 +153,16 @@ namespace vopat {
                                       vec3f(.1f,+1.f,.1f),
                                       vec3f(.1f,-1.f,.1f),
                                       vec3f(.1f,.1f,+1.f),
-                                      vec3f(.1f,.1f,-1.f) };
+                                      vec3f(.1f,.1f,-1.f),
+                                      vec3f(-1.f,-1.f,-1.f),
+                                      vec3f(-1.f,-1.f,+1.f),
+                                      vec3f(-1.f,+1.f,-1.f),
+                                      vec3f(-1.f,+1.f,+1.f),
+                                      vec3f(+1.f,-1.f,-1.f),
+                                      vec3f(+1.f,-1.f,+1.f),
+                                      vec3f(+1.f,+1.f,-1.f),
+                                      vec3f(+1.f,+1.f,+1.f),
+      };
       vec3f lightDir = lightDirs[lightID % lightDirs.size()];
       modelConfig->lights.directional.resize(1);
       modelConfig->lights.directional[0].dir = lightDir;
@@ -253,14 +262,10 @@ namespace vopat {
   extern "C" int main(int argc, char **argv)
   {
     // ******************************************************************
-    // cmdline parsed, set up mpi
-    // ******************************************************************
-    MPIBackend mpiBackend(argc,argv,0);
-    
-    // ******************************************************************
     // parse OUR stuff
     // ******************************************************************
-    ModelConfig::SP modelConfig = std::make_shared<ModelConfig>();
+    ModelConfig::SP modelConfig = std::make_shared<ModelConfig>(); 
+    int islandSize = -1;
     try {
       std::string inFileBase = "";
       for (int i=1;i<argc;i++) {
@@ -271,10 +276,15 @@ namespace vopat {
         else if (arg == "--renderer" || arg == "-r") {
           rendererName = argv[++i];
         }
-        else if (arg == "-c" || "--config") {
+        else if (arg == "--island-size" || arg == "-is") {
+          islandSize = std::stoi(argv[++i]);
+        }
+        else if (arg == "-c" || arg == "--config") {
           const std::string configFileName = argv[++i];
-          if (mpiBackend.isMaster) {
+          try {
             *modelConfig = ModelConfig::load(configFileName);
+          } catch (...) {
+            // master might not be able to load, that's OK
           }
         }
         else if (arg == "--camera") {
@@ -306,10 +316,15 @@ namespace vopat {
       }
 
       // ******************************************************************
+      // cmdline parsed, set up mpi
+      // ******************************************************************
+      MPIBackend mpiBackend(argc,argv,islandSize);
+    
+      // ******************************************************************
       // load model, and check that it meets our mpi config
       // ******************************************************************
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
-      if (model->bricks.size() != mpiBackend.workersSize)
+      if (model->bricks.size() != mpiBackend.numRanksPerIsland)//workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
 
       // ******************************************************************

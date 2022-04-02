@@ -64,7 +64,7 @@ namespace vopat {
 
     // ==================================================================
     struct {
-      float ambient = .1f;
+      float ambient = .03f;
       std::vector<MPIRenderer::DirectionalLight> directional;
     } lights;
 
