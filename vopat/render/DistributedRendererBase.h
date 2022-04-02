@@ -35,6 +35,8 @@ namespace vopat {
 
     /*! returns rank of this renderer; is -1 on master, and worker ID on workers */
     int myRank() const { return comm->isMaster?-1:comm->worker.withinIsland->rank; }
+    int islandIndex() const { return comm->islandIndex(); }
+    int islandCount() const { return comm->islandCount(); }
     
     /*! returns true if this is running on the master node */
     bool isMaster() const { return comm->isMaster; }
@@ -42,21 +44,36 @@ namespace vopat {
     /*! render a given frame; fbPointer will be null on workers, and
       point to app frame buffer on master */
     void render(uint32_t *fbPointer) override { ++accumID; }
-    void resizeFrameBuffer(const vec2i &newSize) override { fbSize = newSize; }
+    void resizeFrameBuffer(const vec2i &newSize) override
+    {
+      worldFbSize = newSize;
+      if (isMaster())
+        islandFbSize = 0;
+      else {
+        islandFbSize.x = newSize.x;
+        islandFbSize.y
+          = (newSize.y / islandCount())
+          + (islandIndex() < (newSize.y % islandCount()));
+        PING;
+        PRINT(worldFbSize);
+        PRINT(islandFbSize);
+      }
+    }
     void resetAccumulation() override { accumID = -1; };
     void setCamera(const vec3f &from,
                    const vec3f &at,
                    const vec3f &up,
                    const float fovy) {
       // this->camera = camera;
-      this->camera = Camera(fbSize,from,at,up,fovy);
+      this->camera = Camera(worldFbSize,from,at,up,fovy);
     };
 
     virtual void screenShot() = 0;
 
     CommBackend    *const comm;
     int             accumID = -1;
-    vec2i           fbSize;
+    vec2i           islandFbSize;
+    vec2i           worldFbSize;
     Camera          camera;
   };
 
@@ -101,8 +118,8 @@ namespace vopat {
         to, and from where those can then be sent on to the master */
     // uint32_t       *compResultMemory = nullptr;
     CUDAArray<uint32_t> compResultMemory;
-    vec2i           islandFbSize;
-    vec2i           fullFbSize;
+    // vec2i           islandFbSize;
+    // vec2i           fullFbSize;
 
     CUDAArray<uint32_t> masterFB;
   };

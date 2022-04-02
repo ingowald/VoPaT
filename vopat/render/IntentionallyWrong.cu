@@ -37,11 +37,11 @@ namespace vopat {
       vec3f org = ray.origin;
       vec3f dir = ray.getDirection();
     
-      const box3f myBox = dvr.rankBoxes[vopat.myRank];
+      const box3f myBox = dvr.rankBoxes[vopat.islandRank];
       float t0 = 0.f, t1 = CUDART_INF;
       boxTest(myBox,ray,t0,t1);
 
-      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
+      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.islandRank*0x123456);
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
@@ -151,11 +151,11 @@ namespace vopat {
       vec3f org = ray.origin;
       vec3f dir = ray.getDirection();
     
-      const box3f myBox = dvr.rankBoxes[vopat.myRank];
+      const box3f myBox = dvr.rankBoxes[vopat.islandRank];
       float t0 = 0.f, t1 = CUDART_INF;
       boxTest(myBox,ray,t0,t1);
 
-      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.myRank*0x123456);
+      Random rnd((int)ray.pixelID,vopat.sampleID+vopat.islandRank*0x123456);
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 

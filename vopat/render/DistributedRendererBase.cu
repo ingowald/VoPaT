@@ -81,42 +81,43 @@ namespace vopat {
   void AddWorkersRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
     Renderer::resizeFrameBuffer(newSize);
-    this->fbSize = newSize;
+    // this->worldFbSize = newSize;
     
     if (comm->isMaster) {
-      masterFB.resize(newSize.x*newSize.y);
+      masterFB.resize(worldFbSize.x*worldFbSize.y);
     } else {
       // ==================================================================
       // this upper part should be per node, shared among all threads
       // ==================================================================
-      const int numIslands = comm->worker.numIslands;
-      const int islandIdx  = comm->worker.islandIdx;
-      const int islandRank = comm->worker.withinIsland->rank;
-      const int islandSize = comm->worker.withinIsland->size;
+      const int numIslands = comm->islandCount();//worker.numIslands;
+      const int islandIdx  = comm->islandIndex();//comm->worker.islandIdx;
+      const int islandRank = comm->islandRank();//comm->worker.withinIsland->rank;
+      const int islandSize = comm->islandSize();//comm->worker.withinIsland->size;
     
       // ------------------------------------------------------------------
       // resize the full frame buffer - only the master needs the final
       // frame buffer, but we need it to compute our local island frame
       // buffer, as well as compositing buffer sizes
       // ------------------------------------------------------------------
-      fullFbSize = newSize;
-    
+      
+      // iw - parent computes thisnow : fullFbSize = newSize;
+
       // ------------------------------------------------------------------
       // compute size of our island's frame buffer sub-set, and allocate
       // local accum buffer of that size
       // ------------------------------------------------------------------
     
-      islandFbSize.x = fullFbSize.x;
-      islandFbSize.y
-        = (fullFbSize.y / numIslands)
-        + (islandIdx < (fullFbSize.y % numIslands));
+      // islandFbSize.x = fullFbSize.x;
+      // islandFbSize.y
+      //   = (fullFbSize.y / numIslands)
+      //   + (islandIdx < (fullFbSize.y % numIslands));
 
-      // ... and resize the local accum buffer
-      // if (localAccumBuffer)
-      //   CUDA_CALL(FreeMPI(localAccumBuffer));
-      // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
-      // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
-      PING; PRINT(islandFbSize);
+      // // ... and resize the local accum buffer
+      // // if (localAccumBuffer)
+      // //   CUDA_CALL(FreeMPI(localAccumBuffer));
+      // // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
+      // // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
+      // PING; PRINT(islandFbSize);
       localFB.resize(islandFbSize.x*islandFbSize.y);
     
       // ------------------------------------------------------------------
@@ -160,9 +161,9 @@ namespace vopat {
       assert(fbSize.y > 0);
       comm->master.toWorkers->indexedGather
         (masterFB.get(),
-         fbSize.x*sizeof(uint32_t),
-         fbSize.y);
-      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fbSize.x*fbSize.y*sizeof(*masterFB),
+         worldFbSize.x*sizeof(uint32_t),
+         worldFbSize.y);
+      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),worldFbSize.x*worldFbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
       // CUDA_SYNC_CHECK();
     } else {

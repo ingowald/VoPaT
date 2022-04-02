@@ -76,12 +76,18 @@ namespace vopat {
   struct CommBackend {
     
     virtual void barrierAll() = 0;
-    int numWorkers() const
-    { return workersSize; }
+    // int numWorkers() const
+    // { return workersSize; }
     // int myRank() const
     // { return workersRank; }
     int islandRank() const
     { return isMaster?-1:worker.withinIsland->rank; }
+    int islandSize() const
+    { return isMaster?-1:worker.withinIsland->size; }
+    int islandCount() const
+    { return worker.numIslands; }
+    int islandIndex() const
+    { return worker.islandIdx; }
     
     int worldRank = -1;
     int worldSize = -1;

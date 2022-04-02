@@ -72,7 +72,7 @@ namespace vopat {
 
       vec3f gradientDelta;
 
-      int    myRank;
+      int    islandRank;
       box3f *rankBoxes;
       int    numRanks;
       box3f  myRegion;

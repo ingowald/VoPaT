@@ -111,15 +111,15 @@ namespace vopat {
     
       vec3f gradientDelta;
 
-      int    myRank;
+      int    islandRank;
+      int    islandSize;
       box3f *rankBoxes;
-      int    numRanks;
       box3f  myRegion;
     };
 
     VolumeRenderer(Model::SP model,
                    const std::string &baseFileName,
-                   int myRank);
+                   int islandRank);
     void initMacroCells();
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &xfDomain,
@@ -148,7 +148,7 @@ namespace vopat {
     CUDAArray<float>     voxels;
     CUDAArray<vec4f>     colorMap;
     int mcWidth = 8;
-    int myRank = -1;
+    int islandRank = -1;
   };
 
 

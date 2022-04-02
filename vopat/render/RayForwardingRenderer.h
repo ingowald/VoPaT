@@ -40,11 +40,12 @@ namespace vopat {
           rank with given ID. This will overwrite the ray at input queue pos rayID */
       inline __device__ void forwardRay(int rayID, const RayType &ray, int nextNodeID) const;
       
-      int          myRank, numWorkers;
+      // int          myRank, numWorkers;
+      int          islandRank, islandSize, islandIndex, islandCount;
       int          sampleID;
       Camera       camera;
 
-      vec2i        fbSize;
+      vec2i        worldFbSize, islandFbSize;
       vec3f       *accumBuffer;
 
       /*! for compaction - where in the output queue to write rays for
@@ -203,12 +204,21 @@ namespace vopat {
   {
     if (isMaster()) {
     } else {
-      const int numWorkers = comm->numWorkers();
+      // const int numWorkers = comm->numWorkers();
 
-      globals.myRank   = myRank();
-      globals.numWorkers = numWorkers;
-      perRankSendCounts.resize(numWorkers);
-      perRankSendOffsets.resize(numWorkers);
+      globals.islandRank  = comm->islandRank();//worker.withinIsland->rank;
+      globals.islandSize  = comm->islandSize();//worker.withinIsland->size;
+      globals.islandIndex = comm->islandIndex();//comm->worker.islandIdx;
+      globals.islandCount = comm->islandCount();//comm->worker.numIslands;
+      PRINT(globals.islandRank);
+      PRINT(globals.islandSize);
+      PRINT(globals.islandIndex);
+      PRINT(globals.islandCount);
+            
+      // globals.myRank   = myRank();
+      // globals.numWorkers = numWorkers;
+      perRankSendCounts.resize(globals.islandSize);
+      perRankSendOffsets.resize(globals.islandSize);
       globals.perRankSendOffsets = perRankSendOffsets.get();
       globals.perRankSendCounts = perRankSendCounts.get();
     }
@@ -221,17 +231,20 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      accumBuffer.resize(newSize.x*newSize.y);
-      globals.accumBuffer = accumBuffer.get();
-      globals.fbSize    = newSize;
+      accumBuffer.resize(islandFbSize.x*islandFbSize.y);
+      globals.accumBuffer  = accumBuffer.get();
+      PING; PRINT(islandFbSize); PRINT(globals.accumBuffer);
+      
+      globals.islandFbSize = islandFbSize;
+      globals.worldFbSize  = worldFbSize;
+      
+      rayQueueIn.resize(islandFbSize.x*islandFbSize.y);
+      globals.rayQueueIn   = rayQueueIn.get();
 
-      rayQueueIn.resize(fbSize.x*fbSize.y);
-      globals.rayQueueIn = rayQueueIn.get();
+      rayQueueOut.resize(islandFbSize.x*islandFbSize.y);
+      globals.rayQueueOut  = rayQueueOut.get();
 
-      rayQueueOut.resize(fbSize.x*fbSize.y);
-      globals.rayQueueOut = rayQueueOut.get();
-
-      rayNextNode.resize(fbSize.x*fbSize.y);
+      rayNextNode.resize(islandFbSize.x*islandFbSize.y);
       globals.rayNextNode = rayNextNode.get();
     }
   }
@@ -263,6 +276,7 @@ namespace vopat {
       globals.sampleID = numSPP * accumID + s;
     
       perRankSendCounts.bzero();
+      CUDA_SYNC_CHECK();
       if (numBlocks != vec2i(0))
         nodeRenderer->generatePrimaryWave(globals);
       // generatePrimaryWave<<<numBlocks,blockSize>>>(globals);
@@ -287,13 +301,16 @@ namespace vopat {
 
     CUDA_SYNC_CHECK();
     PING;
-    PRINT(globals.fbSize);
+    PRINT(globals.worldFbSize);
+    PRINT(globals.islandFbSize);
     
-    if (numBlocks != vec2i(0))
+    if (numBlocks != vec2i(0)) {
+      PING;
       writeLocalFB<<<numBlocks,blockSize>>>(islandFbSize,//globals.fbSize,
                                             localFB.get(),
                                             accumBuffer.get(),
                                             (globals.sampleID+1));
+    }
     CUDA_SYNC_CHECK();
   }
   
@@ -302,15 +319,17 @@ namespace vopat {
   {
     std::string fileName = Renderer::screenShotFileName;
     std::vector<uint32_t> pixels;
+    vec2i fbSize;
     if (isMaster()) {
       fileName = fileName + "_master.png";
       pixels = masterFB.download();
-      for (int iy=0;iy<fbSize.y/2;iy++) {
-        uint32_t *top = pixels.data() + iy * fbSize.x;
-        uint32_t *bot = pixels.data() + (fbSize.y-1-iy) * fbSize.x;
-        for (int ix=0;ix<fbSize.x;ix++)
+      for (int iy=0;iy<worldFbSize.y/2;iy++) {
+        uint32_t *top = pixels.data() + iy * worldFbSize.x;
+        uint32_t *bot = pixels.data() + (worldFbSize.y-1-iy) * worldFbSize.x;
+        for (int ix=0;ix<worldFbSize.x;ix++)
           std::swap(top[ix],bot[ix]);
       }
+      fbSize = worldFbSize;
     } else {
       char suff[100];
       sprintf(suff,"_island%03i_rank%05i.png",
@@ -319,13 +338,14 @@ namespace vopat {
       
       std::vector<small_vec3f> hostFB;
       hostFB = localFB.download();
-      for (int y=0;y<fbSize.y;y++) {
-        const small_vec3f *line = hostFB.data() + (fbSize.y-1-y)*fbSize.x;
-        for (int x=0;x<fbSize.x;x++) {
+      for (int y=0;y<islandFbSize.y;y++) {
+        const small_vec3f *line = hostFB.data() + (islandFbSize.y-1-y)*islandFbSize.x;
+        for (int x=0;x<islandFbSize.x;x++) {
           vec3f col = from_half(line[x]);
           pixels.push_back(make_rgba(col) | (0xffu << 24));
         }
       }
+      fbSize = islandFbSize;
     }
     
     stbi_write_png(fileName.c_str(),fbSize.x,fbSize.y,4,
@@ -347,7 +367,7 @@ namespace vopat {
   {
     if (threadIdx.x != 0) return;
     int ofs = 0;
-    for (int i=0;i<globals.numWorkers;i++) {
+    for (int i=0;i<globals.islandSize;i++) {
       globals.perRankSendOffsets[i] = ofs;
       ofs += globals.perRankSendCounts[i];
     }
@@ -384,8 +404,8 @@ namespace vopat {
   int  RayForwardingRenderer<T>::exchangeRays()
   {
     host_sendCounts = perRankSendCounts.download();
-    const int numWorkers = globals.numWorkers;
-    const int myRank = this->myRank();
+    const int numWorkers = globals.islandSize;//globals.numWorkers;
+    const int myRank = globals.islandRank;//this->myRank();
     auto island = comm->worker.withinIsland;
 
     /* iw - TODO: change this to use alltoall instead of allgaher;
@@ -475,9 +495,17 @@ namespace vopat {
   template<typename _RayType>
   inline __device__
   void RayForwardingRenderer<_RayType>::Globals::addPixelContribution
-  (int pixelID, vec3f addtl) const
+  (int globalLinearPixelID, vec3f addtl) const
   {
-    vec3f *tgt = accumBuffer+pixelID;
+    int global_iy = globalLinearPixelID / islandFbSize.x;
+    int global_ix = globalLinearPixelID - global_iy * islandFbSize.x;
+    int local_ix  = global_ix;
+    int local_iy  = (global_iy - islandIndex) / islandCount;
+
+    int ofs = local_iy*islandFbSize.x+local_ix;
+    
+    vec3f *tgt = accumBuffer+(ofs);
+
     atomicAdd(&tgt->x,addtl.x);
     atomicAdd(&tgt->y,addtl.y);
     atomicAdd(&tgt->z,addtl.z);

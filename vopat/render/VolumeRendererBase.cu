@@ -21,10 +21,10 @@ namespace vopat {
 
   VolumeRenderer::VolumeRenderer(Model::SP model,
                                  const std::string &baseFileName,
-                                 int myRank)
-    : model(model), myRank(myRank)
+                                 int islandRank)
+    : model(model), islandRank(islandRank)
   {
-    if (myRank < 0)
+    if (islandRank < 0)
       return;
       
     // ------------------------------------------------------------------
@@ -36,8 +36,8 @@ namespace vopat {
     rankBoxes.upload(hostRankBoxes);
     globals.rankBoxes = rankBoxes.get();
 
-    myBrick = model->bricks[myRank];
-    const std::string fileName = Model::canonicalRankFileName(baseFileName,myRank);
+    myBrick = model->bricks[islandRank];
+    const std::string fileName = Model::canonicalRankFileName(baseFileName,islandRank);
 #if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
     myBrick->load(hostVoxels,fileName);
@@ -93,8 +93,8 @@ namespace vopat {
     /* initialize to model value range; xf editor may mess with that
        later on */
     globals.xf.domain = model->valueRange;
-    globals.myRank = myRank;
-    globals.numRanks = model->bricks.size();
+    globals.islandRank = islandRank;
+    globals.islandSize = model->bricks.size();
   
     globals.gradientDelta = vec3f(1.f);
 
@@ -118,7 +118,7 @@ namespace vopat {
                                            const interval<float> &xfDomain,
                                            const float density)
   {
-    if (myRank < 0) {
+    if (islandRank < 0) {
     } else {
       colorMap.upload(cm);
       globals.xf.values = colorMap.get();

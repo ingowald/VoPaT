@@ -66,8 +66,8 @@ namespace vopat {
     vec3f backgroundColor(const Vopat::Ray &ray,
                           const Vopat::ForwardGlobals &globals)
     {
-      int iy = ray.pixelID / globals.fbSize.x;
-      float t = iy / float(globals.fbSize.y);
+      int iy = ray.pixelID / globals.worldFbSize.x;
+      float t = iy / float(globals.worldFbSize.y);
       const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
       return c;
     }
@@ -114,11 +114,11 @@ namespace vopat {
   
   inline __device__
   Vopat::Ray Vopat::generateRay(const Vopat::ForwardGlobals &globals,
-                                                        vec2i pixelID,
-                                                        vec2f pixelPos)
+                                vec2i pixelID,
+                                vec2f pixelPos)
   {
     Ray ray;
-    ray.pixelID  = pixelID.x + globals.fbSize.x*pixelID.y;
+    ray.pixelID  = pixelID.x + globals.worldFbSize.x*pixelID.y;
     ray.isShadow = false;
     ray.origin = globals.camera.lens_00;
     vec3f dir
@@ -137,12 +137,12 @@ namespace vopat {
                              bool dbg)
   {
     if (dbg) printf("finding next that's t >= %f and rank != %i\n",
-                    t_already_travelled,vopat.myRank);
+                    t_already_travelled,vopat.islandRank);
       
     int closest = -1;
     float t_closest = CUDART_INF;
-    for (int i=0;i<vopat.numRanks;i++) {
-      if (i == vopat.myRank) continue;
+    for (int i=0;i<vopat.islandSize;i++) {
+      if (i == vopat.islandRank) continue;
         
       float t0 = t_already_travelled * (1.f+1e-5f);
       float t1 = t_closest; 
@@ -152,7 +152,7 @@ namespace vopat {
       t_closest = t0;
       closest = i;
     }
-    if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.myRank,closest);
+    if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.islandRank,closest);
     return closest;
   }
 
@@ -163,7 +163,7 @@ namespace vopat {
   {
     int closest = -1;
     float t_closest = CUDART_INF;
-    for (int i=0;i<vopat.numRanks;i++) {
+    for (int i=0;i<vopat.islandSize;i++) {
       float t_min = 0.f;
       float t_max = t_closest;
       if (!boxTest(vopat.rankBoxes[i],ray,t_min,t_max))
@@ -191,17 +191,17 @@ namespace vopat {
     
     VopatNodeRenderer(Model::SP model,
                       const std::string &baseFileName,
-                      int myRank)
-      : VolumeRenderer(model,baseFileName,myRank)
+                      int islandRank)
+      : VolumeRenderer(model,baseFileName,islandRank)
     // : inherited(model,baseFileName,myRank),
     //   VolumeRenderer(
     {
       // Reuse for ISOs
       SurfaceIntersector::globals.gradientDelta = VolumeRenderer::globals.gradientDelta;
       SurfaceIntersector::globals.volume        = VolumeRenderer::globals.volume;
-      SurfaceIntersector::globals.myRank        = VolumeRenderer::globals.myRank;
+      SurfaceIntersector::globals.islandRank    = VolumeRenderer::globals.islandRank;
       SurfaceIntersector::globals.rankBoxes     = VolumeRenderer::globals.rankBoxes;
-      SurfaceIntersector::globals.numRanks      = VolumeRenderer::globals.numRanks;
+      // SurfaceIntersector::globals.numRanks      = VolumeRenderer::globals.numRanks;
       SurfaceIntersector::globals.myRegion      = VolumeRenderer::globals.myRegion;
 
       std::vector<int> hIsoActive({0,0,0,0});
@@ -281,24 +281,36 @@ namespace vopat {
   {
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
-    if (ix >= vopat.fbSize.x) return;
-    if (iy >= vopat.fbSize.y) return;
+    if (ix == 0 && iy == 0)
+      printf("fbs %i %i  %i %i rank %i/%i island %i/%i\n",
+             vopat.islandFbSize.x,
+             vopat.islandFbSize.y,
+             vopat.worldFbSize.x,
+             vopat.worldFbSize.y,
+             vopat.islandRank,vopat.islandSize,vopat.islandIndex,vopat.islandCount);
+    
+    if (ix >= vopat.islandFbSize.x) return;
+    if (iy >= vopat.islandFbSize.y) return;
 
-    int myRank = vopat.myRank;
+    int myRank = vopat.islandRank;//myRank;
+    int world_iy
+      = vopat.islandIndex
+      + iy * vopat.islandCount;
     typename DeviceKernels::Ray
-      ray    = DeviceKernels::generateRay(vopat,vec2i(ix,iy),vec2f(.5f));
+      ray    = DeviceKernels::generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
 #if 0
-    ray.dbg    = (vec2i(ix,iy) == vopat.fbSize/2);
+    ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
 #else
     ray.dbg    = false;
 #endif
-    ray.crosshair = (ix == vopat.fbSize.x/2) || (iy == vopat.fbSize.y/2);
+    ray.crosshair = (ix == vopat.worldFbSize.x/2) || (world_iy == vopat.worldFbSize.y/2);
     int dest   = DeviceKernels::computeInitialRank(globals,ray);
 
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */
       if (myRank == 0) {
-        vopat.accumBuffer[ray.pixelID] += DeviceKernels::backgroundColor(ray,vopat);
+        // vopat.accumBuffer[islandPixelID(vopat,ray.pixelID)] += DeviceKernels::backgroundColor(ray,vopat);
+        vopat.addPixelContribution(ray.pixelID,DeviceKernels::backgroundColor(ray,vopat));
       }
       return;
     }
@@ -314,12 +326,13 @@ namespace vopat {
   void VopatNodeRenderer<DeviceKernels>::generatePrimaryWave
   (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &vopat)
   {
+    PING;
     CUDA_SYNC_CHECK();
     vec2i blockSize(16);
-    vec2i numBlocks = divRoundUp(vopat.fbSize,blockSize);
-    // PRINT(numBlocks);
+    vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
+    PRINT(numBlocks);
     doGeneratePrimaryWave<DeviceKernels><<<numBlocks,blockSize>>>(vopat,VolumeRenderer::globals);
-    // CUDA_SYNC_CHECK();
+    CUDA_SYNC_CHECK();
   }
 
 
