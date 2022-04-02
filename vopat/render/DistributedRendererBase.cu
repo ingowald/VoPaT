@@ -15,6 +15,9 @@
 // ======================================================================== //
 
 #include "vopat/render/DistributedRendererBase.h"
+#include <mpi.h>
+
+// #define MEASURE_PERF
 
 namespace vopat {
   
@@ -113,6 +116,7 @@ namespace vopat {
       //   CUDA_CALL(FreeMPI(localAccumBuffer));
       // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
       // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
+      PING; PRINT(islandFbSize);
       localFB.resize(islandFbSize.x*islandFbSize.y);
     
       // ------------------------------------------------------------------
@@ -165,7 +169,18 @@ namespace vopat {
       // ------------------------------------------------------------------
       // step 0: clients render into their owl local frame buffers
       // ------------------------------------------------------------------
+#ifdef MEASURE_PERF
+      double t1 = getCurrentTime();
+#endif
       renderLocal();
+#ifdef MEASURE_PERF
+      double t2 = getCurrentTime();
+#endif
+
+#ifdef MEASURE_PERF
+      comm->worker.withinIsland->barrier();
+      double t3 = getCurrentTime();
+#endif
 
       const int numIslands = comm->worker.numIslands;
       const int islandIdx  = comm->worker.islandIdx;
@@ -237,6 +252,12 @@ namespace vopat {
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
+#ifdef MEASURE_PERF
+      double t4 = getCurrentTime();
+      // "rank,render,wait,compositing' times, as csv
+      printf("%i,%f,%f,%f\n",
+             myRank(),t2-t1,t3-t2,t4-t3);
+#endif
     }
   }
 

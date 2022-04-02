@@ -32,6 +32,7 @@ namespace vopat {
        SCREEN_SHOT,
        TERMINATE,
        SET_TRANSFER_FUNCTION,
+       SET_ISO,
        RESET_ACCUMULATION
       } Command;
   };

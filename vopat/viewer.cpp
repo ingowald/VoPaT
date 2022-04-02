@@ -174,6 +174,7 @@ namespace vopat {
   {
     try {
       std::string inFileBase = "";
+      int islandSize = -1;
       for (int i=1;i<argc;i++) {
         const std::string arg = argv[i];
         if (arg[0] != '-') {
@@ -184,6 +185,9 @@ namespace vopat {
         }
         else if (arg == "-fovy") {
           cmdline.camera.fovy = std::atof(argv[++i]);
+        }
+        else if (arg == "--island-size" || arg == "-is") {
+          islandSize = std::atoi(argv[++i]);
         }
         else if (arg == "-c" || "--config") {
           cmdline.configFileName = argv[++i];
@@ -217,12 +221,12 @@ namespace vopat {
       // ******************************************************************
       // all input loaded, and all parameters parsed ... set-up comms
       // ******************************************************************
-      MPIBackend mpiBackend(argc,argv,0);
+      MPIBackend mpiBackend(argc,argv,islandSize);
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
       if (model->bricks.size() != mpiBackend.workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
       const bool isMaster = mpiBackend.isMaster;
-      int myRank = mpiBackend.myRank();
+      int myRank = mpiBackend.islandRank();
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer

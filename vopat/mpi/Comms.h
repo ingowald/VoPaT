@@ -78,8 +78,10 @@ namespace vopat {
     virtual void barrierAll() = 0;
     int numWorkers() const
     { return workersSize; }
-    int myRank() const
-    { return workersRank; }
+    // int myRank() const
+    // { return workersRank; }
+    int islandRank() const
+    { return isMaster?-1:worker.withinIsland->rank; }
     
     int worldRank = -1;
     int worldSize = -1;

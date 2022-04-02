@@ -40,6 +40,10 @@ namespace vopat {
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
                              const float density);
+    void setISO(int numActive,
+                const std::vector<int> &active,
+                const std::vector<float> &values,
+                const std::vector<vec3f> &colors);
 
     void backdoor(const std::string &command);
     void setShadeMode(int mode);

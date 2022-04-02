@@ -24,7 +24,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 
@@ -68,14 +69,39 @@ namespace vopat {
           (mcOrg,mcDir,t1,vec3ui(numMacrocells),
            [&](const vec3i &cellIdx, float t00, float t11) -> bool
            {
+             interval<float> inputRange
+               = dvr.mc.data[cellIdx.x + 
+                             cellIdx.y * dvr.mc.dims.x + 
+                             cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
+                             ].inputRange;
+
              float majorant
                = dvr.mc.data[cellIdx.x + 
                              cellIdx.y * dvr.mc.dims.x + 
                              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
                              ].maxOpacity;
+            
+             bool noISO = true;
+
+             if (surf.iso.numActive > 0) {
+               for (int i=0; i<SurfaceIntersector::Globals::MaxISOs; ++i) {
+                 if (surf.iso.active[i] && surf.iso.values[i] >= inputRange.lo
+                                        && surf.iso.values[i] <= inputRange.hi) {
+                   noISO = false;
+                   break;
+                 }
+               }
+             }
+
+             if (majorant <= 0.f && noISO)
+               return true; // this cell is empty, march to the next cell
              
-             if (majorant <= 0.f) return true; // this cell is empty, march to the next cell
-             
+             // test if there's an intersection with a surface
+             Surflet sample = surf.intersect(ray,t00,t11);
+             if (sample.wasHit()) {
+               t11 = min(t11,sample.t);
+             }
+
              // maximum possible voxel density
              const float DENSITY = ((dvr.xf.density == 0.f) ? 1.f : dvr.xf.density);//.03f;
              float t = t00;
@@ -83,10 +109,11 @@ namespace vopat {
                // Sample a distance
                t = t - (log(1.0f - rnd()) / (majorant*DENSITY)); 
                
-               if (/*we left the cell: */t >= t11)
+               if (/*we left the cell: */t >= t11) {
                  /* leave this cell, but tell DDA to keep on going */
-                 return true;
-               
+                 break;
+               }
+
                       // Update current position
                vec3f P = org + t * dir;
                
@@ -99,6 +126,7 @@ namespace vopat {
                
                vec4f xf = dvr.transferFunction(f,ray.dbg);
                f = xf.w;
+               vec3f albedo = vec3f(xf);
                if (ray.dbg) printf("volume at %f is %f -> %f %f %f: %f\n",
                                    t,f,xf.x,xf.y,xf.z,xf.w);
                
@@ -106,46 +134,84 @@ namespace vopat {
                if (rnd() >= (f / (majorant*DENSITY)))
                  // sampled a virtual volume; keep on going
                  continue;
-               
-               if (ray.isShadow) {
-                 rayKilled = true;
-                 return false; // terminate DDA
-               }
 
-               org = P;//worldP; 
-               ray.origin = org;
-               
-               throughput *= vec3f(xf.x,xf.y,xf.z);
-               {
-                 // add ambient illumination 
-                 vec3f color = throughput * dvr.ambient();
-                 if (ray.crosshair) color = vec3f(1.f)-color;
-                 vopat.addPixelContribution(ray.pixelID,color);
+               sample.type     = Surflet::Density;
+               sample.t        = t;
+               sample.isectPos = P;
+               sample.kd       = albedo;
+
+               if (f > 1e-4f) {
+                 vec3f g;
+                 dvr.getGradient(g,P,ray.dbg);
+                 sample.gn = sample.sn = normalize(g);
+               } else {
+                 sample.gn = sample.sn = vec3f(0.f);
                }
-               
-               const int numLights = dvr.numDirLights();
-               if (numLights == 0) {
-                 rayKilled = true;
-                 return false;
-               }
-               
-               int which = int(rnd() * numLights); if (which == numLights) which = 0;
-               throughput *= ((float)numLights * dvr.lightRadiance(which));
-               ray.throughput = to_half(throughput);
-               
-               ray.setDirection(dvr.lightDirection(which));
-               dir = ray.getDirection();
-               
-               t0 = 0.f;
-               t1 = CUDART_INF;
-               boxTest(myBox,ray,t0,t1);
-               t = 0.f; // reset t to the origin
-               ray.isShadow = true;
-               
-               // restart DDA
-               rayKilled = false;
+               break;
+             }
+              
+             if (!sample.wasHit())
+               return true; // keep DDA on going
+
+             if (ray.isShadow) {
+               rayKilled = true;
                return false; // terminate DDA
              }
+
+             org = sample.isectPos;//worldP; 
+             ray.origin = org;
+             
+             {
+               // add ambient illumination 
+               vec3f color = throughput * dvr.ambient();
+               if (ray.crosshair) color = vec3f(1.f)-color;
+               vopat.addPixelContribution(ray.pixelID,color);
+             }
+             
+             const int numLights = dvr.numDirLights();
+             if (numLights == 0) {
+               rayKilled = true;
+               return false;
+             }
+             
+             // add BRDF shading
+             int which = dvr.uniformSampleOneLight(rnd);
+             if (length(sample.sn) > .9f) {
+               throughput *= sample.kd * fabsf(dot(sample.sn,dvr.lightDirection(which)))
+                    * dvr.lightRadiance(which);
+             } else {
+               throughput *= sample.kd * ((float)numLights * dvr.lightRadiance(which));
+             }
+
+             ray.throughput = to_half(throughput);
+          
+#if 0
+             vec3f lightDir = dvr.lightDirection(which);
+#else
+             float lpdf = 0.f;
+             vec3f lightDir = dvr.sampleLightDirection(which,rnd,lpdf);
+#endif
+             ray.setDirection(lightDir);
+             dir = ray.getDirection();
+             
+             t0 = 0.f;
+             t1 = CUDART_INF;
+             boxTest(myBox,ray,t0,t1);
+             t = 0.f; // reset t to the origin
+             ray.isShadow = true;
+            
+             if (ray.dbg) {
+               printf("Shadow ray: origin: (%f,%f,%f), direction: (%f,%f,%f), t0: %f, t1: %f\n",
+                      ray.origin.x,ray.origin.y,ray.origin.z,
+                      ray.getDirection().x,
+                      ray.getDirection().y,
+                      ray.getDirection().z,
+                      t0,t1);
+             }
+
+             // restart DDA
+             rayKilled = false;
+             return false; // terminate DDA
            },
            false
            /*ray.dbg*/);          

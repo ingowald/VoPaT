@@ -28,7 +28,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 
@@ -101,7 +102,7 @@ namespace vopat {
         int which = int(rnd() * numLights); if (which == numLights) which = 0;
         throughput *= ((float)numLights * dvr.lightRadiance(which));
         ray.throughput = to_half(throughput);
-            
+        
         ray.setDirection(dvr.lightDirection(which));
         dir = ray.getDirection();
             
@@ -141,7 +142,8 @@ namespace vopat {
     static inline __device__
     void traceRay(int tid,
                   const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr)
+                  const typename Vopat::VolumeGlobals  &dvr,
+                  const typename Vopat::SurfaceGlobals &surf)
     {
       Ray ray = vopat.rayQueueIn[tid];
 

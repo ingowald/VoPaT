@@ -17,6 +17,7 @@
 #pragma once
 
 #include "vopat/common.h"
+#include "VoxelData.h"
 
 namespace vopat {
 
@@ -32,8 +33,7 @@ namespace vopat {
   __global__ void initMacroCell(MacroCell *mcData,
                                 vec3i mcDims,
                                 int mcWidth,
-                                float *voxelData,
-                                vec3i voxelDims);
+                                VoxelData volume);
   
   /*! assuming the min/max of the raw data values are already set in a
     macrocell, this updates the *mapped* min/amx values from a given

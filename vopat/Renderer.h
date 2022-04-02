@@ -27,5 +27,6 @@ namespace vopat {
                            CommBackend *comm,
                            Model::SP model,
                            const std::string &fileNameBase,
+                           // this is the rank WITHIN THE ISLAND
                            int rank);
 }

@@ -84,6 +84,29 @@ namespace vopat {
     printf("\r(%i) loaded 100%%...\n",ID);fflush(0);
   }
 
+  /*! load a given time step and variable's worth of voxels from given file name */
+  void Brick::load(std::vector<float> &hostMem,
+                   const std::string &fileName)
+  {
+    std::ifstream in(fileName,std::ios::binary);
+    if (!in) throw std::runtime_error("could not open '"+fileName+"'");
+    std::vector<float> slice;
+    slice.resize(numVoxels.x*numVoxels.y);
+    hostMem.resize(numVoxels.x*size_t(numVoxels.y)*numVoxels.z);
+    int lastPing = -1;
+    for (int z=0;z<numVoxels.z;z++) {
+      in.read((char*)slice.data(),slice.size()*sizeof(float));
+      const int increments = 1;// print in 5% intervals
+      int percentDone = increments * int(z * 100.f / (increments*numVoxels.z));
+      if (percentDone != lastPing) {
+        printf("\r(%i) loaded %i%%   ",ID,percentDone);fflush(0);
+        lastPing = percentDone;
+      }
+      memcpy(hostMem.data()+z*slice.size(),slice.data(),slice.size()*sizeof(float));
+    }
+    printf("\r(%i) loaded 100%%...\n",ID);fflush(0);
+  }
+
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {

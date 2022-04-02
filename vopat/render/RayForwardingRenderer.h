@@ -78,6 +78,10 @@ namespace vopat {
       virtual void setTransferFunction(const std::vector<vec4f> &cm,
                                        const interval<float> &range,
                                        const float density) {};
+      virtual void setISO(int numActive,
+                          const std::vector<int> &active,
+                          const std::vector<float> &values,
+                          const std::vector<vec3f> &colors) {};
       virtual void generatePrimaryWave(const Globals &globals) = 0;
       virtual void traceLocally(const Globals &globals) = 0;
       virtual void setLights(float ambient,
@@ -118,6 +122,14 @@ namespace vopat {
                               const float density) override
     {
       nodeRenderer->setTransferFunction(cm,range,density);
+      resetAccumulation();
+    }
+    void setISO(int numActive,
+                const std::vector<int> &active,
+                const std::vector<float> &values,
+                const std::vector<vec3f> &colors) override
+    {
+      nodeRenderer->setISO(numActive,active,values,colors);
       resetAccumulation();
     }
     void setLights(float ambient,
@@ -243,6 +255,7 @@ namespace vopat {
   void RayForwardingRenderer<T>::renderLocal()
   {
     vec2i blockSize(16);
+    PRINT(islandFbSize);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
     
     int numSPP = 1;
@@ -273,8 +286,11 @@ namespace vopat {
     }
 
     CUDA_SYNC_CHECK();
+    PING;
+    PRINT(globals.fbSize);
+    
     if (numBlocks != vec2i(0))
-      writeLocalFB<<<numBlocks,blockSize>>>(globals.fbSize,
+      writeLocalFB<<<numBlocks,blockSize>>>(islandFbSize,//globals.fbSize,
                                             localFB.get(),
                                             accumBuffer.get(),
                                             (globals.sampleID+1));

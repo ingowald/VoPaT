@@ -58,6 +58,21 @@ target_link_libraries(ncToRaw
 endif()
 
 
+# ==================================================================
+option(BUILD_FITS_TO_RAW_TOOL "Build fits-to-raw tool" OFF)
+if (BUILD_FITS_TO_RAW_TOOL)
+find_package(cfitsio REQUIRED)
+add_executable(fitsToRaw
+  model/fitsToRaw.cpp
+  )
+target_include_directories(fitsToRaw PUBLIC ${CFITSIO_INCLUDE_DIRS})
+target_link_libraries(fitsToRaw
+  vopat_model
+  ${CFITSIO_LIBRARIES}
+  )
+endif()
+
+
 
 #add_executable(vopatGenMacrocells
 #  model/macrocells.cpp
@@ -65,7 +80,7 @@ endif()
 #target_link_libraries(vopatGenMacrocells
 #  vopat_model
 #  )
-
+option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the device" ON)
 add_library(vopat_render
   Renderer.cpp
   ModelConfig.cpp
@@ -94,7 +109,10 @@ target_link_libraries(vopat_render
   owl_viewer
   MPI::MPI_CXX
   )
-set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
+if(VOPAT_VOXELS_AS_TEXTURE)
+  target_compile_definitions(vopat_render PUBLIC VOPAT_VOXELS_AS_TEXTURE=1)
+endif()
 
 # ==================================================================
 add_executable(vopatViewer
@@ -109,9 +127,19 @@ target_link_libraries(vopatViewer
 
 # ==================================================================
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
+find_package(Qt5Core)
+find_package(Qt5Gui)
+find_package(Qt5Widgets)
+qt5_wrap_cpp(WRAPPED_HEADERS isoDialog.h)
+qt5_wrap_ui(WRAPPED_UI isoDialog.ui)
 add_executable(vopatQTViewer
   qtViewer.cpp
+  isoDialog.cpp
+  ${WRAPPED_UI}
+  ${WRAPPED_HEADERS}
   )
+# moc'd headers:
+target_include_directories(vopatQTViewer PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(vopatQTViewer
   PUBLIC
   vopat_render

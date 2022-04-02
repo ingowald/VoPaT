@@ -210,6 +210,31 @@ namespace vopat {
     renderer->setTransferFunction(cm,range,density);
   }
   
+  void MPIWorker::cmd_setISO()
+  {
+    // ------------------------------------------------------------------
+    // get args....
+    // ------------------------------------------------------------------
+    int count;
+    int numActive;
+    std::vector<int> active;
+    std::vector<float> values;
+    std::vector<vec3f> colors;
+    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
+    active.resize(count);
+    values.resize(count);
+    colors.resize(count);
+    MPI_Bcast((void*)&numActive,sizeof(numActive),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)active.data(),count*sizeof(*active.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)values.data(),count*sizeof(*values.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    MPI_Bcast((void*)colors.data(),count*sizeof(*colors.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+
+    // ------------------------------------------------------------------
+    // and execute
+    // ------------------------------------------------------------------
+    renderer->setISO(numActive,active,values,colors);
+  }
+
   void MPIWorker::run()
   {
     while (1) {
@@ -236,6 +261,9 @@ namespace vopat {
         break;
       case SET_TRANSFER_FUNCTION:
         cmd_setTransferFunction();
+        break;
+      case SET_ISO:
+        cmd_setISO();
         break;
       case SET_LIGHTS:
         cmd_setLights();

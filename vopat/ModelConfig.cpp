@@ -19,7 +19,9 @@
 
 namespace vopat {
 
-  const size_t modelConfigMagic = 0x12354522ull + 3;
+  constexpr size_t modelConfigVersion   = 4ull;
+  constexpr size_t modelConfigMagicBase = 0x12354522ull;
+  constexpr size_t modelConfigMagic     = modelConfigMagicBase + modelConfigVersion;
   
   void ModelConfig::save(const std::string &fileName)
   {
@@ -30,6 +32,9 @@ namespace vopat {
     write(out,xf.relDomain);
     write(out,xf.colorMap);
     write(out,xf.opacityScale);
+    write(out,iso.active);
+    write(out,iso.colors);
+    write(out,iso.values);
     write(out,camera);
     write(out,lights.ambient);
     write(out,lights.directional);
@@ -44,7 +49,7 @@ namespace vopat {
     size_t magic;
     ModelConfig mc;
     read(in,magic);
-    if (magic != modelConfigMagic) {
+    if (magic < modelConfigMagicBase + 3ull) {
       PRINT(modelConfigMagic);
       PRINT(magic);
       throw std::runtime_error("invalid or outdated .vtp file");
@@ -53,6 +58,11 @@ namespace vopat {
     read(in,mc.xf.relDomain);
     read(in,mc.xf.colorMap);
     read(in,mc.xf.opacityScale);
+    if (modelConfigMagic >= modelConfigMagicBase + 4ull) {
+      read(in,mc.iso.active);
+      read(in,mc.iso.colors);
+      read(in,mc.iso.values);
+    }
     read(in,mc.camera);
     read(in,mc.lights.ambient);
     read(in,mc.lights.directional);

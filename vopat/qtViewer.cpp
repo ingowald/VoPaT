@@ -17,6 +17,7 @@
 // #include "brix/mpi/MPIMaster.h"
 
 #include "vopat/common.h"
+#include "vopat/isoDialog.h"
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
 #include "vopat/Renderer.h"
@@ -65,7 +66,8 @@ namespace vopat {
                 Model::SP model,
                 ModelConfig::SP _modelConfig,
                 qtOWL::XFEditor *xfEditor)
-      : master(master),
+      : inherited("",cmdline.windowSize),
+        master(master),
         model(model),
         xfEditor(xfEditor),
         modelConfig(_modelConfig)
@@ -253,6 +255,47 @@ namespace vopat {
                                  modelConfig->xf.getRange(),
                                  modelConfig->xf.getDensity());
     };
+    void isoToggled(int iso, bool enabled)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.active[iso] = (int)enabled;
+      }
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
+    void isoColorChanged(int iso, QColor clr)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.colors[iso] = {(float)clr.redF(),
+                                        (float)clr.greenF(),
+                                        (float)clr.blueF()};
+      }
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
+    void isoValueChanged(int iso, float value)
+    {
+      if (iso>=0 && iso<ModelConfig::maxISOs) {
+        modelConfig->iso.values[iso] = value;
+      }
+      int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                         modelConfig->iso.active.end(),
+                                         [](int i) { return i!=0; });
+      master.setISO(numActive,
+                    modelConfig->iso.active,
+                    modelConfig->iso.values,
+                    modelConfig->iso.colors);
+    }
                                      
   public:
     qtOWL::XFEditor *xfEditor;
@@ -331,7 +374,7 @@ namespace vopat {
       // create renderer, workers, etc.
       // ******************************************************************
       const bool isMaster = mpiBackend.isMaster;
-      int myRank = mpiBackend.myRank();
+      int myRank = mpiBackend.islandRank();
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer
@@ -406,7 +449,6 @@ namespace vopat {
       const interval<float> absDomain = modelConfig->xf.absDomain;
       const float opacityScale = modelConfig->xf.opacityScale;
       
-      
       xfEditor->setColorMap(modelConfig->xf.colorMap);
       xfEditor->setOpacityScale(opacityScale);
       xfEditor->setRelDomain(relDomain);
@@ -414,6 +456,19 @@ namespace vopat {
       
       // xfEditor->cmSelectionChanged(0);
       // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
+      
+      IsoDialog isoDialog(absDomain);
+      QObject::connect(&isoDialog,&IsoDialog::isoToggled,
+                       &viewer, &VoPaTViewer::isoToggled);
+      QObject::connect(&isoDialog,&IsoDialog::isoColorChanged,
+                       &viewer, &VoPaTViewer::isoColorChanged);
+      QObject::connect(&isoDialog,&IsoDialog::isoValueChanged,
+                       &viewer, &VoPaTViewer::isoValueChanged);
+
+    
+      isoDialog.setISOs(modelConfig->iso.active,
+                        modelConfig->iso.values,
+                        modelConfig->iso.colors);
 
       // -------------------------------------------------------
       // and create the window ...
@@ -422,6 +477,8 @@ namespace vopat {
       viewer.updateLights();
       
       guiWindow.show();
+      isoDialog.raise();
+      isoDialog.show();
       
       return app.exec();
     } catch (std::exception &e) {
