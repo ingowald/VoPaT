@@ -15,6 +15,7 @@ struct RaflConfig {
 
 rafl_context_t rafl_init(MPI_Comm          comm,
                          int               gpuID,
+                         int               masterRank,
                          const RaflConfig *config);
 
 /*! tells the context what frame size to use */
