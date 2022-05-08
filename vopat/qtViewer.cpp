@@ -17,7 +17,10 @@
 // #include "brix/mpi/MPIMaster.h"
 
 #include "vopat/common.h"
+#include "vopat/headless.h"
+#ifndef HEADLESS
 #include "vopat/isoDialog.h"
+#endif
 #include "vopat/mpi/MPIMaster.h"
 #include "vopat/mpi/MPIWorker.h"
 #include "vopat/Renderer.h"
@@ -55,10 +58,17 @@ namespace vopat {
     exit(msg != "");
   }
 
+#ifdef HEADLESS
+  struct VoPaTViewer : public Headless
+  {
+  public:
+    typedef Headless inherited;
+#else
   struct VoPaTViewer : public qtOWL::OWLViewer
   {
   public:
     typedef qtOWL::OWLViewer inherited;
+#endif
 
     MPIMaster &master;
     Model::SP model;
@@ -225,8 +235,10 @@ namespace vopat {
       master.setLights(modelConfig->lights.ambient,
                        modelConfig->lights.directional);
     }
-    
+   
+#ifndef HEADLESS
     vec2i fbSize { -1,-1 };
+#endif
     bool  displayFPS = true;
 
     // signals:
@@ -408,12 +420,13 @@ namespace vopat {
         modelConfig->camera.fovy = 70.f;
       }
 
-      // ******************************************************************
-      // this is the master - set up window
-      // ******************************************************************
       QApplication app(argc,argv);
       MPIMaster master(mpiBackend,renderer);
       
+#ifndef HEADLESS
+      // ******************************************************************
+      // this is the master - set up window
+      // ******************************************************************
       QMainWindow guiWindow;
       qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor(model->valueRange);
 
@@ -481,6 +494,36 @@ namespace vopat {
       isoDialog.show();
       
       return app.exec();
+#else
+      // Headless viewer
+      VoPaTViewer viewer(master,model,modelConfig,NULL);
+      viewer.setCameraOrientation(modelConfig->camera.from,
+                                  modelConfig->camera.at,
+                                  modelConfig->camera.up,
+                                  modelConfig->camera.fovy);
+      viewer.camera.setUpVector(modelConfig->camera.up);
+
+      viewer.setWorldScale(.1f*length(sceneBounds.span()));
+      viewer.resize(cmdline.windowSize);
+      viewer.updateLights();
+
+      // Emulate what slots do initially, when xfeditor is initialized..
+      {
+        master.setTransferFunction(modelConfig->xf.colorMap,
+                                   modelConfig->xf.getRange(),
+                                   modelConfig->xf.getDensity());
+
+        int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+                                           modelConfig->iso.active.end(),
+                                           [](int i) { return i!=0; });
+        master.setISO(numActive,
+                      modelConfig->iso.active,
+                      modelConfig->iso.values,
+                      modelConfig->iso.colors);
+      }
+      viewer.run();
+      return 0;
+#endif
     } catch (std::exception &e) {
       std::cout << "Fatal runtime error: " << e.what() << std::endl;
       exit(1);

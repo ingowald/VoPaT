@@ -148,6 +148,22 @@ target_link_libraries(vopatQTViewer
 set_property(TARGET vopatQTViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 set_property(TARGET vopatQTViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
 
+
+# ==================================================================
+set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
+add_executable(vopatHeadlessViewer
+  qtViewer.cpp
+  headless.cpp
+  )
+target_link_libraries(vopatHeadlessViewer
+  PUBLIC
+  vopat_render
+  qtOWL
+  )
+set_property(TARGET vopatHeadlessViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
+target_compile_definitions(vopatHeadlessViewer PUBLIC HEADLESS)
+
 #get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
 #string(REPLACE "-fPIC" "" new_core_options ${core_options})
 #set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options})
