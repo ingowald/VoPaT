@@ -157,8 +157,8 @@ namespace vopat {
     if (isMaster()) {
       /* nothing to do on master yet, wait for workers to render... */
       assert(fbPointer);
-      assert(fbSize.x > 0);
-      assert(fbSize.y > 0);
+      assert(worldFbSize.x > 0);
+      assert(worldFbSize.y > 0);
       comm->master.toWorkers->indexedGather
         (masterFB.get(),
          worldFbSize.x*sizeof(uint32_t),
