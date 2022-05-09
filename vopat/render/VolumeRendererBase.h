@@ -180,6 +180,23 @@ namespace vopat {
   }
 
 #if VOPAT_UMESH
+  inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
+  {
+    if (!myRegion.contains(P)) { f = 0.f; return false; }
+    return umesh.sample(f,P-this->myRegion.lower,dbg);
+  }
+  /*! look up the given 3D (world-space) point in the volume, and return the gradient */
+  inline __device__ bool VolumeRenderer::Globals::getGradient(vec3f &g, vec3f P, bool dbg) const
+  {
+    vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
+    if (!myRegion.contains(P)) {
+      g = vec3f(0.f);
+      return false;
+    }
+
+    const vec3f delta = gradientDelta;
+    return umesh.gradient(g,P-this->myRegion.lower,delta,dbg);
+  }
 #else  
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */
   inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const

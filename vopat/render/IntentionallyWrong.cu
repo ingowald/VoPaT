@@ -42,9 +42,13 @@ namespace vopat {
       boxTest(myBox,ray,t0,t1);
 
       Random rnd((int)ray.pixelID,vopat.sampleID+vopat.islandRank*0x123456);
-      vec3i numVoxels = dvr.volume.dims;
+#if VOPAT_UMESH
+      vec3i numVoxels = 2;
+      vec3i numCells  = 1;
+#else
+      vec3i numVoxels = dvr.mc.dims;
       vec3i numCells  = numVoxels - 1;
-
+#endif
       vec3i singleCell = vec3i(1); // just testing...
 
       // maximum possible voxel density

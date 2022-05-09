@@ -71,6 +71,7 @@ namespace gdt {
 
     template<int NUM_CHILDREN>
     struct Node {
+      enum { numChildren = NUM_CHILDREN };
       vec3f origin;
       float width;
       struct { 

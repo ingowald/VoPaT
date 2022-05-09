@@ -29,15 +29,112 @@ namespace vopat {
   
   struct UMeshData {
     inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
+    inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
     /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
     inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
     
-    vec4f *vertices;
-    vec4i *tets;
+    vec3f *vertices;
+    float *scalars;
+    vec4i *indices;
     int    numVertices;
     int    numTets;
-    BVHNode *bvh;
+    BVHNode *bvhNodes;
   };
+  
+/*! computes the (oriented) volume of the tet given by the four
+    vertices */
+inline __device__
+float volume(const vec3f &P,
+             const vec3f &A,
+             const vec3f &B,
+             const vec3f &C)
+{
+  return dot(P-A,cross(B-A,C-A));
+}
+
+/*! compute point-in-tet test for given point P. If point is inside
+    the tet, this linearly interpolates among the tet's vertex values,
+    and returns true (the return value is passed through &value); if
+    outside, it returns false, and value is undefined */
+  inline __device__ bool UMeshData::sampleElement(const int tetID, float &value, vec3f P, bool dbg) const
+// inline __device__ bool
+// interpolateTet(const int tetID,
+//                const vec3f &P,
+//                float &value)
+{
+    const vec4i index = indices[tetID];
+    const vec3f V0 = vertices[index.x];
+    const vec3f V1 = vertices[index.y];
+    const vec3f V2 = vertices[index.z];
+    const vec3f V3 = vertices[index.w];
+    
+    const vec3f P0 = (const vec3f &)V0;
+    const vec3f P1 = (const vec3f &)V1;
+    const vec3f P2 = (const vec3f &)V2;
+    const vec3f P3 = (const vec3f &)V3;
+
+    const float vol_all = volume(/*point*/P0,/*base-tri*/P1,P3,P2);
+    if (vol_all == 0.f) return false;
+    
+    const float bary0 = volume(/*point*/P,/*base-tri*/P1,P3,P2) / vol_all;
+    if (bary0 < 0.f) return false;
+    
+    const float bary1 = volume(/*point*/P,/*base-tri*/P0,P2,P3) / vol_all;
+    if (bary1 < 0.f) return false;
+    
+    const float bary2 = volume(/*point*/P,/*base-tri*/P0,P3,P1) / vol_all;
+    if (bary2 < 0.f) return false;
+    
+    const float bary3 = volume(/*point*/P,/*base-tri*/P0,P1,P2) / vol_all;
+    if (bary3 < 0.f) return false;
+
+    value
+      = //attrPerVertex
+      // ?
+      (bary0 * scalars[index.x] +
+       bary1 * scalars[index.y] +
+       bary2 * scalars[index.z] +
+       bary3 * scalars[index.w])
+      // : scalars[tetID]
+      ;
+    return true;
+}
+
+  inline __device__ bool UMeshData::sample(float &f, vec3f P, bool dbg) const
+  {
+    int stackPtr = 0;
+    int nodeStack[20];
+    int nodeID = 0;
+    while (1) {
+      const BVHNode node = bvhNodes[nodeID];
+      for (int i=0;i<node.numChildren;i++) {
+        auto cr = node.childRef[i];
+        if (!cr.valid() || !node.getBounds(i).contains(P)) continue;
+        if (cr.isLeaf()) {
+          if (sampleElement(cr.getPrimIndex(),f,P,dbg))
+            return true;
+        } else {
+          nodeStack[stackPtr++] = cr.getChildIndex();
+        }
+      }
+      if (stackPtr == 0) return false;
+      nodeID = nodeStack[--stackPtr];
+    }
+  }
+  
+  inline __device__ bool UMeshData::gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const
+  {
+    float right,left,top,bottom,front,back;
+    sample(right, P+vec3f(delta.x,0.f,0.f),dbg);
+    sample(left,  P-vec3f(delta.x,0.f,0.f),dbg);
+    sample(top,   P+vec3f(0.f,delta.y,0.f),dbg);
+    sample(bottom,P-vec3f(0.f,delta.y,0.f),dbg);
+    sample(front, P+vec3f(0.f,0.f,delta.z),dbg);
+    sample(back,  P-vec3f(0.f,0.f,delta.z),dbg);
+    g = vec3f(right-left,top-bottom,front-back);
+    return true;
+  }
+
 #endif
   
   struct VoxelData {
