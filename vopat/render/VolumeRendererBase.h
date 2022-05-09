@@ -39,7 +39,6 @@ namespace vopat {
     return {cosf(phi) * sinTheta, sinf(phi) * sinTheta, cosTheta};
   }
 
-
   struct VolumeRenderer {
     enum { MAX_DIR_LIGHTS = 2 };
   
@@ -92,7 +91,11 @@ namespace vopat {
         int             numValues = 0;
       } xf;
       /*! my *lcoal* per-rank data */
+#if VOPAT_UMESH
+      UMeshData umesh;
+#else
       VoxelData volume;
+#endif
       /* macro cells */
       struct {
         MacroCell *data;
@@ -175,7 +178,9 @@ namespace vopat {
     int i = min(this->xf.numValues-1,int(f * this->xf.numValues));
     return this->xf.values[i];
   }
-  
+
+#if VOPAT_UMESH
+#else  
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */
   inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
   {
@@ -210,5 +215,7 @@ namespace vopat {
     const vec3f delta = gradientDelta;
     return volume.gradient(g,P-this->myRegion.lower,delta,dbg);
   }
+#endif
+  
 } // :vopat
 

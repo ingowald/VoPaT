@@ -31,13 +31,14 @@ namespace vopat {
   struct Brick {
     typedef std::shared_ptr<Brick> SP;
     
+    Brick(int ID) : ID(ID) {};
     static SP create(int ID) { return std::make_shared<Brick>(ID); }
+#if VOPAT_UMESH
+#else
     static SP create(int ID,
                      const vec3i &numVoxelsTotal,
                      const box3i &desiredCellRange)
     { return std::make_shared<Brick>(ID,numVoxelsTotal,desiredCellRange); }
-    
-    Brick(int ID) : ID(ID) {};
     Brick(int ID,
           /*! total num voxels in the *entire* model */
           const vec3i &numVoxelsTotal,
@@ -51,36 +52,38 @@ namespace vopat {
             including (4,4) (ie, the brick would have 2x2 cells and 3x3
             voxels. */
           const box3i &desiredCellRange);
-
-    std::string toString() const;
-
+    
     /*! loads this brick's voxels - ie, only a range of the full file - from a raw file */
     template<typename T=float>
     std::vector<float> loadRegionRAW(const std::string &rawFileName);
+#endif
 
-#if 1
+    std::string toString() const;
+
+#if VOPAT_UMESH
+    /*! load a given time step and variable's worth of voxels from given file name */
+    std::vector<float> load(const std::string &fileName);
+#else
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(CUDAArray<float> &devMem, const std::string &fileName);
 
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(std::vector<float> &hostMem, const std::string &fileName);
-#else
-    /*! load a given time step and variable's worth of voxels from given file name */
-    std::vector<float> load(const std::string &fileName);
 #endif
     
     /*! linear numbering of this brick, relative to all bricks in the parent model */
     const int ID;
     interval<float> valueRange;
-    box3i voxelRange;
+#if VOPAT_UMESH
+    umesh::UMesh::SP umesh;
+    box3f domain;
+#else
     box3i cellRange;
+    box3i voxelRange;
     box3f spaceRange;
     vec3i numVoxels;
     vec3i numCells;
     vec3i numVoxelsParent;
-#if VOPAT_UMESH
-    umesh::UMesh::SP mesh;
-#else
 #endif
   };
   

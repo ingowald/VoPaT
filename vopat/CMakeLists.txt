@@ -41,12 +41,15 @@ if (VOPAT_UMESH)
 endif()
 
 # ==================================================================
+if (VOPAT_UMESH)
+else()
 add_executable(vopatSplitRaw
   model/splitter.cpp
   )
 target_link_libraries(vopatSplitRaw
   vopat_model
   )
+endif()
 
 # ==================================================================
 add_executable(vopatMakeMagField

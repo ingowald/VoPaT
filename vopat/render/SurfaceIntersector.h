@@ -59,7 +59,11 @@ namespace vopat {
     struct Globals {
 
       /*! my *lcoal* per-rank voxel data */
+#if VOPAT_UMESH
+      UMeshData umesh;
+#else
       VoxelData volume;
+#endif
 
       constexpr static unsigned MaxISOs = 4;
 
@@ -84,6 +88,10 @@ namespace vopat {
       {
         Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
 
+#if VOPAT_UMESH
+        auto &volume = umesh;
+#endif
+        
         // ISOs
         if (iso.numActive > 0) {
           const float dt = .5f;

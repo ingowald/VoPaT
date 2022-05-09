@@ -201,7 +201,11 @@ namespace vopat {
     {
       // Reuse for ISOs
       SurfaceIntersector::globals.gradientDelta = VolumeRenderer::globals.gradientDelta;
+#if VOPAT_UMESH
+      SurfaceIntersector::globals.umesh        = VolumeRenderer::globals.umesh;
+#else
       SurfaceIntersector::globals.volume        = VolumeRenderer::globals.volume;
+#endif
       SurfaceIntersector::globals.islandRank    = VolumeRenderer::globals.islandRank;
       SurfaceIntersector::globals.rankBoxes     = VolumeRenderer::globals.rankBoxes;
       // SurfaceIntersector::globals.numRanks      = VolumeRenderer::globals.numRanks;

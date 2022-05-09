@@ -63,12 +63,16 @@ namespace vopat {
     write(out,int(bricks.size()));
     for (int i=0;i<bricks.size();i++) {
       Brick::SP brick = bricks[i];
+#if VOPAT_UMESH
+      write(out,brick->domain);
+#else
       write(out,brick->voxelRange);
       write(out,brick->cellRange);
       write(out,brick->spaceRange);
       write(out,brick->numVoxels);
       write(out,brick->numCells);
       write(out,brick->numVoxelsParent);
+#endif
     }
     std::cout << OWL_TERMINAL_GREEN
               << "#done writing model to " << fileName
@@ -93,6 +97,9 @@ namespace vopat {
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
       Brick::SP brick = Brick::create(i);
+#if VOPAT_UMESH
+      read(in,brick->domain);
+#else
       read(in,brick->voxelRange);
       read(in,brick->cellRange);
       read(in,brick->spaceRange);
@@ -100,6 +107,7 @@ namespace vopat {
       read(in,brick->numCells);
       read(in,brick->numVoxelsParent);
       model->bricks.push_back(brick);
+#endif
     }
     std::cout << OWL_TERMINAL_GREEN
               << "#done loading, found " << model->bricks.size()

@@ -22,6 +22,8 @@ namespace vopat {
   // float clamp01(float f)
   // { return min(1.f,max(0.f,f)); }
 
+#if VOPAT_UMESH
+#else
   Brick::Brick(int ID,
                /*! total num voxels in the *entire* model */
                const vec3i &numVoxelsTotal,
@@ -46,7 +48,7 @@ namespace vopat {
     this->numCells  = this->voxelRange.size() - vec3i(1);
     this->numVoxelsParent = numVoxelsTotal;
   }
-  
+#endif
 
   template<typename T> float voxelToFloat(T t);
 
@@ -57,10 +59,21 @@ namespace vopat {
   std::string Brick::toString() const
   {
     std::stringstream ss;
+#if VOPAT_UMESH
+    ss << "Brick(domain=" << domain << ",umesh=";
+    if (umesh)
+      ss << umesh->toString();
+    else
+      ss << "null";
+    ss << ")";
+#else
     ss << "Brick{voxels begin/end=" << voxelRange << ", space="<<spaceRange << ", numVox=" << numVoxels << "}";
+#endif
     return ss.str();
   }
 
+#if VOPAT_UMESH
+#else
   /*! load a given time step and variable's worth of voxels from given file name */
   void Brick::load(CUDAArray<float> &devMem,
                    const std::string &fileName)
@@ -106,7 +119,7 @@ namespace vopat {
     }
     printf("\r(%i) loaded 100%%...\n",ID);fflush(0);
   }
-
+  
   template<typename T>
   std::vector<float> Brick::loadRegionRAW(const std::string &rawFileName)
   {
@@ -134,4 +147,5 @@ namespace vopat {
   template std::vector<float> Brick::loadRegionRAW<float>(const std::string &rawFileName);
   template std::vector<float> Brick::loadRegionRAW<uint8_t>(const std::string &rawFileName);   
   template std::vector<float> Brick::loadRegionRAW<uint16_t>(const std::string &rawFileName);   
+#endif
 }

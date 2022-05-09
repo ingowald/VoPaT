@@ -38,6 +38,11 @@ namespace vopat {
       boxTest(myBox,ray,t0,t1);
 
       Random rnd((int)ray.pixelID,vopat.sampleID+vopat.islandRank*0x123456);
+#if VOPAT_UMESH
+      const vec3i numMacrocells = dvr.mc.dims;
+      const vec3f stretch = vec3f(1.f);
+      const vec3f mcScale = vec3f(numMacrocells);
+#else
       vec3i numVoxels = dvr.volume.dims;
       vec3i numCells  = numVoxels - 1;
 
@@ -54,7 +59,8 @@ namespace vopat {
       
       vec3f stretch = vec3f(numMacrocells)*dvr.mc.width / vec3f(dvr.volume.dims-1);
       const vec3f mcScale = vec3f(numMacrocells) * rcp(stretch);
-
+#endif
+      
 #if 1
       // first do direct, then shadow
       bool rayKilled = false;

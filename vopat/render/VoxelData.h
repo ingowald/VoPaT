@@ -17,9 +17,29 @@
 #pragma once
 
 #include "vopat/common.h"
+#if VOPAT_UMESH
+# include "vopat/umesh/qbvh.h"
+#endif
 
 namespace vopat {
 
+#if VOPAT_UMESH
+  typedef gdt::qbvh::BVH<4> BVH;
+  typedef gdt::qbvh::Node<4> BVHNode;
+  
+  struct UMeshData {
+    inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
+    /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
+    inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
+    
+    vec4f *vertices;
+    vec4i *tets;
+    int    numVertices;
+    int    numTets;
+    BVHNode *bvh;
+  };
+#endif
+  
   struct VoxelData {
 #if VOPAT_VOXELS_AS_TEXTURE
     cudaTextureObject_t texObj;

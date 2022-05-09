@@ -16,8 +16,9 @@
 
 #pragma once
 
-#include "gdt/math/box.h"
-#include "gdt/parallel/parallel_for.h"
+#include "owl/common/math/box.h"
+// #include "gdt/math/box.h"
+// #include "gdt/parallel/parallel_for.h"
 // std
 #include <vector>
 #include <mutex>
@@ -29,6 +30,8 @@
 #define QBVH_DBG_PING QBVH_DBG(PING)
 
 namespace gdt {
+  using namespace owl;
+  using namespace owl::common;
   namespace qbvh {
 
     struct BuildPrim {

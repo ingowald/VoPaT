@@ -32,13 +32,23 @@ namespace vopat {
     // ------------------------------------------------------------------
     std::vector<box3f> hostRankBoxes;
     for (auto brick : model->bricks)
-      hostRankBoxes.push_back(brick->spaceRange);
+      hostRankBoxes.push_back(
+#if VOPAT_UMESH
+                              brick->domain
+#else
+                              brick->spaceRange
+#endif
+                              );
     rankBoxes.upload(hostRankBoxes);
     globals.rankBoxes = rankBoxes.get();
 
     myBrick = model->bricks[islandRank];
     const std::string fileName = Model::canonicalRankFileName(baseFileName,islandRank);
-#if VOPAT_VOXELS_AS_TEXTURE
+#if VOPAT_UMESH
+    myBrick->load(fileName);
+    globals.myRegion      = myBrick->domain;
+#else
+# if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
     myBrick->load(hostVoxels,fileName);
 
@@ -79,17 +89,18 @@ namespace vopat {
     // 2nd texture object for nearest filtering
     textureDesc.filterMode       = cudaFilterModePoint;
     CUDA_CALL(CreateTextureObject(&globals.volume.texObjNN,&resourceDesc,&textureDesc,0));
-#else
-#if 1
+# else
+#  if 1
     myBrick->load(voxels,fileName);
-#else
+#  else
     std::vector<float> loadedVoxels = myBrick->load(fileName);
     voxels.upload(loadedVoxels);
-#endif
+#  endif
     globals.volume.voxels = voxels.get();
-#endif
+# endif
     globals.volume.dims   = myBrick->numVoxels;//voxelRange.size();
     globals.myRegion      = myBrick->spaceRange;
+#endif
     /* initialize to model value range; xf editor may mess with that
        later on */
     globals.xf.domain = model->valueRange;
@@ -103,6 +114,9 @@ namespace vopat {
 
   void VolumeRenderer::initMacroCells()
   {
+#if VOPAT_UMESH
+    std::cout << "need to rebuild macro cells .." << std::endl;
+#else
     globals.mc.dims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
     mcData.resize(volume(globals.mc.dims));
     globals.mc.data  = mcData.get();
@@ -111,6 +125,7 @@ namespace vopat {
     VoxelData voxelData = *(VoxelData*)&globals.volume;
     initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
       (globals.mc.data,globals.mc.dims,mcWidth,voxelData);
+#endif
   }
 
   
