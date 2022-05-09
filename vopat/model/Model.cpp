@@ -28,7 +28,11 @@ namespace vopat {
     file */
   std::string Model::canonicalMasterFileName(const std::string &baseName)
   {
+#if VOPAT_UMESH
+    return baseName+".domains";
+#else
     return baseName+".vopat";
+#endif
   }
     
   /*! given a base file name prefix (including directory name, if
@@ -39,11 +43,17 @@ namespace vopat {
                                            const std::string &variable,
                                            int timeStep)
   {
+#if VOPAT_UMESH
+    char bid[100];
+    sprintf(bid,"%05i",rankID);
+    return baseName+"_"+bid+".umesh";
+#else
     char ts[100];
     sprintf(ts,"%05i",timeStep);
     char bid[100];
     sprintf(bid,"%05i",rankID);
     return baseName+"__"+variable+"__t"+ts+".b"+bid+".brick";
+#endif
   }
 
   void Model::save(const std::string &fileName)
@@ -86,7 +96,20 @@ namespace vopat {
     std::ifstream in(fileName);
     if (!in.good())
       throw std::runtime_error("could not open '"+fileName+"'");
-    
+
+#if VOPAT_UMESH
+    std::vector<box3f> brickDomains;
+    std::vector<interval<float>> valueRanges;
+    PING;
+    read/*Vector*/(in,brickDomains);
+    PRINT(brickDomains.size());
+    for (int i=0;i<brickDomains.size();i++) {
+      Brick::SP brick = Brick::create(i);
+      brick->domain = brickDomains[i];
+      model->bricks.push_back(brick);
+    }
+    PING;
+#else
     size_t fileMagic;
     read(in,fileMagic);
     if (fileMagic != file_format_magic)
@@ -109,6 +132,7 @@ namespace vopat {
       model->bricks.push_back(brick);
 #endif
     }
+#endif
     std::cout << OWL_TERMINAL_GREEN
               << "#done loading, found " << model->bricks.size()
               << " bricks..."

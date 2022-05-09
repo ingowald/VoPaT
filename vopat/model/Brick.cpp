@@ -23,6 +23,11 @@ namespace vopat {
   // { return min(1.f,max(0.f,f)); }
 
 #if VOPAT_UMESH
+  void Brick::load(const std::string &fileName)
+  {
+    PING;
+    umesh = umesh::UMesh::loadFrom(fileName);
+  }
 #else
   Brick::Brick(int ID,
                /*! total num voxels in the *entire* model */
