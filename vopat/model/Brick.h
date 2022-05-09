@@ -18,9 +18,12 @@
 
 #include "vopat/common.h"
 #include "vopat/render/CUDAArray.h"
+#if VOPAT_UMESH
+# include "umesh/UMesh.h"
+#endif
 
 namespace vopat {
-
+  
   /*! a "brick" refers to a sub-range of a larger (structured)
     volume, such that the entirety of all bricks conver all of the
     input volume's cells, and as such all share one "boundary"
@@ -75,6 +78,10 @@ namespace vopat {
     vec3i numVoxels;
     vec3i numCells;
     vec3i numVoxelsParent;
+#if VOPAT_UMESH
+    umesh::UMesh::SP mesh;
+#else
+#endif
   };
   
 }

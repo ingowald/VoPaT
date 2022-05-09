@@ -28,6 +28,7 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/)
 include(cmake/configure_build_type.cmake)
 
+add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 target_compile_definitions(owl_viewer

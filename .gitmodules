@@ -4,3 +4,6 @@
 [submodule "submodules/cuteeOWL"]
 	path = submodules/cuteeOWL
 	url = https://github.com/owl-project/cuteeOWL
+[submodule "submodules/umesh"]
+	path = submodules/umesh
+	url = https://gitlab.com/ingowald/umesh

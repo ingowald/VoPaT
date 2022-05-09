@@ -15,6 +15,7 @@
 # ======================================================================== #
 
 find_package(MPI REQUIRED)
+option(VOPAT_UMESH "Use unstructured Meshes!?" ON)
 
 # ==================================================================
 add_library(vopat_model
@@ -24,10 +25,20 @@ add_library(vopat_model
   model/Model.h
   model/Model.cpp
   )
+if (VOPAT_UMESH)
+  target_compile_definitions(vopat_model PUBLIC -DVOPAT_UMESH=1)
+endif()
 target_include_directories(vopat_model PUBLIC ${PROJECT_SOURCE_DIR})
 target_link_libraries(vopat_model PUBLIC
   owl::owl
   )
+if (VOPAT_UMESH)
+  add_custom_target(vopat_umesh_tools ALL)
+  add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
+  target_link_libraries(vopat_model PUBLIC
+    umesh
+    )
+endif()
 
 # ==================================================================
 add_executable(vopatSplitRaw
