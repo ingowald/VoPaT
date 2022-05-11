@@ -300,6 +300,7 @@ namespace vopat {
       ray    = DeviceKernels::generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
 #if 0
     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
+    if (ray.dbg) printf("----------- NEW RAY -----------\n");
 #else
     ray.dbg    = false;
 #endif

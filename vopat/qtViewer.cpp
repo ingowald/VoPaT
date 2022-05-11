@@ -387,6 +387,13 @@ namespace vopat {
       // ******************************************************************
       const bool isMaster = mpiBackend.isMaster;
       int myRank = mpiBackend.islandRank();
+#if VOPAT_UMESH
+      if (isMaster) {
+        std::cout << "got the following brick domains: " << std::endl;
+        for (auto brick : model->bricks)
+          std:: cout << "  - " << brick->domain << std::endl;
+      }
+#endif
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
       Renderer *renderer

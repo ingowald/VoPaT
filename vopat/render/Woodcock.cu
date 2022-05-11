@@ -86,7 +86,13 @@ namespace vopat {
                              cellIdx.y * dvr.mc.dims.x + 
                              cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y 
                              ].maxOpacity;
-            
+
+             if (ray.dbg)
+               printf("macrocell t=[%f %f], v=[%f %f] maj=%f\n",
+                      t00,t11,
+                      inputRange.lower,inputRange.upper,
+                      majorant);
+             
              bool noISO = true;
 
              if (surf.iso.numActive > 0) {
@@ -98,6 +104,7 @@ namespace vopat {
                  }
                }
              }
+
 
              if (majorant <= 0.f && noISO)
                return true; // this cell is empty, march to the next cell
@@ -137,9 +144,12 @@ namespace vopat {
                                    t,f,xf.x,xf.y,xf.z,xf.w);
                
                // Check if a collision occurred (real particles / real + fake particles)
-               if (rnd() >= (f / (majorant*DENSITY)))
+               if (rnd() >= (f / (majorant/**DENSITY*/))) {
+                 if (ray.dbg) printf(" -> sample %f/%f -> rejected\n",
+                                     f,majorant*DENSITY);
                  // sampled a virtual volume; keep on going
                  continue;
+               }
 
                sample.type     = Surflet::Density;
                sample.t        = t;

@@ -19,6 +19,7 @@
 #include "vopat/common.h"
 #if VOPAT_UMESH
 # include "vopat/umesh/qbvh.h"
+# include <umesh/UMesh.h>
 #endif
 
 namespace vopat {
@@ -36,9 +37,9 @@ namespace vopat {
     box3f  domain;
     vec3f *vertices;
     float *scalars;
-    vec4i *tets;
-    int    numVertices;
-    int    numTets;
+    umesh::UMesh::Tet *tets;
+    // int    numVertices;
+    // int    numTets;
     BVHNode *bvhNodes;
   };
   
@@ -63,7 +64,7 @@ float volume(const vec3f &P,
 //                const vec3f &P,
 //                float &value)
   {
-    const vec4i index = tets[tetID];
+    const umesh::UMesh::Tet index = tets[tetID];
     const vec3f V0 = vertices[index.x];
     const vec3f V1 = vertices[index.y];
     const vec3f V2 = vertices[index.z];

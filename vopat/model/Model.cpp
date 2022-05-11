@@ -99,16 +99,22 @@ namespace vopat {
 
 #if VOPAT_UMESH
     std::vector<box3f> brickDomains;
-    std::vector<interval<float>> valueRanges;
-    PING;
     read/*Vector*/(in,brickDomains);
-    PRINT(brickDomains.size());
     for (int i=0;i<brickDomains.size();i++) {
       Brick::SP brick = Brick::create(i);
       brick->domain = brickDomains[i];
       model->bricks.push_back(brick);
     }
-    PING;
+    std::vector<interval<float>> valueRanges;
+    read/*Vector*/(in,valueRanges);
+    if (valueRanges.size() != brickDomains.size())
+      throw std::runtime_error("seems like an older version of a spatially partitioned umesh - pls rebuild w/ value ranges");
+    model->valueRange = {};
+    for (auto vr : valueRanges)
+      model->valueRange.extend(vr);
+    // model->valueRange = { 0.f, 1.f };
+    // model->valueRange = {242616.f,259745.f};
+    PRINT(model->valueRange);
 #else
     size_t fileMagic;
     read(in,fileMagic);
@@ -120,9 +126,6 @@ namespace vopat {
     int numBricks = read<int>(in);
     for (int i=0;i<numBricks;i++) {
       Brick::SP brick = Brick::create(i);
-#if VOPAT_UMESH
-      read(in,brick->domain);
-#else
       read(in,brick->voxelRange);
       read(in,brick->cellRange);
       read(in,brick->spaceRange);
@@ -130,7 +133,6 @@ namespace vopat {
       read(in,brick->numCells);
       read(in,brick->numVoxelsParent);
       model->bricks.push_back(brick);
-#endif
     }
 #endif
     std::cout << OWL_TERMINAL_GREEN

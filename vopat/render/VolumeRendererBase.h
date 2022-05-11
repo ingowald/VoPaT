@@ -145,10 +145,17 @@ namespace vopat {
     CUDAArray<box3f>     rankBoxes;
     Brick::SP            myBrick;
     CUDAArray<MacroCell> mcData;
-#if VOPAT_VOXELS_AS_TEXTURE
+#if VOPAT_UMESH
+    CUDAArray<BVHNode> myBVHNodes;
+    CUDAArray<float> myScalars;
+    CUDAArray<vec3f> myVertices;
+    CUDAArray<umesh::UMesh::Tet> myTets;
+#else
+# if VOPAT_VOXELS_AS_TEXTURE
     cudaArray_t          voxelArray;
-#endif
+# endif
     CUDAArray<float>     voxels;
+#endif
     CUDAArray<vec4f>     colorMap;
     int mcWidth = 8;
     int islandRank = -1;
@@ -183,19 +190,18 @@ namespace vopat {
   inline __device__ bool VolumeRenderer::Globals::getVolume(float &f, vec3f P, bool dbg) const
   {
     if (!myRegion.contains(P)) { f = 0.f; return false; }
-    return umesh.sample(f,P-this->myRegion.lower,dbg);
+    return umesh.sample(f,P,dbg);
   }
   /*! look up the given 3D (world-space) point in the volume, and return the gradient */
   inline __device__ bool VolumeRenderer::Globals::getGradient(vec3f &g, vec3f P, bool dbg) const
   {
-    vec3ui cellID = vec3ui(floor(P) - this->myRegion.lower);
     if (!myRegion.contains(P)) {
       g = vec3f(0.f);
       return false;
     }
 
     const vec3f delta = gradientDelta;
-    return umesh.gradient(g,P-this->myRegion.lower,delta,dbg);
+    return umesh.gradient(g,P,delta,dbg);
   }
 #else  
   /*! look up the given 3D (world-space) point in the volume, and return interpolated scalar value */

@@ -27,6 +27,10 @@ namespace vopat {
   {
     PING;
     umesh = umesh::UMesh::loadFrom(fileName);
+    valueRange = {};
+    for (auto v : umesh->perVertex->values)
+      valueRange.extend(v);
+    PRINT(valueRange);
   }
 #else
   Brick::Brick(int ID,
