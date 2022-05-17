@@ -19,6 +19,120 @@
 
 namespace vopat {
 
+#if VOPAT_UMESH
+  inline __device__
+  float fatomicMin(float *addr, float value)
+  {
+    float old = *addr, assumed;
+    if(old <= value) return old;
+    do {
+      assumed = old;
+      old = atomicCAS((unsigned int*)addr, __float_as_int(assumed), __float_as_int(value));
+        
+    } while(old!=assumed);
+    return old;
+  }
+
+  inline __device__
+  float fatomicMax(float *addr, float value)
+  {
+    float old = *addr, assumed;
+    if(old >= value) return old;
+    do {
+      assumed = old;
+      old = atomicCAS((unsigned int*)addr, __float_as_int(assumed), __float_as_int(value));
+        
+    } while(old!=assumed);
+    return old;
+  }
+  
+  inline __device__
+  int project(float f,
+              const interval<float> range,
+              int dim)
+  {
+    return max(0,min(dim-1,int(dim*(f-range.lower)/(range.upper-range.lower))));
+  }
+
+  inline __device__
+  vec3i project(const vec3f &pos,
+                const box3f &bounds,
+                const vec3i &dims)
+  {
+    return vec3i(project(pos.x,{bounds.lower.x,bounds.upper.x},dims.x),
+                 project(pos.y,{bounds.lower.y,bounds.upper.y},dims.y),
+                 project(pos.z,{bounds.lower.z,bounds.upper.z},dims.z));
+  }
+
+  inline __device__
+  void rasterBox(MacroCell *d_mcGrid,
+                 const vec3i dims,
+                 const box3f worldBounds,
+                 const box4f primBounds4,
+                 bool dbg=false)
+  {
+    box3f pb = box3f(vec3f(primBounds4.lower),
+                     vec3f(primBounds4.upper));
+    if (pb.lower.x >= pb.upper.x) return;
+    if (pb.lower.y >= pb.upper.y) return;
+    if (pb.lower.z >= pb.upper.z) return;
+
+    vec3i lo = project(pb.lower,worldBounds,dims);
+    vec3i hi = project(pb.upper,worldBounds,dims);
+
+    for (int iz=lo.z;iz<=hi.z;iz++)
+      for (int iy=lo.y;iy<=hi.y;iy++)
+        for (int ix=lo.x;ix<=hi.x;ix++) {
+          const int cellID
+            = ix
+            + iy * dims.x
+            + iz * dims.x * dims.y;
+          auto &cell = d_mcGrid[cellID].inputRange;
+          fatomicMin(&cell.lower,primBounds4.lower.w);
+          fatomicMax(&cell.upper,primBounds4.upper.w);
+        }
+  }
+  
+  constexpr int MAX_GRID_SIZE = 1024;
+  
+  __global__ void clearMCs(MacroCell *mcData,
+                           vec3i dims)
+  {
+    int ix = threadIdx.x+blockIdx.x*blockDim.x; if (ix >= dims.x) return;
+    int iy = threadIdx.y+blockIdx.y*blockDim.y; if (iy >= dims.y) return;
+    int iz = threadIdx.z+blockIdx.z*blockDim.z; if (iz >= dims.z) return;
+
+    int ii = ix + dims.x*(iy + dims.y*(iz));
+    mcData[ii].inputRange.lower = +FLT_MAX;
+    mcData[ii].inputRange.upper = -FLT_MAX;
+  }
+  
+  __global__ void rasterTets(MacroCell *mcData,
+                             vec3i mcDims,
+                             box3f domain,
+                             vec3f *vertices,
+                             float *scalars,
+                             umesh::UMesh::Tet *tets,
+                             int numTets)
+  {
+    const int blockID
+      = blockIdx.x
+      + blockIdx.y * MAX_GRID_SIZE
+      ;
+    const int primIdx = blockID*blockDim.x + threadIdx.x;
+    if (primIdx >= numTets) return;    
+
+    umesh::UMesh::Tet tet = tets[primIdx];
+    const box4f primBounds4 = box4f()
+      .including(vec4f(vertices[tet.x],scalars[tet.x]))
+      .including(vec4f(vertices[tet.y],scalars[tet.y]))
+      .including(vec4f(vertices[tet.z],scalars[tet.z]))
+      .including(vec4f(vertices[tet.w],scalars[tet.w]));
+
+    rasterBox(mcData,mcDims,domain,primBounds4);
+  }
+#endif
+  
   VolumeRenderer::VolumeRenderer(Model::SP model,
                                  const std::string &baseFileName,
                                  int islandRank)
@@ -46,7 +160,32 @@ namespace vopat {
     const std::string fileName = Model::canonicalRankFileName(baseFileName,islandRank);
 #if VOPAT_UMESH
     myBrick->load(fileName);
+
+    std::cout << "brick and umesh loaded" << std::endl;
+    gdt::qbvh::BVH4 bvh;
+    std::cout << "building bvh ... " << prettyNumber(myBrick->umesh->tets.size()) << " tets" << std::endl;
+    gdt::qbvh::build(bvh,myBrick->umesh->tets.size(),
+                     [&](size_t tetID)->box3f {
+                       auto tet = myBrick->umesh->tets[tetID];
+                       return box3f((const vec3f&)myBrick->umesh->vertices[tet.x])
+                         .including((const vec3f&)myBrick->umesh->vertices[tet.y])
+                         .including((const vec3f&)myBrick->umesh->vertices[tet.z])
+                         .including((const vec3f&)myBrick->umesh->vertices[tet.w]);
+                     });
     globals.myRegion      = myBrick->domain;
+    globals.umesh.domain = myBrick->domain;
+
+    myScalars.upload(myBrick->umesh->perVertex->values);
+    globals.umesh.scalars   = myScalars.get();
+
+    myVertices.upload((const std::vector<vec3f> &)myBrick->umesh->vertices);
+    globals.umesh.vertices   = myVertices.get();
+    
+    myTets.upload(myBrick->umesh->tets);
+    globals.umesh.tets   = myTets.get();
+    
+    myBVHNodes.upload(bvh.nodes);
+    globals.umesh.bvhNodes = myBVHNodes.get();
 #else
 # if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
@@ -116,15 +255,47 @@ namespace vopat {
   {
 #if VOPAT_UMESH
     std::cout << "need to rebuild macro cells .." << std::endl;
-#else
-    globals.mc.dims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
+    globals.mc.dims = 64;
     mcData.resize(volume(globals.mc.dims));
+    CUDA_SYNC_CHECK();// PING;
+    // CUDA_CALL(Memset(mcData.get(),0,mcData.numBytes()));
+    clearMCs<<<(dim3)divRoundUp(globals.mc.dims,vec3i(4)),(dim3)vec3i(4)>>>
+      (mcData.get(),globals.mc.dims);
+    CUDA_SYNC_CHECK(); //PING;
     globals.mc.data  = mcData.get();
-    globals.mc.width = mcWidth;
+
+    if (myBrick->umesh->tets.empty())
+      throw std::runtime_error("no tets!?");
+    const unsigned int blockSize = 128;
+    unsigned int numTets = (int)myBrick->umesh->tets.size();
+    const unsigned int numBlocks = divRoundUp(numTets,blockSize*1024u);
+    // PING;
+    // PRINT(globals.mc.data);
+    // PRINT(globals.mc.dims);
+    // PRINT(globals.umesh.domain);
+    // PRINT(globals.umesh.vertices);
+    // PRINT(globals.umesh.scalars);
+    // PRINT(globals.umesh.tets);
+    // PRINT(numTets);
+    rasterTets
+      <<<{1024u,numBlocks},{blockSize,1u}>>>
+                             (globals.mc.data,
+                              globals.mc.dims,
+                              globals.umesh.domain,
+                              globals.umesh.vertices,
+                              globals.umesh.scalars,
+                              globals.umesh.tets,
+                              numTets);
+                             CUDA_SYNC_CHECK();
+#else
+                             globals.mc.dims = divRoundUp(myBrick->numCells,vec3i(mcWidth));
+                             mcData.resize(volume(globals.mc.dims));
+                             globals.mc.data  = mcData.get();
+                             globals.mc.width = mcWidth;
   
-    VoxelData voxelData = *(VoxelData*)&globals.volume;
-    initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
-      (globals.mc.data,globals.mc.dims,mcWidth,voxelData);
+                             VoxelData voxelData = *(VoxelData*)&globals.volume;
+                             initMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
+                               (globals.mc.data,globals.mc.dims,mcWidth,voxelData);
 #endif
   }
 

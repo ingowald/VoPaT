@@ -19,6 +19,7 @@
 #include "vopat/common.h"
 #if VOPAT_UMESH
 # include "vopat/umesh/qbvh.h"
+# include <umesh/UMesh.h>
 #endif
 
 namespace vopat {
@@ -32,12 +33,13 @@ namespace vopat {
     inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
     /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
     inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
-    
+
+    box3f  domain;
     vec3f *vertices;
     float *scalars;
-    vec4i *indices;
-    int    numVertices;
-    int    numTets;
+    umesh::UMesh::Tet *tets;
+    // int    numVertices;
+    // int    numTets;
     BVHNode *bvhNodes;
   };
   
@@ -61,8 +63,8 @@ float volume(const vec3f &P,
 // interpolateTet(const int tetID,
 //                const vec3f &P,
 //                float &value)
-{
-    const vec4i index = indices[tetID];
+  {
+    const umesh::UMesh::Tet index = tets[tetID];
     const vec3f V0 = vertices[index.x];
     const vec3f V1 = vertices[index.y];
     const vec3f V2 = vertices[index.z];
