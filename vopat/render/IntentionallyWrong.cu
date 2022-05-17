@@ -149,6 +149,7 @@ namespace vopat {
                   const typename Vopat::VolumeGlobals  &dvr,
                   const typename Vopat::SurfaceGlobals &surf)
     {
+#if 0
       Ray ray = vopat.rayQueueIn[tid];
 
       vec3f throughput = from_half(ray.throughput);
@@ -248,6 +249,7 @@ namespace vopat {
         // ray.throughput = to_half(throughput);
         vopat.forwardRay(tid,ray,nextNode);
       }
+#endif
     }
   };
 

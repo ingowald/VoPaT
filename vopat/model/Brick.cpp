@@ -73,6 +73,10 @@ namespace vopat {
   }
 
 #if VOPAT_UMESH
+  void Brick::load(const std::string &fileName)
+  {
+    umesh = umesh::UMesh::loadFrom(fileName);
+  }
 #else
   /*! load a given time step and variable's worth of voxels from given file name */
   void Brick::load(CUDAArray<float> &devMem,
