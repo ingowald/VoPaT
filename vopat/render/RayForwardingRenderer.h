@@ -71,6 +71,8 @@ namespace vopat {
       
       /*! number of rays in the input queue */
       int          numRaysInQueue;
+
+      bool fishy = false;
     };
 
     /*! abstraction for any sort of renderer that will generate and/or
@@ -84,7 +86,7 @@ namespace vopat {
                           const std::vector<float> &values,
                           const std::vector<vec3f> &colors) {};
       virtual void generatePrimaryWave(const Globals &globals) = 0;
-      virtual void traceLocally(const Globals &globals) = 0;
+      virtual void traceLocally(const Globals &globals, bool fishy) = 0;
       virtual void setLights(float ambient,
                              const std::vector<MPIRenderer::DirectionalLight> &dirLights) = 0;
     };
@@ -115,8 +117,8 @@ namespace vopat {
     
     void resetAccumulation() override
     { AddWorkersRenderer::resetAccumulation(); accumBuffer.bzero(); }
-    void traceRaysLocally();
-    void createSendQueue();
+    void traceRaysLocally(bool fishy);
+    void createSendQueue(bool fishy);
     int  exchangeRays();
 
      void setTransferFunction(const std::vector<vec4f> &cm,
@@ -291,25 +293,35 @@ namespace vopat {
 
       
       CUDA_SYNC_CHECK();
+      
+      int numIterations = 0;
+      bool fishy = false;
       while (true) {
+        globals.fishy = fishy;
+        if (++numIterations > 100)
+          printf("loooots of iterations...\n");
         perRankSendCounts.bzero();
         CUDA_SYNC_CHECK();
         
         prof_traceLocally.enter();
-        traceRaysLocally();
+        traceRaysLocally(fishy);
         CUDA_SYNC_CHECK();
         prof_traceLocally.leave();
         
         if (Prof::is_active)
           comm->worker.withinIsland->barrier();
         
-        createSendQueue();
+        createSendQueue(fishy);
         CUDA_SYNC_CHECK();
 
         prof_exchangeRays.enter();
         int numRaysExchanged = exchangeRays();
         sumRaysExchanged += numRaysExchanged;
         prof_exchangeRays.leave();
+
+        if (numIterations >= 100 && numRaysExchanged == 1)
+          fishy = true;
+        
         if (numRaysExchanged == 0)
           break;
       }
@@ -379,21 +391,25 @@ namespace vopat {
   }
 
   template<typename T>
-  void RayForwardingRenderer<T>::traceRaysLocally()
+  void RayForwardingRenderer<T>::traceRaysLocally(bool fishy)
   {
+    // const int myRank = globals.islandRank;//this->myRank();
+    // printf("(%i) tracerays in\n",myRank);fflush(0);
     CUDA_SYNC_CHECK();
-    nodeRenderer->traceLocally(globals);
+    nodeRenderer->traceLocally(globals,fishy);
     CUDA_SYNC_CHECK();
+    // printf("(%i) tracerays OUT\n",myRank);fflush(0);
   }
  
   template<typename Globals>
-  __global__ void computeCompactionOffsets(Globals globals)
+  __global__ void computeCompactionOffsets(Globals globals, bool fishy)
   {
     if (threadIdx.x != 0) return;
     int ofs = 0;
     for (int i=0;i<globals.islandSize;i++) {
       globals.perRankSendOffsets[i] = ofs;
       ofs += globals.perRankSendCounts[i];
+      // if (fishy) printf("(%i) sendCounts[%i] = %i\n",globals.islandRank,i,globals.perRankSendCounts[i]);
     }
   }
   
@@ -411,10 +427,10 @@ namespace vopat {
   }
 
   template<typename T>
-  void RayForwardingRenderer<T>::createSendQueue()
+  void RayForwardingRenderer<T>::createSendQueue(bool fishy)
   {
     computeCompactionOffsets<<<1,1>>>
-      (globals);
+      (globals,fishy);
     CUDA_SYNC_CHECK();
     int blockSize = 1024;
     int numBlocks = divRoundUp(numRaysInQueue,blockSize);
@@ -521,6 +537,12 @@ namespace vopat {
   void RayForwardingRenderer<_RayType>::Globals::addPixelContribution
   (int globalLinearPixelID, vec3f addtl) const
   {
+    float fm = reduce_max(addtl);
+    if (isnan(fm))
+      printf("NAN IN CONTRIB\n");
+    if (fm == 0.f)
+      return;
+    
     int global_iy = globalLinearPixelID / islandFbSize.x;
     int global_ix = globalLinearPixelID - global_iy * islandFbSize.x;
     int local_ix  = global_ix;
@@ -543,6 +565,11 @@ namespace vopat {
   {
     atomicAdd(&perRankSendCounts[nextNodeForThisRay],1);
     rayQueueIn[rayID]  = ray;
+#if DEBUG_FORWARDS
+    rayQueueIn[rayID].numFwds++;
+    if (rayQueueIn[rayID].numFwds > 10)
+      printf("ray got forwarded %i times...\n",rayQueueIn[rayID].numFwds);
+#endif
     rayNextNode[rayID] = nextNodeForThisRay;
   }
 

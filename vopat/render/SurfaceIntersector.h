@@ -20,38 +20,101 @@
 
 namespace vopat {
 
-  struct Surflet {
-    enum Type { /*TODO:*/Mesh, Density, ISO, None, };
+  struct Intersection {
+    enum Type { NONE=0, VOLUME, ISO, /*TODO:*/Mesh };
 
     /*! surface type that we intersected with */
-    Type type;
+    Type type = NONE;
 
     /*! t of ray/surface intersection; FLT_MAX: inval */
-    float t;
-
+    float t = FLT_MAX;
+    
     /*! intersection position */
-    vec3f isectPos;
+    // vec3f isectPos;
 
-    /* primitive ID, -1 if not applicable */
-    int primID;
+    // /* primitive ID, -1 if not applicable */
+    // int primID;
 
-    /* mesh ID, -1 if not applicable */
-    int meshID;
+    // /* mesh ID, -1 if not applicable */
+    // int meshID;
 
     /*! geometric normal */
-    vec3f gn;
+    vec3f Ng;
 
     /*! shading normal */
-    vec3f sn;
-
+    // vec3f Ns;
+    
     /*! diffuse RGB color */
     vec3f kd;
 
-    inline __device__ bool wasHit() const
-    {
-      return t < FLT_MAX;
-    }
+    /*! sample an outgoing directoin (based on what hit it was), and return PDF of this sampl e*/
+    inline __device__
+    float sample(Random &rnd,
+                 vec3f &outDir,
+                 bool dbg=false);
+    
+    /*! evaluate BRDF or phase function for given direction */
+    inline __device__
+    vec3f eval(const vec3f outDir, bool dbg=false);
   };
+
+  
+  inline __device__
+  vec3f Intersection::eval(const vec3f outDir, bool dbg)
+  {
+    // if (dbg)
+    //   printf("eval: dir = %f %f %f, Ng = %f %f %f, kd = %f %f %f\n",
+    //          outDir.x,
+    //          outDir.y,
+    //          outDir.z,
+    //          Ng.x,
+    //          Ng.y,
+    //          Ng.z,
+    //          kd.x,
+    //          kd.y,
+    //          kd.z);
+    if (type == VOLUME)
+      return kd;
+    else
+      return kd * max(0.f,dot(Ng,outDir));
+  }
+
+  inline __device__
+  float Intersection::sample(Random &rnd,
+                             vec3f &outDir,
+                             bool dbg)
+  {
+    if (type == NONE)
+      return 0.f;
+
+    // oh gawd this is a horrible way of doing this:
+    do {
+      outDir.x = 2.f*rnd() - 1.f;
+      outDir.y = 2.f*rnd() - 1.f;
+      outDir.z = 2.f*rnd() - 1.f;
+      // if (dbg) printf(" sample try %f %f %f\n",
+      //                 outDir.x,
+      //                 outDir.y,
+      //                 outDir.z);
+    } while (dot(outDir,outDir) > 1.f);
+    outDir = normalize(outDir);
+
+    if (type == VOLUME) {
+      // use this random direction ....
+    } else {
+      // make sure it faces to the right side:
+      if (dot(outDir,Ng) < 0.f)
+        outDir = - outDir;
+    }
+
+    // if (dbg) printf(" sample outDir %f %f %f\n",
+    //                 outDir.x,
+    //                 outDir.y,
+    //                 outDir.z);
+      
+    return 1.f;
+  }
+  
 
 
   struct SurfaceIntersector {
@@ -81,96 +144,163 @@ namespace vopat {
       int    numRanks;
       box3f  myRegion;
 
-      template <typename RayType>
-      inline __device__ Surflet intersect(const RayType &ray,
-                                          const float tmin = 0.f,
-                                          const float tmax = FLT_MAX) const
+      inline __device__ void intersect(Intersection &dg,
+                                       const vec3f org,
+                                       const vec3f dir,
+                                       float t0,
+                                       float t1,
+                                       bool dbg=false) const
       {
-        Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
+        // Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
 
 #if VOPAT_UMESH
         auto &volume = umesh;
 #endif
         
-        // ISOs
-        if (iso.numActive > 0) {
-          const float dt = .5f;
-          Surflet resISO{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
-          float t0 = 0.f;
-          while (t0 < tmin) t0 += dt;
-          float t1 = 0.f;
-          while (t1 < tmax) t1 += dt;
-          if (ray.dbg) {
-            printf("Integrating ISOs, t0=%f, t1=%f\n",t0,t1);
+//         // ISOs
+//         if (iso.numActive > 0) {
+//           const float dt = .5f;
+//           Surflet resISO{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
+//           float t0 = 0.f;
+//           while (t0 < tmin) t0 += dt;
+//           float t1 = 0.f;
+//           while (t1 < tmax) t1 += dt;
+//           if (ray.dbg) {
+//             printf("Integrating ISOs, t0=%f, t1=%f\n",t0,t1);
+//           }
+//           float t_last = t0;
+//           const vec3f p_last = ray.origin + t_last * ray.getDirection() - myRegion.lower;
+//           float v_last = 0.f;
+//           volume.sample(v_last,p_last,ray.dbg);
+//           if (ray.dbg) {
+//             printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",p_last.x,p_last.y,p_last.z,
+//                    t_last,v_last);
+//           }
+//           float t_i = t0+dt;
+//           for (;true;t_i += dt) {
+//             const float t_next = min(t_i,t1);
+//             const vec3f pos = ray.origin + t_next * ray.getDirection() - myRegion.lower;
+//             float v_next = 0.f;
+//             if (!volume.sample(v_next,pos,ray.dbg)) {
+//               break;
+//             }
+//             if (ray.dbg) {
+//               printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",pos.x,pos.y,pos.z,
+//                      t_next,v_next);
+//             }
+//             if (isnan(v_next) || isnan(v_last))
+//               break;
+
+//             bool wasHit = false;
+//             for (int i=0; i<MaxISOs; ++i) {
+//               if (iso.active[i] && min(v_next,v_last) <= iso.values[i]
+//                                 && max(v_next,v_last) >= iso.values[i])
+//               {
+//                 float alpha = (iso.values[i]-v_last)/(v_next-v_last);
+//                 float thit = min(max(t_last * (t_next-t_last),t_last),t_next);
+
+//                 const vec3f isopt = ray.origin + thit * ray.getDirection() - myRegion.lower;
+//                 float v = 0.f;
+//                 if (!volume.sample(v,isopt,ray.dbg))
+//                   continue;
+//                 vec3f grad(0.f);
+//                 if (!volume.gradient(grad,isopt,gradientDelta,ray.dbg))
+//                   continue;
+//                 if (dot(grad,grad) < 1e-10f)
+//                   grad = -ray.getDirection();
+//                 vec3f N = normalize(grad);
+//                 // face-forward
+//                 if (dot(N,ray.getDirection()) > 0.f)
+//                   N = -N;
+
+//                 wasHit = true;
+//                 resISO.type = Surflet::ISO;
+//                 resISO.t        = thit;
+//                 resISO.isectPos = isopt + myRegion.lower;
+//                 resISO.gn       = N;
+//                 resISO.sn       = N;
+//                 resISO.kd       = iso.colors[i];
+//                 break;
+//               }
+//             }
+
+//             if (wasHit)
+//               break;
+
+//             t_last = t_next;
+//             v_last = v_next;
+//             if (t_next >= t1) break;
+// =======
+        t1 = min(t1,dg.t);
+        if (t1 <= t0) return;
+
+        const float dt = .5f;
+
+        float t_next = t0;
+        float v_next = FLT_MAX;
+        volume.sample(v_next,org+t_next*dir-myRegion.lower,dbg);
+
+        float t_next_step = int(t0 / dt) * dt + dt;
+        if (t_next_step < t0) t_next_step = t0+dt;
+        
+        while (true) {
+          const float t_last = t_next;
+          const float v_last = v_next;
+
+          t_next = min(t1,t_next_step);
+          if (t_next <= t_last) break;
+          t_next_step += dt;
+          
+          volume.sample(v_next,org+t_next*dir-myRegion.lower,dbg);
+          
+          // if (dbg) printf("  t (%f %f) val (%f %f) iso %f\n",
+          //                 t_last,t_next,v_last,v_next,iso.values[0]);
+          if (v_next == v_last)
+            continue;
+          
+          for (int i=0; i<MaxISOs; ++i) {
+            if (!iso.active[i]) continue;
+            if (isnan(iso.values[i])) continue;
+            if (min(v_next,v_last) >= iso.values[i]) continue;
+            if (max(v_next,v_last) <= iso.values[i]) continue;
+            
+            float alpha = (iso.values[i]-v_last)/(v_next-v_last);
+            if (isnan(alpha)) continue;
+            // float tIso = min(max(t_last * (t_next-t_last),t_last),t_next);
+            float tIso = (1.f-alpha)*t_last + alpha*t_next;
+            if (tIso >= dg.t) continue;
+
+            const vec3f isopt = org + tIso * dir - myRegion.lower;
+            float v = 0.f;
+            if (!volume.sample(v,isopt,dbg))
+              continue;
+            vec3f grad(0.f);
+            if (!volume.gradient(grad,isopt,gradientDelta,dbg))
+              continue;
+            if (isnan(grad.x) ||
+                isnan(grad.y) ||
+                isnan(grad.z))
+              return;
+              
+            if (dot(grad,grad) < 1e-10f)
+              grad = -dir;
+            dg.type   = Intersection::ISO;
+            dg.t      = tIso;
+            dg.Ng     = normalize(grad);
+            dg.kd     = iso.colors[i];
+            t1 = min(t1,dg.t);
+            // and shorten active search interval for future steps:
+            // t1        = dg.t;
+            // if (dbg)
+            //   printf("HIT a iso hit...  at %f\n",tIso);
           }
-          float t_last = t0;
-          const vec3f p_last = ray.origin + t_last * ray.getDirection() - myRegion.lower;
-          float v_last = 0.f;
-          volume.sample(v_last,p_last,ray.dbg);
-          if (ray.dbg) {
-            printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",p_last.x,p_last.y,p_last.z,
-                   t_last,v_last);
-          }
-          float t_i = t0+dt;
-          for (;true;t_i += dt) {
-            const float t_next = min(t_i,t1);
-            const vec3f pos = ray.origin + t_next * ray.getDirection() - myRegion.lower;
-            float v_next = 0.f;
-            if (!volume.sample(v_next,pos,ray.dbg)) {
-              break;
-            }
-            if (ray.dbg) {
-              printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",pos.x,pos.y,pos.z,
-                     t_next,v_next);
-            }
-            if (isnan(v_next) || isnan(v_last))
-              break;
-
-            bool wasHit = false;
-            for (int i=0; i<MaxISOs; ++i) {
-              if (iso.active[i] && min(v_next,v_last) <= iso.values[i]
-                                && max(v_next,v_last) >= iso.values[i])
-              {
-                float alpha = (iso.values[i]-v_last)/(v_next-v_last);
-                float thit = min(max(t_last * (t_next-t_last),t_last),t_next);
-
-                const vec3f isopt = ray.origin + thit * ray.getDirection() - myRegion.lower;
-                float v = 0.f;
-                if (!volume.sample(v,isopt,ray.dbg))
-                  continue;
-                vec3f grad(0.f);
-                if (!volume.gradient(grad,isopt,gradientDelta,ray.dbg))
-                  continue;
-                if (dot(grad,grad) < 1e-10f)
-                  grad = -ray.getDirection();
-                vec3f N = normalize(grad);
-                // face-forward
-                if (dot(N,ray.getDirection()) > 0.f)
-                  N = -N;
-
-                wasHit = true;
-                resISO.type = Surflet::ISO;
-                resISO.t        = thit;
-                resISO.isectPos = isopt + myRegion.lower;
-                resISO.gn       = N;
-                resISO.sn       = N;
-                resISO.kd       = iso.colors[i];
-                break;
-              }
-            }
-
-            if (wasHit)
-              break;
-
-            t_last = t_next;
-            v_last = v_next;
-            if (t_next >= t1) break;
-          }
-
-          if (resISO.t < res.t) res = resISO;
+          
+          // // aaaaand.... step to next segment          
+          // t_last = t_next;
+          // v_last = v_next;
+          // t_next = min(t1,t_last + dt);
+          // if (isnan(t_next) || isnan(t_last)) return;
         }
-
-        return res;
       }
     };
 

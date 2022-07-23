@@ -28,11 +28,16 @@ namespace vopat {
         /*! note this always refers to a GLOBAL pixel ID even if we
             use islands; ie, this number may be LARGER than the number
             of pixels in the local frame buffer */
-        uint32_t    pixelID  : 29;
-        uint32_t    dbg      :  1;
-        uint32_t    crosshair:  1;
-        uint32_t    isShadow :  1;
+        uint32_t    pixelID    : 25;
+        uint32_t    numBounces :  4;
+        uint32_t    dbg        :  1;
+        uint32_t    crosshair  :  1;
+        uint32_t    isShadow   :  1;
       };
+#if DEBUG_FORWARDS
+      uint32_t    numFwds;
+#endif
+      
       vec3f       origin;
 #if 1
       inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
@@ -225,7 +230,7 @@ namespace vopat {
     }
 
     void generatePrimaryWave(const ForwardGlobals &forward) override;
-    void traceLocally(const ForwardGlobals &forward) override;
+    void traceLocally(const ForwardGlobals &forward, bool fishy) override;
     
     static inline __device__
     int computeInitialRank(const VolumeGlobals &vopat,
@@ -269,11 +274,13 @@ namespace vopat {
   
   template<typename DeviceKernels>
   void VopatNodeRenderer<DeviceKernels>::traceLocally
-  (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &forward)
+  (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &forward,
+   bool fishy)
   {
     // CUDA_SYNC_CHECK();
     int blockSize = 128;
     int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
+    if (fishy) printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
     if (numBlocks)
       doTraceRaysLocally<DeviceKernels><<<numBlocks,blockSize>>>
         (forward,VolumeRenderer::globals,SurfaceIntersector::globals);
@@ -303,6 +310,11 @@ namespace vopat {
     if (ray.dbg) printf("----------- NEW RAY -----------\n");
 #else
     ray.dbg    = false;
+#endif
+
+    ray.numBounces = 0;
+#if DEBUG_FORWARDS
+    ray.numFwds = 0;
 #endif
     ray.crosshair = (ix == vopat.worldFbSize.x/2) || (world_iy == vopat.worldFbSize.y/2);
     int dest   = DeviceKernels::computeInitialRank(globals,ray);

@@ -473,11 +473,15 @@ namespace vopat {
       xfEditor->setOpacityScale(opacityScale);
       xfEditor->setRelDomain(relDomain);
       xfEditor->setAbsDomain(absDomain);
-      
+
+      interval<float> isoRange = absDomain;
+      if (const char *env = getenv("VOPAT_ISO_RANGE"))
+        sscanf(env,"%f %f",&isoRange.lower,&isoRange.upper);
       // xfEditor->cmSelectionChanged(0);
       // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
+
       
-      IsoDialog isoDialog(absDomain);
+      IsoDialog isoDialog(isoRange);
       QObject::connect(&isoDialog,&IsoDialog::isoToggled,
                        &viewer, &VoPaTViewer::isoToggled);
       QObject::connect(&isoDialog,&IsoDialog::isoColorChanged,

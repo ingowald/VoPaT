@@ -45,29 +45,68 @@ namespace vopat {
 
     struct Globals {
       /*! hardcoded these, for now */
-      inline __device__ float ambient()        const { return lights.ambient; }
-      inline __device__ int   numDirLights()   const { return lights.numDirectional; }
+      inline __device__ float ambient()         const { return lights.ambientTerm; }
+      inline __device__ float ambientEnvLight() const { return lights.ambientEnvLight; }
+      inline __device__ int   numDirLights()    const { return lights.numDirectional; }
       inline __device__ vec3f lightRadiance(int which)     const {
         return lights.directional[which].rad;
       }
       inline __device__ vec3f lightDirection(int which) const {
         return lights.directional[which].dir;
       }
-      inline __device__ vec3f sampleLightDirection(int which, Random &rnd, float &pdf) const {
-        vec3f lightDir = lights.directional[which].dir;
-        vec3f u,v;
-        makeOrthoBasis(u,v,lightDir);
-        const float cosThetaMax = .001f;
-        vec3f coneSample = uniformSampleCone({rnd(),rnd()},cosThetaMax);
-        pdf = 1.f / (2.f*float(M_PI) * (1.0f - cosThetaMax));
-        return u*coneSample.x + v*coneSample.y + lightDir*coneSample.z;
-      }
+      // inline __device__ vec3f sampleLightDirection(int which, Random &rnd, float &pdf) const {
+      //   vec3f lightDir = lights.directional[which].dir;
+      //   vec3f u,v;
+      //   makeOrthoBasis(u,v,lightDir);
+      //   const float cosThetaMax = .001f;
+      //   vec3f coneSample = uniformSampleCone({rnd(),rnd()},cosThetaMax);
+      //   pdf = 1.f / (2.f*float(M_PI) * (1.0f - cosThetaMax));
+      //   return u*coneSample.x + v*coneSample.y + lightDir*coneSample.z;
+      // }
 
-      inline __device__ int uniformSampleOneLight(Random &rnd) const {
+
+      /*! sample a light, return light sample in lDir/lRad, and reutrn
+          pdf of this sample */
+      inline __device__ float sampleLight(Random &rnd,
+                                         const vec3f surfP,
+                                         const vec3f surfN,
+                                         vec3f &lDir,
+                                         vec3f &lRad) const
+      {
+
+
+        float pdf = 1.f;
         const int numLights = numDirLights();
-        int which = int(rnd() * numLights); if (which == numLights) which = 0;
-        return which;
+        if (numLights == 0) return 0.f;
+        
+        int which = int(rnd() * numLights);
+        if (which == numLights) which = 0;
+        pdf *= 1.f / numLights;
+
+        lDir = lights.directional[which].dir;
+        lRad = lights.directional[which].rad;
+
+#if 0
+        // HACK to create a giant light in the middle...
+        if (length(surfP-vec3f(256.f)) > 50.f) return 0.f;
+        else lRad *= 500.f;
+#endif
+        
+        return pdf;
+        // vec3f u,v;
+        // makeOrthoBasis(u,v,lightDir);
+        // const float cosThetaMax = .001f;
+        // vec3f coneSample = uniformSampleCone({rnd(),rnd()},cosThetaMax);
+        // pdf = 1.f / (2.f*float(M_PI) * (1.0f - cosThetaMax));
+        // return u*coneSample.x + v*coneSample.y + lightDir*coneSample.z;
+        // return 1.f/numLights;
       }
+      
+      // inline __device__ int uniformSampleOneLight(Random &rnd) const {
+      //   const int numLights = numDirLights();
+      //   int which = int(rnd() * numLights); if (which == numLights) which = 0;
+      //   return which;
+      // }
 
       /*! put a scalar field throught he transfer function, and reutnr
         RGBA result */
@@ -104,7 +143,10 @@ namespace vopat {
       } mc;
 
       struct {
-        float ambient = .1f;
+        // ambient term that applies to every sample, w/o shadowing
+        float ambientTerm = .0f;
+        // ambient environment light, only added if paths get lost to env
+        float ambientEnvLight = .2f;
         int numDirectional = 0;
         struct {
           vec3f dir = { .1f, 1.f, .1f };
@@ -131,7 +173,8 @@ namespace vopat {
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights)
     {
-      globals.lights.ambient = ambient;
+      globals.lights.ambientTerm = ambient;
+      // globals.lights.ambientEnvLight = ambient;
       globals.lights.numDirectional = dirLights.size();
       for (int i=0;i<min((int)dirLights.size(),(int)MAX_DIR_LIGHTS);i++) {
         globals.lights.directional[i].dir = normalize(dirLights[i].dir);
@@ -170,11 +213,11 @@ namespace vopat {
     RGBA result */
   inline __device__ vec4f VolumeRenderer::Globals::transferFunction(float f, bool dbg) const
   {
-    if (dbg)
-      printf("mapping %f domain %f %f numvals %i ptr %lx...\n",
-             f,xf.domain.lower,xf.domain.upper,
-             this->xf.numValues,this->xf.values
-             );
+    // if (dbg)
+    //   printf("mapping %f domain %f %f numvals %i ptr %lx...\n",
+    //          f,xf.domain.lower,xf.domain.upper,
+    //          this->xf.numValues,this->xf.values
+    //          );
     if (this->xf.numValues == 0)
       return vec4f(0.f);
     if (this->xf.domain.lower >= this->xf.domain.upper)

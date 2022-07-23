@@ -43,6 +43,15 @@
 #define TERM_COLOR_DEFAULT TERM_COLOR_RESET
 #define TERM_COLOR_BOLD "\033[1;1m"
      
+
+#define DBG_FORWARDS 1
+#if DBG_FORWARDS
+#pragma message("forward debugging is on")
+#endif
+  
+  
+
+
 namespace vopat {
   using namespace owl;
   using namespace owl::common;
@@ -62,7 +71,27 @@ namespace vopat {
 #define CUDA_CALL(a) OWL_CUDA_CALL(a)
 #define CUDA_SYNC_CHECK() OWL_CUDA_SYNC_CHECK()
 
+#if 0
+  struct small_vec3f { float x, y, z; };
+  
+  inline __both__ float from_half(float h) { return (float)h; }
 
+  inline __both__ vec3f from_half(small_vec3f v)
+  {
+    return { from_half(v.x),from_half(v.y),from_half(v.z) };
+  }
+
+  inline __both__ float to_half(float f)
+  {
+    float h = f;
+    return h;
+  }
+
+  inline __both__ small_vec3f to_half(vec3f v)
+  {
+    return { to_half(v.x),to_half(v.y),to_half(v.z) };
+  }
+#else
   struct small_vec3f { half x, y, z; };
   
   inline __both__ float from_half(half h) { return (float)h; }
@@ -82,6 +111,7 @@ namespace vopat {
   {
     return { to_half(v.x),to_half(v.y),to_half(v.z) };
   }
+#endif
   
   using Random = owl::common::LCG<8>;
   

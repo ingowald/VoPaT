@@ -149,10 +149,10 @@ float volume(const vec3f &P,
     vec3i dims;
 
     /*! look up the given 3D (*local* world-space) point in the volume, and return interpolated scalar value */
-    inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
+    inline __device__ bool sample(float &f, vec3f P, bool dbg=false) const;
 
     /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
-    inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
+    inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg=false) const;
   };
 
   /*! look up the given 3D (*local-space*) point in the volume, and return interpolated scalar value */
