@@ -153,7 +153,16 @@ namespace vopat {
   
   void AddWorkersRenderer::render(uint32_t *fbPointer)
   {
+    static Prof renderFrame("renderFrame",comm->myRank());
+    static Prof inheritedRender("inheritedRender",comm->myRank());
+
+    renderFrame.enter();
+
+    inheritedRender.enter();
     Renderer::render(fbPointer);
+    inheritedRender.leave();
+
+    
     if (isMaster()) {
       /* nothing to do on master yet, wait for workers to render... */
       assert(fbPointer);
@@ -173,7 +182,14 @@ namespace vopat {
 #ifdef MEASURE_PERF
       double t1 = getCurrentTime();
 #endif
+      static Prof prof_renderLocal("renderLocal",comm->myRank());
+      prof_renderLocal.enter();
       renderLocal();
+      prof_renderLocal.leave();
+
+      static Prof finalAdd("finalAdd",comm->myRank());
+      finalAdd.enter();
+      
 #ifdef MEASURE_PERF
       double t2 = getCurrentTime();
 #endif
@@ -259,7 +275,9 @@ namespace vopat {
       printf("%i,%f,%f,%f\n",
              myRank(),t2-t1,t3-t2,t4-t3);
 #endif
+      finalAdd.leave();
     }
+    renderFrame.leave();
   }
 
 }

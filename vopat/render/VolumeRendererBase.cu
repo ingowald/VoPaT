@@ -255,7 +255,7 @@ namespace vopat {
   {
 #if VOPAT_UMESH
     std::cout << "need to rebuild macro cells .." << std::endl;
-    globals.mc.dims = 64;
+    globals.mc.dims = 32;
     mcData.resize(volume(globals.mc.dims));
     CUDA_SYNC_CHECK();// PING;
     // CUDA_CALL(Memset(mcData.get(),0,mcData.numBytes()));

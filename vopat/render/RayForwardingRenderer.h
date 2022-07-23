@@ -264,36 +264,60 @@ namespace vopat {
   template<typename T>
   void RayForwardingRenderer<T>::renderLocal()
   {
+    static Prof prof_renderLocal("renderLocal",comm->myRank());
+    static Prof prof_genPrimary("genPrimary",comm->myRank());
+    static Prof prof_traceLocally("traceLocally",comm->myRank());
+    static Prof prof_exchangeRays("exchangeRays",comm->myRank());
+    prof_renderLocal.enter();
+    
     vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
+    int sumRaysExchanged = 0;
     
     for (int s = 0; s < numSPP; s++) {
       globals.sampleID = numSPP * accumID + s;
     
       perRankSendCounts.bzero();
       CUDA_SYNC_CHECK();
-      if (numBlocks != vec2i(0))
+      if (numBlocks != vec2i(0)) {
+        prof_genPrimary.enter();
         nodeRenderer->generatePrimaryWave(globals);
+        prof_genPrimary.leave();
+      }
       CUDA_SYNC_CHECK();
       host_sendCounts = perRankSendCounts.download();
       numRaysInQueue = host_sendCounts[myRank()];
       globals.numRaysInQueue = numRaysInQueue;
-    
+
+      
       CUDA_SYNC_CHECK();
       while (true) {
         perRankSendCounts.bzero();
         CUDA_SYNC_CHECK();
+        
+        prof_traceLocally.enter();
         traceRaysLocally();
         CUDA_SYNC_CHECK();
+        prof_traceLocally.leave();
+        
+        if (Prof::is_active)
+          comm->worker.withinIsland->barrier();
+        
         createSendQueue();
         CUDA_SYNC_CHECK();
+
+        prof_exchangeRays.enter();
         int numRaysExchanged = exchangeRays();
+        sumRaysExchanged += numRaysExchanged;
+        prof_exchangeRays.leave();
         if (numRaysExchanged == 0)
           break;
       }
     }
 
     CUDA_SYNC_CHECK();
+    static Prof prof_addLocalFB("addLocalFB",comm->myRank());
+    prof_addLocalFB.enter();
     if (numBlocks != vec2i(0)) {
       writeLocalFB<<<numBlocks,blockSize>>>(islandFbSize,
                                             localFB.get(),
@@ -301,6 +325,17 @@ namespace vopat {
                                             (globals.sampleID+1));
     }
     CUDA_SYNC_CHECK();
+    prof_addLocalFB.leave();
+    prof_renderLocal.leave();
+
+    static int nextPing = 1;
+    static int curPing = 0;
+    curPing++;
+    while (curPing >= nextPing) {
+      std::cout << "(" << comm->myRank() << ") frame done; num rays exchanged is " << prettyNumber(sumRaysExchanged) << std::endl;
+      nextPing *= 2;
+     fflush(0);
+    }
   }
   
   template<typename T>
