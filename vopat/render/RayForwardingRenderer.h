@@ -24,6 +24,20 @@
 
 namespace vopat {
 
+  inline __device__ bool checkOrigin(float x)
+  {
+    if (isnan(x) || fabsf(x) > 1e4f)
+      return false;
+    return true;
+  }
+  
+  inline __device__ bool checkOrigin(vec3f org)
+  { return checkOrigin(org.x) && checkOrigin(org.y) && checkOrigin(org.z); }
+
+  template<typename Ray>
+  inline __device__ bool checkOrigin(const Ray &ray)
+  { return checkOrigin(ray.origin); }
+
   template<typename _RayType>
   struct RayForwardingRenderer : public AddWorkersRenderer {
     using RayType = _RayType;
@@ -231,6 +245,7 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
+      PRINT(newSize);
       accumBuffer.resize(islandFbSize.x*islandFbSize.y);
       globals.accumBuffer  = accumBuffer.get();
       
@@ -266,6 +281,7 @@ namespace vopat {
   template<typename T>
   void RayForwardingRenderer<T>::renderLocal()
   {
+
     static Prof prof_renderLocal("renderLocal",comm->myRank());
     static Prof prof_genPrimary("genPrimary",comm->myRank());
     static Prof prof_traceLocally("traceLocally",comm->myRank());
@@ -288,9 +304,20 @@ namespace vopat {
       }
       CUDA_SYNC_CHECK();
       host_sendCounts = perRankSendCounts.download();
+      {
+        std::stringstream out;
+        out << "(" << comm->myRank() << ") snd-pri ";
+        for (auto i : host_sendCounts)
+          out << " " << i;
+        out << std::endl;
+        std::cout << out.str();
+      }
       numRaysInQueue = host_sendCounts[myRank()];
       globals.numRaysInQueue = numRaysInQueue;
 
+#if 1
+      checkRays(comm->myRank(),globals.rayQueueIn,globals.numRaysInQueue,"after primary");
+#endif
       
       CUDA_SYNC_CHECK();
       
@@ -308,14 +335,16 @@ namespace vopat {
         CUDA_SYNC_CHECK();
         prof_traceLocally.leave();
         
-        if (Prof::is_active)
+        if (Prof::is_active) {
           comm->worker.withinIsland->barrier();
+        }
         
         createSendQueue(fishy);
         CUDA_SYNC_CHECK();
 
         prof_exchangeRays.enter();
         int numRaysExchanged = exchangeRays();
+        CUDA_SYNC_CHECK();
         sumRaysExchanged += numRaysExchanged;
         prof_exchangeRays.leave();
 
@@ -423,16 +452,59 @@ namespace vopat {
     if (dest < 0) return;
 
     int slot = atomicAdd(&globals.perRankSendOffsets[dest],1);
-    globals.rayQueueOut[slot] = globals.rayQueueIn[tid];
+    auto ray = globals.rayQueueIn[tid];
+    if (!checkOrigin(ray))
+      printf("bad ray in compactrays %f %f %f\n",ray.origin.x,ray.origin.y,ray.origin.z);
+    globals.rayQueueOut[slot] = ray;
   }
 
+
+  template<typename Ray>
+  __global__ void doCheckRays(int myRank, Ray *rays, int numRays, int *m_isBad)
+  {
+    int tid = threadIdx.x+blockIdx.x*blockDim.x;
+    if (tid >= numRays) return;
+    Ray ray = rays[tid];
+    if (!checkOrigin(ray)) {
+      printf("[%i] BAD RAY %i/%i :  %f %f %f\n",
+             myRank,tid,numRays,
+             ray.origin.x,
+             ray.origin.y,
+             ray.origin.z);
+      *m_isBad = 1;
+    }
+  }
+  
+  
+  template<typename Ray>
+  void checkRays(int myRank, Ray *d_rays, int numRays, const char *text)
+  {
+    std::stringstream ss;
+    ss << "(" << myRank << ") checking " << numRays << " rays (" << text << ")" << std::endl;
+    std::cout << ss.str();
+    int blockSize = 128;
+    int numBlocks = divRoundUp(numRays,blockSize);
+    int *is_bad = 0;
+    if (!is_bad)
+      CUDA_CALL(MallocManaged((void **)&is_bad,sizeof(int)));
+    *is_bad = 0;
+    if (numBlocks)
+      doCheckRays<<<numBlocks,blockSize>>>(myRank,d_rays,numRays,is_bad);
+    CUDA_SYNC_CHECK();
+    if (*is_bad) {
+      std::cout << "rank " << myRank << " contains at least one bad ray !" << std::endl;
+      throw std::runtime_error("bad rays ....");
+    }
+  }
+
+  
   template<typename T>
   void RayForwardingRenderer<T>::createSendQueue(bool fishy)
   {
     computeCompactionOffsets<<<1,1>>>
       (globals,fishy);
     CUDA_SYNC_CHECK();
-    int blockSize = 1024;
+    int blockSize = 256;
     int numBlocks = divRoundUp(numRaysInQueue,blockSize);
     if (numBlocks)
       compactRays<<<numBlocks,blockSize>>>
@@ -448,6 +520,16 @@ namespace vopat {
     const int myRank = globals.islandRank;//this->myRank();
     auto island = comm->worker.withinIsland;
 
+
+#if 1
+    int mySendCounts = 0;
+    for (auto i : host_sendCounts) mySendCounts += i;
+    checkRays(comm->myRank(),globals.rayQueueOut,mySendCounts,"sendqueue");
+#endif
+      
+        
+
+    
     /* iw - TODO: change this to use alltoall instead of allgaher;
        with allgather each rank received N*N elements, which describes
        what every node is sending to any other node ... but it would
@@ -468,6 +550,15 @@ namespace vopat {
       ofs += sendByteCounts[i];
     }
 
+#if 1
+    {
+      std::stringstream out;
+      out << "(" << myRank << ") self-send " << sendByteCounts[myRank] << std::endl;
+      std::cout << out.str();
+    }
+#endif
+
+
     // ------------------------------------------------------------------
     // compute RECEIVE counts and offsets
     // ------------------------------------------------------------------
@@ -483,6 +574,26 @@ namespace vopat {
       numReceived += from_i;
     }
 
+#if 1
+    {
+      std::stringstream out;
+      out << "(" << myRank << ") self-recv " << recvByteCounts[myRank] << std::endl;
+      std::cout << out.str();
+    }
+#endif
+
+
+    {
+      std::stringstream out;
+      out << "[" << comm->myRank() << "] to:";
+      for (int i=0;i<numWorkers;i++)
+        out << " " << allRankSendCounts[myRank*numWorkers+i];
+      out << " frm:";
+      for (int i=0;i<numWorkers;i++)
+        out << " " << allRankSendCounts[i*numWorkers+myRank];
+      out << " -> numrecv " << numReceived << std::endl;
+      std::cout << out.str();
+    }
     
     // ------------------------------------------------------------------
     // exeute the all2all
@@ -497,6 +608,10 @@ namespace vopat {
     numRaysInQueue = numReceived;
     globals.numRaysInQueue = numRaysInQueue;
 
+
+#if 1
+    checkRays(comm->myRank(),globals.rayQueueIn,numRaysInQueue,"recved");
+#endif
     
     // ------------------------------------------------------------------
     // return how many we've exchanged ACROSS ALL ranks
@@ -557,6 +672,7 @@ namespace vopat {
     atomicAdd(&tgt->z,addtl.z);
   }
 
+
   template<typename _RayType>
   inline __device__
   void RayForwardingRenderer<_RayType>::Globals::forwardRay
@@ -570,6 +686,9 @@ namespace vopat {
     if (rayQueueIn[rayID].numFwds > 10)
       printf("ray got forwarded %i times...\n",rayQueueIn[rayID].numFwds);
 #endif
+    if (!checkOrigin(ray.origin))
+      printf("Weird ray being forwarded here %f %f %f -> %i...\n",
+             ray.origin.x,ray.origin.y,ray.origin.z,nextNodeForThisRay);
     rayNextNode[rayID] = nextNodeForThisRay;
   }
 

@@ -21,7 +21,7 @@ namespace vopat {
 
 #ifndef VOPAT_MAX_BOUNCES
   // 0 bounces == direct illum only
-# define VOPAT_MAX_BOUNCES 2
+# define VOPAT_MAX_BOUNCES 0
 #endif
   
   struct WoodcockKernels : public Vopat
@@ -41,6 +41,11 @@ namespace vopat {
                                  const typename Vopat::SurfaceGlobals &surf)
   {
     Ray ray = vopat.rayQueueIn[tid];
+    if (!checkOrigin(ray))
+      printf("bad ray %i/%i in enter traceray %f %f %f\n",
+             tid,vopat.numRaysInQueue,
+             ray.origin.x,ray.origin.y,ray.origin.z);
+
 #if DEBUG_FORWARDS
     if (ray.numFwds > 8)
       printf("ray forwarded %i times\n",ray.numFwds);
@@ -180,6 +185,22 @@ namespace vopat {
         (mcOrg,mcDir,t1,vec3ui(numMacrocells),
          [&](const vec3i &cellIdx, float t00, float t11) -> bool
          {
+           if (cellIdx.x < 0 ||
+               cellIdx.y < 0 ||
+               cellIdx.z < 0 ||
+               cellIdx.x >= numMacrocells.x ||
+               cellIdx.y >= numMacrocells.y ||
+               cellIdx.z >= numMacrocells.z) {
+             printf("UGH - FISHY DDA CELL %i %i %i / %i %i %i!\n",
+                    cellIdx.x,
+                    cellIdx.y,
+                    cellIdx.z,
+                    numMacrocells.x,
+                    numMacrocells.y,
+                    numMacrocells.z
+                    );
+             return false;
+           }
            if (++numStepsDone > 1024) {
              printf("LOTS of steps....\n");
              return false;
@@ -207,6 +228,7 @@ namespace vopat {
            //                     surf.iso.values[1]);
                                
            if (surf.iso.numActive > 0) {
+             printf("iso!?\n");
              for (int i=0; i<SurfaceIntersector::Globals::MaxISOs; ++i) {
                if (!surf.iso.active[i] 
                    || (inputRange.lo > surf.iso.values[i])
@@ -218,7 +240,11 @@ namespace vopat {
            }
            if (macroCellOverlapsAnIsoValue) {
              // if (ray.dbg) printf("iso-surface overlaps!\n");
+#if VOPAT_UMESH
+             surf.intersect(closestHit,ray.origin,dir,t00,t11,ray.dbg);
+#else
              surf.intersect(closestHit,ray.origin,dir,max(box_t0,t00),min(t1,t11),ray.dbg);
+#endif
              // surf.intersect(closestHit,ray.origin,dir,t00,min(t1,t11),ray.dbg);
              // t11 = min(t11,closestHit.t);
            }
@@ -349,7 +375,12 @@ namespace vopat {
                  ray.origin.y,
                  ray.origin.z,
                  closestHit.t,
-                 box_t0,box_t1);
+#if VOPAT_UMESH
+                 -1.f,-1.f
+#else
+                 box_t0,box_t1
+#endif
+                 );
 
         // if (ray.dbg) printf("SHADE origin to %f %f %f\n",
         //                 ray.origin.x,
@@ -369,7 +400,11 @@ namespace vopat {
                    ray.origin.y,
                    ray.origin.z,
                    closestHit.t,
+#if VOPAT_UMESH
+                   -1.f,-1.f,
+#else
                    box_t0,box_t1,
+#endif
                    closestHit.Ng.x,
                    closestHit.Ng.y,
                    closestHit.Ng.z);

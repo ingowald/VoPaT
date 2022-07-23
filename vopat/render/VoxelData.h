@@ -104,8 +104,46 @@ float volume(const vec3f &P,
 
   inline __device__ bool UMeshData::sample(float &f, vec3f P, bool dbg) const
   {
+#if SKIP_TREE
+    int nodeID = 0;
+    int childID = 0;
+    BVHNode  node;
+    gdt::qbvh::ChildRef cr;
+    while (true) {
+      while (true) {
+        if (nodeID < 0)
+          return false;
+        
+        node = bvhNodes[nodeID];
+        cr   = node.childRef[childID];
+        
+        if (cr.valid() && node.getBounds(childID).contains(P)) {
+          if (cr.isLeaf())
+            break;
+          nodeID = cr.getChildIndex();
+          childID = 0;
+          continue;
+        }
+        childID++;
+        if (childID >= node.numChildren || !node.childRef[childID].valid()) {
+          nodeID = node.skipTreeNode;
+          childID = node.skipTreeChild;
+        }
+      }
+      // now all are a at a leaf ...
+      if (sampleElement(cr.getPrimIndex(),f,P,dbg))
+        return true;
+      
+      childID++;
+      if (childID >= node.numChildren || !node.childRef[childID].valid()) {
+        nodeID = node.skipTreeNode;
+        childID = node.skipTreeChild;
+      }
+    }
+#else
+    enum { stackDepth = 30 };
     int stackPtr = 0;
-    int nodeStack[20];
+    int nodeStack[stackDepth];
     int nodeID = 0;
     while (1) {
       const BVHNode node = bvhNodes[nodeID];
@@ -116,12 +154,16 @@ float volume(const vec3f &P,
           if (sampleElement(cr.getPrimIndex(),f,P,dbg))
             return true;
         } else {
-          nodeStack[stackPtr++] = cr.getChildIndex();
+          if (stackPtr >= stackDepth-1)
+            printf("CAREFUL - STACK OVERFLOW!?\n");
+          else
+            nodeStack[stackPtr++] = cr.getChildIndex();
         }
       }
       if (stackPtr == 0) return false;
       nodeID = nodeStack[--stackPtr];
     }
+#endif
   }
   
   inline __device__ bool UMeshData::gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const

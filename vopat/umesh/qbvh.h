@@ -29,6 +29,8 @@
 #define QBVH_DBG_PRINT(a) QBVH_DBG(PRINT(a))
 #define QBVH_DBG_PING QBVH_DBG(PING)
 
+#define SKIP_TREE 1
+
 namespace gdt {
   using namespace owl;
   using namespace owl::common;
@@ -79,6 +81,12 @@ namespace gdt {
         uint8_t hi[NUM_CHILDREN];
       } dim[3];
       ChildRef childRef[NUM_CHILDREN];
+#if SKIP_TREE
+      struct {
+        int32_t  skipTreeNode : 29;
+        uint32_t skipTreeChild : 3;
+      };
+#endif
 
       void makeInner(int slot, const box3f &bounds, int childNodeID)
       {
@@ -143,6 +151,34 @@ namespace gdt {
       box3f              worldBounds;
       // std::vector<PrimT> prims;
       std::vector<Node<NUM_CHILDREN>>  nodes;
+
+#if SKIP_TREE
+      void setSkipNodes(int nodeID, int skipTreeNode, int skipTreeChild)
+      {
+        Node<NUM_CHILDREN> &node = nodes[nodeID];
+        node.skipTreeNode = skipTreeNode;
+        node.skipTreeChild = skipTreeChild;
+        for (int i=0;i<NUM_CHILDREN;i++)
+          if (node.childRef[i].valid() && !node.childRef[i].isLeaf()) {
+            if (((i+1) < NUM_CHILDREN) && node.childRef[i+1].valid()) {
+              // child HAS valid right brother
+              setSkipNodes(node.childRef[i].getChildIndex(),
+                           nodeID,i+1);
+            } else {
+              // no right brother for this child - skip node for this
+              // child is same as for us
+              setSkipNodes(node.childRef[i].getChildIndex(),
+                           skipTreeNode,skipTreeChild);
+            }
+          }
+      }
+      
+      void setSkipNodes()
+      {
+        setSkipNodes(0,-1,0);
+      }
+#endif
+        
     };
 
     /*! a set of 'bin's that each track the centroid and primtiive
@@ -677,6 +713,9 @@ namespace gdt {
                const GetBoundsLambda &getBounds)
     {
       Builder<NUM_CHILDREN,GetBoundsLambda>(target,numPrims,getBounds);
+#if SKIP_TREE
+      target.setSkipNodes();
+#endif
     }
 
   } // ::gdt::qbvh

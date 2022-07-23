@@ -332,7 +332,13 @@ namespace vopat {
       return;
     }
     int queuePos = atomicAdd(&vopat.perRankSendCounts[myRank],1);
+    
+    if (queuePos >= vopat.islandFbSize.x*vopat.islandFbSize.y)
+      printf("FISHY PRIMARY RAY POS!\n");
+    
     vopat.rayQueueIn[queuePos] = ray;
+    if (!checkOrigin(ray))
+      printf("fishy primary ray!\n");
   }
   
   template<typename DeviceKernels>
