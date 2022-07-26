@@ -117,10 +117,22 @@ add_library(vopat_render
   mpi/MPIMaster.cpp
   )
 
+embed_ptx(
+  OUTPUT_TARGET
+  deviceCode-ptx
+  PTX_LINK_LIBRARIES
+    owl::owl
+  SOURCES
+    deviceCode.cu
+)
+
+
 target_link_libraries(vopat_render
   PUBLIC
   vopat_model
   owl_viewer
+  deviceCode-ptx
+  owl::owl
   MPI::MPI_CXX
   )
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "80")
