@@ -77,7 +77,7 @@ namespace vopat {
   template<typename T>
   inline void CUDAArray<T>::upload(const std::vector<T> &vt, size_t ofsInElements)
   {
-    assert(ofsInElements + vt.size() <= N);
+    assert((ofsInElements + vt.size()) <= N);
     CUDA_CALL(Memcpy(devMem+ofsInElements,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
     CUDA_SYNC_CHECK();
   }
@@ -88,6 +88,10 @@ namespace vopat {
   inline void CUDAArray<T>::upload(const std::vector<T> &vt)
   {
     resize(vt.size());
+    PRINT(vt.size());
+    PRINT(sizeof(T));
+    size_t sz = vt.size() * sizeof(T);
+    PRINT((int*)sz);
     CUDA_CALL(Memcpy(devMem,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
     CUDA_SYNC_CHECK();
   }
@@ -106,7 +110,7 @@ namespace vopat {
     this->N = N;
     if (devMem) CUDA_CALL(Free(devMem));
     devMem = 0;
-#if 0
+#if 1
     CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
 #else
     CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));

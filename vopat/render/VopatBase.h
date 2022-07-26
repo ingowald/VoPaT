@@ -156,6 +156,9 @@ namespace vopat {
       float t1 = t_closest; 
       if (!boxTest(vopat.rankBoxes[i],ray,t0,t1,dbg))
         continue;
+      // if (t0 == t1)
+      //   continue;
+      
       if (dbg) printf("   accepted rank %i dist %f\n",i,t0);
       t_closest = t0;
       closest = i;
@@ -278,7 +281,7 @@ namespace vopat {
    bool fishy)
   {
     // CUDA_SYNC_CHECK();
-    int blockSize = 128;
+    int blockSize = 64;
     int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
     if (fishy) printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
     if (numBlocks)

@@ -133,6 +133,18 @@ namespace vopat {
   }
 #endif
   
+  __global__ void checkSkipTree(BVHNode *nodes, int numNodes)
+  {
+    int tid = threadIdx.x+blockIdx.x*blockDim.x;
+    if (tid >= numNodes) return;
+    if (nodes[tid].skipTreeChild >=4) {
+      printf("CHECK : %i -> %i (byte %lx ptr 0x%lx)\n",
+             tid,nodes[tid].skipTreeChild,
+             tid*sizeof(*nodes),
+             &nodes[tid]);
+    }
+  }
+
   VolumeRenderer::VolumeRenderer(Model::SP model,
                                  const std::string &baseFileName,
                                  int islandRank)
@@ -162,7 +174,8 @@ namespace vopat {
     myBrick->load(fileName);
 
     std::cout << "brick and umesh loaded" << std::endl;
-    gdt::qbvh::BVH4 bvh;
+    //    gdt::qbvh::BVH4 bvh;
+    vopat::BVH bvh;
     std::cout << "building bvh ... " << prettyNumber(myBrick->umesh->tets.size()) << " tets" << std::endl;
     gdt::qbvh::build(bvh,myBrick->umesh->tets.size(),
                      [&](size_t tetID)->box3f {
@@ -178,14 +191,39 @@ namespace vopat {
     myScalars.upload(myBrick->umesh->perVertex->values);
     globals.umesh.scalars   = myScalars.get();
 
+#if 1
+    std::vector<vec3f> _vertices;
+    for (auto &v : myBrick->umesh->vertices)
+      _vertices.push_back(vec3f(v.x,v.y,v.z));
+    myVertices.upload(_vertices);
+#else
     myVertices.upload((const std::vector<vec3f> &)myBrick->umesh->vertices);
+#endif
     globals.umesh.vertices   = myVertices.get();
     
     myTets.upload(myBrick->umesh->tets);
     globals.umesh.tets   = myTets.get();
     
+    std::cout << "uploading nodes" << std::endl;
+    PRINT(bvh.nodes[0].numChildren);
+    PRINT(sizeof(bvh.nodes[0]));
     myBVHNodes.upload(bvh.nodes);
+    for (auto &node : bvh.nodes)
+      if (node.skipTreeChild >= 4) {
+        PING; PRINT(node.skipTreeChild);
+      };
     globals.umesh.bvhNodes = myBVHNodes.get();
+    PRINT(bvh.nodes.size());
+    PRINT(myBrick->umesh->perVertex->values.size());
+    {
+      int bs = 128;
+      int nb = divRoundUp((int)bvh.nodes.size(),bs);
+      std::cout << "device-checking " << bvh.nodes.size() << " nodes' skip values (2)" << std::endl;
+      checkSkipTree<<<nb,bs>>>(globals.umesh.bvhNodes,bvh.nodes.size());
+      CUDA_SYNC_CHECK();
+      std::cout << "done DEVICE checking of skip tree" << std::endl;
+    }
+    
 #else
 # if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
@@ -255,7 +293,7 @@ namespace vopat {
   {
 #if VOPAT_UMESH
     std::cout << "need to rebuild macro cells .." << std::endl;
-    globals.mc.dims = 32;
+    globals.mc.dims = 256;
     mcData.resize(volume(globals.mc.dims));
     CUDA_SYNC_CHECK();// PING;
     // CUDA_CALL(Memset(mcData.get(),0,mcData.numBytes()));
@@ -277,6 +315,7 @@ namespace vopat {
     // PRINT(globals.umesh.scalars);
     // PRINT(globals.umesh.tets);
     // PRINT(numTets);
+    PRINT(numBlocks);
     rasterTets
       <<<{1024u,numBlocks},{blockSize,1u}>>>
                              (globals.mc.data,

@@ -44,6 +44,7 @@ target_compile_definitions(qtOWL
   )
 
 
+#set(CMAKE_CUDA_ARCHITECTURES "75") 
 add_subdirectory(vopat)
 
 

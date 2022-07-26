@@ -123,7 +123,14 @@ target_link_libraries(vopat_render
   owl_viewer
   MPI::MPI_CXX
   )
-set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
+#set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "80")
+#set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
+
+target_compile_options(vopat_render PUBLIC
+                        $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_75,code=sm_75>
+#                        $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_80,code=sm_80>
+                        )
+
 if(VOPAT_VOXELS_AS_TEXTURE)
   target_compile_definitions(vopat_render PUBLIC VOPAT_VOXELS_AS_TEXTURE=1)
 endif()

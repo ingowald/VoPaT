@@ -67,9 +67,9 @@ namespace vopat {
     write(out,fileMagic);
 
     write(out,numVoxelsTotal);
-    PRINT(valueRange);
+    // PRINT(valueRange);
     write(out,valueRange);
-    PRINT(numVoxelsTotal);
+    // PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));
     for (int i=0;i<bricks.size();i++) {
       Brick::SP brick = bricks[i];
@@ -114,7 +114,7 @@ namespace vopat {
       model->valueRange.extend(vr);
     // model->valueRange = { 0.f, 1.f };
     // model->valueRange = {242616.f,259745.f};
-    PRINT(model->valueRange);
+    // PRINT(model->valueRange);
 #else
     size_t fileMagic;
     read(in,fileMagic);

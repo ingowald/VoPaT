@@ -105,6 +105,36 @@ float volume(const vec3f &P,
   inline __device__ bool UMeshData::sample(float &f, vec3f P, bool dbg) const
   {
 #if SKIP_TREE
+
+# if 0
+    int nodeID = 0;
+    int childID = 0;
+    while (1) {
+      // if (nodeID < 0) printf("ugh(1)!\n");
+      if (childID >= 4) {
+        const BVHNode &node = bvhNodes[nodeID];
+        const int oldNodeID = nodeID;
+        nodeID  = node.skipTreeNode;
+        childID = node.skipTreeChild;
+        // if (childID >= 4) printf("ugh(5)! nodeID %i skip %i:%i\n",oldNodeID,nodeID,childID);
+      }
+      if (nodeID < 0) return false;
+      // if (childID >= 4) printf("ugh(4)!\n");
+
+      const BVHNode &node = bvhNodes[nodeID];
+      const gdt::qbvh::ChildRef cr  = bvhNodes[nodeID].childRef[childID];
+      if (!cr.valid()) { childID = 4; continue; }
+      if (!node.getBounds(childID).contains(P)) { childID++; continue; }
+      if (cr.isLeaf()) {
+        if (sampleElement(cr.getPrimIndex(),f,P,dbg))
+          return true;
+        childID = 4;
+      } else {
+        nodeID = cr.getChildIndex();
+        childID = 0;
+      }
+    }
+# else
     int nodeID = 0;
     int childID = 0;
     BVHNode  node;
@@ -114,7 +144,11 @@ float volume(const vec3f &P,
         if (nodeID < 0)
           return false;
         
-        node = bvhNodes[nodeID];
+        node = bvhNodes[(int64_t)nodeID];
+        // if (childID < 0 || childID >= 4) {
+        //   printf("invalid child id %i (in node %i)\n",childID,nodeID);
+        //   return false;
+        // }
         cr   = node.childRef[childID];
         
         if (cr.valid() && node.getBounds(childID).contains(P)) {
@@ -125,21 +159,43 @@ float volume(const vec3f &P,
           continue;
         }
         childID++;
-        if (childID >= node.numChildren || !node.childRef[childID].valid()) {
+        if ((childID >= node.numChildren) || !node.childRef[childID].valid()) {
           nodeID = node.skipTreeNode;
           childID = node.skipTreeChild;
         }
+        // if (childID < 0 || childID >= 4) {
+        //   printf("invalid child id (2) %i (in node %i)\n",childID,nodeID);
+        //   return false;
+        // }
       }
+      // if (childID < 0 || childID >= 4) {
+      //   printf("invalid child id (6) %i (in node %i)\n",childID,nodeID);
+      //   return false;
+      // }
       // now all are a at a leaf ...
-      if (sampleElement(cr.getPrimIndex(),f,P,dbg))
+      int tetID = ((uint32_t)cr.getPrimIndex());// % (128*1024*1024);
+      if (sampleElement(tetID,f,P,dbg))
         return true;
       
+      // if (childID < 0 || childID >= 4) {
+      //   printf("invalid child id (5) %i (in node %i)\n",childID,nodeID);
+      //   return false;
+      // }
       childID++;
-      if (childID >= node.numChildren || !node.childRef[childID].valid()) {
+      if ((childID >= node.numChildren) || !node.childRef[childID].valid()) {
         nodeID = node.skipTreeNode;
         childID = node.skipTreeChild;
+        // if (childID < 0 || childID >= 4) {
+        //   printf("invalid child id (4) %i (in node %i)\n",childID,nodeID);
+        //   return false;
+        // }
       }
+      // if (childID < 0 || childID >= 4) {
+      //   printf("invalid child id (3) %i (in node %i)\n",childID,nodeID);
+      //   return false;
+      // }
     }
+# endif
 #else
     enum { stackDepth = 30 };
     int stackPtr = 0;

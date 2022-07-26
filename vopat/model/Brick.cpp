@@ -25,12 +25,28 @@ namespace vopat {
 #if VOPAT_UMESH
   void Brick::load(const std::string &fileName)
   {
-    PING;
     umesh = umesh::UMesh::loadFrom(fileName);
     valueRange = {};
     for (auto v : umesh->perVertex->values)
       valueRange.extend(v);
-    PRINT(valueRange);
+
+    PRINT(umesh->toString());
+#if 0
+    const int maxTets = (128
+                         + 0*64
+                         + 1*32
+                         // + 1*16
+                         // + 1*8
+                         // + 1*4
+                         + 1*1
+                         )*1024*1024;
+    if (umesh->tets.size() > maxTets) {
+      for (int i=0;i<maxTets;i++) {
+        umesh->tets[i] = umesh->tets[umesh->tets.size()-maxTets+i];
+      }
+      umesh->tets.resize(maxTets);
+    }
+#endif
   }
 #else
   Brick::Brick(int ID,

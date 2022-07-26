@@ -80,7 +80,7 @@ namespace vopat {
         if (numLights == 0) return 0.f;
         
         int which = int(rnd() * numLights);
-        if (which == numLights) which = 0;
+        if (which < 0 || which >= numLights) which = 0;
         pdf *= 1.f / numLights;
 
         lDir = lights.directional[which].dir;

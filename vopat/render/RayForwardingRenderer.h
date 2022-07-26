@@ -23,7 +23,7 @@
 #include <sstream>
 
 namespace vopat {
-
+  
   inline __device__ bool checkOrigin(float x)
   {
     if (isnan(x) || fabsf(x) > 1e4f)
@@ -245,7 +245,7 @@ namespace vopat {
     AddWorkersRenderer::resizeFrameBuffer(newSize);
     if (isMaster()) {
     } else {
-      PRINT(newSize);
+      // PRINT(newSize);
       accumBuffer.resize(islandFbSize.x*islandFbSize.y);
       globals.accumBuffer  = accumBuffer.get();
       
@@ -296,7 +296,7 @@ namespace vopat {
       globals.sampleID = numSPP * accumID + s;
     
       perRankSendCounts.bzero();
-      CUDA_SYNC_CHECK();
+      // CUDA_SYNC_CHECK();
       if (numBlocks != vec2i(0)) {
         prof_genPrimary.enter();
         nodeRenderer->generatePrimaryWave(globals);
@@ -304,22 +304,22 @@ namespace vopat {
       }
       CUDA_SYNC_CHECK();
       host_sendCounts = perRankSendCounts.download();
-      {
-        std::stringstream out;
-        out << "(" << comm->myRank() << ") snd-pri ";
-        for (auto i : host_sendCounts)
-          out << " " << i;
-        out << std::endl;
-        std::cout << out.str();
-      }
+      // {
+      //   std::stringstream out;
+      //   out << "(" << comm->myRank() << ") snd-pri ";
+      //   for (auto i : host_sendCounts)
+      //     out << " " << i;
+      //   out << std::endl;
+      //   std::cout << out.str();
+      // }
       numRaysInQueue = host_sendCounts[myRank()];
       globals.numRaysInQueue = numRaysInQueue;
 
-#if 1
-      checkRays(comm->myRank(),globals.rayQueueIn,globals.numRaysInQueue,"after primary");
-#endif
+// #if 1
+//       checkRays(comm->myRank(),globals.rayQueueIn,globals.numRaysInQueue,"after primary");
+// #endif
       
-      CUDA_SYNC_CHECK();
+//       CUDA_SYNC_CHECK();
       
       int numIterations = 0;
       bool fishy = false;
@@ -353,6 +353,7 @@ namespace vopat {
         
         if (numRaysExchanged == 0)
           break;
+        
       }
     }
 
@@ -521,11 +522,11 @@ namespace vopat {
     auto island = comm->worker.withinIsland;
 
 
-#if 1
-    int mySendCounts = 0;
-    for (auto i : host_sendCounts) mySendCounts += i;
-    checkRays(comm->myRank(),globals.rayQueueOut,mySendCounts,"sendqueue");
-#endif
+// #if 1
+//     int mySendCounts = 0;
+//     for (auto i : host_sendCounts) mySendCounts += i;
+//     checkRays(comm->myRank(),globals.rayQueueOut,mySendCounts,"sendqueue");
+// #endif
       
         
 
@@ -550,13 +551,13 @@ namespace vopat {
       ofs += sendByteCounts[i];
     }
 
-#if 1
-    {
-      std::stringstream out;
-      out << "(" << myRank << ") self-send " << sendByteCounts[myRank] << std::endl;
-      std::cout << out.str();
-    }
-#endif
+// #if 1
+//     {
+//       std::stringstream out;
+//       out << "(" << myRank << ") self-send " << sendByteCounts[myRank] << std::endl;
+//       std::cout << out.str();
+//     }
+// #endif
 
 
     // ------------------------------------------------------------------
@@ -574,26 +575,26 @@ namespace vopat {
       numReceived += from_i;
     }
 
-#if 1
-    {
-      std::stringstream out;
-      out << "(" << myRank << ") self-recv " << recvByteCounts[myRank] << std::endl;
-      std::cout << out.str();
-    }
-#endif
+// #if 1
+//     {
+//       std::stringstream out;
+//       out << "(" << myRank << ") self-recv " << recvByteCounts[myRank] << std::endl;
+//       std::cout << out.str();
+//     }
+// #endif
 
 
-    {
-      std::stringstream out;
-      out << "[" << comm->myRank() << "] to:";
-      for (int i=0;i<numWorkers;i++)
-        out << " " << allRankSendCounts[myRank*numWorkers+i];
-      out << " frm:";
-      for (int i=0;i<numWorkers;i++)
-        out << " " << allRankSendCounts[i*numWorkers+myRank];
-      out << " -> numrecv " << numReceived << std::endl;
-      std::cout << out.str();
-    }
+    // {
+    //   std::stringstream out;
+    //   out << "[" << comm->myRank() << "] to:";
+    //   for (int i=0;i<numWorkers;i++)
+    //     out << " " << allRankSendCounts[myRank*numWorkers+i];
+    //   out << " frm:";
+    //   for (int i=0;i<numWorkers;i++)
+    //     out << " " << allRankSendCounts[i*numWorkers+myRank];
+    //   out << " -> numrecv " << numReceived << std::endl;
+    //   std::cout << out.str();
+    // }
     
     // ------------------------------------------------------------------
     // exeute the all2all
@@ -609,9 +610,9 @@ namespace vopat {
     globals.numRaysInQueue = numRaysInQueue;
 
 
-#if 1
-    checkRays(comm->myRank(),globals.rayQueueIn,numRaysInQueue,"recved");
-#endif
+// #if 1
+//     checkRays(comm->myRank(),globals.rayQueueIn,numRaysInQueue,"recved");
+// #endif
     
     // ------------------------------------------------------------------
     // return how many we've exchanged ACROSS ALL ranks

@@ -106,12 +106,14 @@ namespace vopat {
     // it's done
     // ==================================================================
     int nextRankToSendTo = -1;
-    int numOuterLoop = 0;
+    // int numOuterLoop = 0;
+    int age = -1;
     while (true) {
-      if (++numOuterLoop > 10) {
-        printf("num outer loop %i\n",numOuterLoop);
-        break;
-      }
+      ++age;
+      // if (++numOuterLoop > 10) {
+      //   printf("num outer loop %i\n",numOuterLoop);
+      //   break;
+      // }
       closestHit.type = vopat::Intersection::NONE;
       closestHit.t    = FLT_MAX;
         
@@ -144,22 +146,29 @@ namespace vopat {
       const vec3f mcScale = vec3f(numMacrocells) * rcp(stretch);
 #endif
 
-      if (t1 <= t0) {
-        printf("(%i) - huh ... ray we got sent doesn't actually overlap this box!? ...\n",vopat.islandRank);
-        printf("box : (%f %f %f)(%f %f %f)\n",
-               myBox.lower.x,
-               myBox.lower.y,
-               myBox.lower.z,
-               myBox.upper.x,
-               myBox.upper.y,
-               myBox.upper.z);
-        printf("ray %f %f %f + t (%f %f %f) range (%f %f)\n",
-               ray.origin.x,
-               ray.origin.y,
-               ray.origin.z,
-               dir.x,
-               dir.y,
-               dir.z,t0,t1);
+      if (t0 == t1) {
+        break;
+      }
+      
+      if (t1 < t0) {
+        // if (t1 != 0 || t0 != 0)
+        {
+          printf("(%i) - huh ... ray we got sent (age=%i) doesn't actually overlap this box!? ...\n",vopat.islandRank,age);
+          printf("box : (%f %f %f)(%f %f %f)\n",
+                 myBox.lower.x,
+                 myBox.lower.y,
+                 myBox.lower.z,
+                 myBox.upper.x,
+                 myBox.upper.y,
+                 myBox.upper.z);
+          printf("ray %f %f %f + t (%f %f %f) range (%f %f)\n",
+                 ray.origin.x,
+                 ray.origin.y,
+                 ray.origin.z,
+                 dir.x,
+                 dir.y,
+                 dir.z,t0,t1);
+        }
 
         // we're just KILLING these rays here, but this is actually
         // not entirely correct - the ray COULD be out of box by
@@ -213,7 +222,8 @@ namespace vopat {
            const auto mc = dvr.mc.data[cellIdx.x + 
                                        cellIdx.y * dvr.mc.dims.x + 
                                        cellIdx.z * dvr.mc.dims.x * dvr.mc.dims.y];
-             
+
+#if 0
            // ==================================================================
            // perform is-intersection within this cell...
            // ==================================================================
@@ -248,7 +258,8 @@ namespace vopat {
              // surf.intersect(closestHit,ray.origin,dir,t00,min(t1,t11),ray.dbg);
              // t11 = min(t11,closestHit.t);
            }
-
+#endif
+           
            // ==================================================================
            // perform woodcock-tracking within this cell, using this
            // cell's majorant
@@ -394,7 +405,7 @@ namespace vopat {
             closestHit.Ng = - closestHit.Ng;
 
           ray.origin = ray.origin + .5f*closestHit.Ng;
-          if (!myBox.contains(ray.origin))
+          if (!myBox.contains(ray.origin)) {
             printf("POST-OFFSET HIT OUTSIDE BOX  %f %f %f, hit.t %f in %f %f; dg.Ng %f %f %f!\n",
                    ray.origin.x,
                    ray.origin.y,
@@ -412,6 +423,9 @@ namespace vopat {
           //                 ray.origin.x,
           //                 ray.origin.y,
           //                 ray.origin.z);
+            nextRankToSendTo = -1;
+            break;
+          }
         }
         
         // ------------------------------------------------------------------
@@ -481,8 +495,8 @@ namespace vopat {
         ray.setDirection(dir);
         dir = ray.getDirection();
         throughput *= (closestHit.eval(dir,ray.dbg) / pdf);
-        if (ray.dbg) printf(" -> done EVAL, new TP %f %f %f\n",
-                            throughput.x,throughput.y,throughput.z);
+        // if (ray.dbg) printf(" -> done EVAL, new TP %f %f %f\n",
+        //                     throughput.x,throughput.y,throughput.z);
         if (reduce_max(throughput) <= 1e-2f)
           // probably sampled a back-facing light ...
           break;
@@ -491,8 +505,8 @@ namespace vopat {
       }
     }
     if (nextRankToSendTo >= 0) {
-      if (ray.dbg)
-        printf("FORWARDING RAY TO %i\n",nextRankToSendTo);
+      // if (ray.dbg)
+      //   printf("FORWARDING RAY TO %i\n",nextRankToSendTo);
       vopat.forwardRay(tid,ray,nextRankToSendTo);
     } else 
       vopat.killRay(tid);

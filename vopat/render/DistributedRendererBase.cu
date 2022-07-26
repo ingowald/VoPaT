@@ -153,26 +153,24 @@ namespace vopat {
   
   void AddWorkersRenderer::render(uint32_t *fbPointer)
   {
-    PING; PRINT(myRank());PRINT(comm);
-
     static Prof renderFrame("renderFrame",comm->myRank());
     static Prof inheritedRender("inheritedRender",comm->myRank());
 
-#if 1
-    // if (comm->worker.withinIsland)
-    {
-      // comm->worker.withinIsland->barrier();
-      comm->barrierAll();
-      if (comm->myRank() == 0) {
-        printf("======================\n");
-        printf("NEW FRAME!\n");
-        printf("======================\n");
-        fflush(0);
-      }
-      comm->barrierAll();
-      // comm->worker.withinIsland->barrier();
-    }
-#endif
+// #if 1
+//     // if (comm->worker.withinIsland)
+//     {
+//       // comm->worker.withinIsland->barrier();
+//       comm->barrierAll();
+//       if (comm->myRank() == 0) {
+//         printf("======================\n");
+//         printf("NEW FRAME!\n");
+//         printf("======================\n");
+//         fflush(0);
+//       }
+//       comm->barrierAll();
+//       // comm->worker.withinIsland->barrier();
+//     }
+// #endif
     
     renderFrame.enter();
 

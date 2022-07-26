@@ -44,7 +44,7 @@ namespace gdt {
     { o << "{" << bp.primID << ":" << bp.bounds << "}"; return o; }
 
     /*! helper class that tracks both primitmive bounds _and_
-      primitmive _centeroind_ bounds (as most builders reuquire */
+      primitmive _centeroind_ bounds (as most builders require */
     struct BothBounds {
       box3f prim, cent;
 
@@ -63,12 +63,20 @@ namespace gdt {
     struct ChildRef {
       inline __both__ bool valid() const { return bits != 0; }
 
-      inline __both__ void makeLeaf(uint32_t index)  { bits = index | (1UL<<31); }
-      inline __both__ void makeInner(uint32_t index) { bits = index; }
+      inline __both__ void makeLeaf(uint32_t index)
+      {
+        if (index >= (1<<30)) printf("very large index!?\n");
+                                     ;
+        bits = index | (1UL<<31);
+      }
+      inline __both__ void makeInner(uint32_t index) {
+        if (index >= (1<<30)) printf("very large index!?\n");
+        bits = index;
+      }
       inline __both__ uint32_t getPrimIndex() const  { return bits & ~(1UL<<31); }
       inline __both__ uint32_t getChildIndex() const { return bits; }
       inline __both__ bool isLeaf() const { return (bits & (1UL<<31)); }
-      uint32_t bits;
+      uint32_t bits = 0;
     };
 
     template<int NUM_CHILDREN>
@@ -76,16 +84,30 @@ namespace gdt {
       enum { numChildren = NUM_CHILDREN };
       vec3f origin;
       float width;
+#if 0
+      union {
+        struct {
+          uint64_t lo8, hi8;
+        };
+        struct { 
+          uint8_t lo[NUM_CHILDREN];
+          uint8_t hi[NUM_CHILDREN];
+        };
+      } dim[3];
+#else
       struct { 
         uint8_t lo[NUM_CHILDREN];
         uint8_t hi[NUM_CHILDREN];
       } dim[3];
+#endif
       ChildRef childRef[NUM_CHILDREN];
 #if SKIP_TREE
-      struct {
-        int32_t  skipTreeNode : 29;
-        uint32_t skipTreeChild : 3;
-      };
+      // struct {
+      //   int32_t  skipTreeNode : 29;
+      //   uint32_t skipTreeChild : 3;
+      // };
+      int32_t  skipTreeNode = -1;
+      uint32_t skipTreeChild = 0;
 #endif
 
       void makeInner(int slot, const box3f &bounds, int childNodeID)
@@ -158,24 +180,39 @@ namespace gdt {
         Node<NUM_CHILDREN> &node = nodes[nodeID];
         node.skipTreeNode = skipTreeNode;
         node.skipTreeChild = skipTreeChild;
-        for (int i=0;i<NUM_CHILDREN;i++)
-          if (node.childRef[i].valid() && !node.childRef[i].isLeaf()) {
-            if (((i+1) < NUM_CHILDREN) && node.childRef[i+1].valid()) {
-              // child HAS valid right brother
-              setSkipNodes(node.childRef[i].getChildIndex(),
-                           nodeID,i+1);
-            } else {
-              // no right brother for this child - skip node for this
-              // child is same as for us
-              setSkipNodes(node.childRef[i].getChildIndex(),
-                           skipTreeNode,skipTreeChild);
-            }
+        for (int i=0;i<NUM_CHILDREN;i++) {
+          if (!node.childRef[i].valid()) continue;
+          if (node.childRef[i].isLeaf()) continue;
+          
+          if (((i+1) < NUM_CHILDREN) && node.childRef[i+1].valid()) {
+            // child HAS valid right brother
+            setSkipNodes(node.childRef[i].getChildIndex(),
+                         nodeID,i+1);
+          } else {
+            // no right brother for this child - skip node for this
+            // child is same as for us
+            setSkipNodes(node.childRef[i].getChildIndex(),
+                         skipTreeNode,skipTreeChild);
           }
+        }
       }
       
       void setSkipNodes()
       {
         setSkipNodes(0,-1,0);
+
+        std::cout << "CHECKING skip tree values" << std::endl;
+        for (int nodeID=0;nodeID<nodes.size();nodeID++) {
+          auto &node = nodes[nodeID];
+          if (node.skipTreeChild >= 4) {
+            PING;
+            PRINT(nodeID);
+            PRINT(nodes.size());
+            PRINT(node.skipTreeNode);
+            PRINT(node.skipTreeChild);
+          }
+        }
+        std::cout << "DONE checking skip tree values" << std::endl;
       }
 #endif
         

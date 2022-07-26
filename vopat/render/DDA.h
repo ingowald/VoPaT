@@ -3,7 +3,7 @@
 #include "owl/common/math/vec.h"
 #include "owl/common/math/AffineSpace.h"
 
-#define DDA_FAST 1
+// #define DDA_FAST 1
 
 namespace dda {
   using namespace owl::common;
@@ -23,11 +23,11 @@ namespace dda {
 #if DDA_FAST
   inline __device__ int get(vec3i v, int dim)
   {
-    return dim == 0 ? v.x : (dim == 1 ? v.y : v.z);
+    return (dim == 0) ? v.x : ((dim == 1) ? v.y : v.z);
   }
   inline __device__ float get(vec3f v, int dim)
   {
-    return dim == 0 ? v.x : (dim == 1 ? v.y : v.z);
+    return (dim == 0) ? v.x : ((dim == 1) ? v.y : v.z);
   }
 
   inline __device__ void set(vec3f &vec, int dim, float value)
@@ -46,7 +46,7 @@ namespace dda {
 
   inline __device__ int smallestDim(vec3f v)
   {
-    return v.x <= min(v.y,v.z) ? 0 : (v.y <= min(v.x,v.z) ? 1 : 2);
+    return (v.x <= min(v.y,v.z)) ? 0 : ((v.y <= min(v.x,v.z)) ? 1 : 2);
   }
 #else
   inline __device__ int   get(vec3i v, int dim) { return v[dim]; }
