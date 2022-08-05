@@ -258,8 +258,8 @@ namespace vopat {
 #endif
   
   Renderer *createRenderer_WrongShadows(CommBackend *comm,
-                                    Model::SP model,
-                                    const std::string &fileNameBase,
+                                        Model::SP model,
+                                        const std::string &fileNameBase,
                                         int rank, int numSPP)
   {
     throw std::runtime_error("needs re-activation...");

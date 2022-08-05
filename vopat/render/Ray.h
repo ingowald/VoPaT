@@ -1,0 +1,73 @@
+// ======================================================================== //
+// Copyright 2022++ Ingo Wald                                               //
+//                                                                          //
+// Licensed under the Apache License, Version 2.0 (the "License");          //
+// you may not use this file except in compliance with the License.         //
+// You may obtain a copy of the License at                                  //
+//                                                                          //
+//     http://www.apache.org/licenses/LICENSE-2.0                           //
+//                                                                          //
+// Unless required by applicable law or agreed to in writing, software      //
+// distributed under the License is distributed on an "AS IS" BASIS,        //
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
+// See the License for the specific language governing permissions and      //
+// limitations under the License.                                           //
+// ======================================================================== //
+
+#pragma once
+
+#include "vopat/render/DistributedRendererBase.h"
+
+namespace vopat {
+
+  inline __device__
+  float fixDir(float f) { return (f==0.f)?1e-6f:f; }
+  
+  inline __device__
+  vec3f fixDir(vec3f v)
+  { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
+  
+  struct Ray {
+    struct {
+      /*! note this always refers to a GLOBAL pixel ID even if we
+        use islands; ie, this number may be LARGER than the number
+        of pixels in the local frame buffer */
+      uint32_t    pixelID    : 25;
+      uint32_t    numBounces :  4;
+      uint32_t    dbg        :  1;
+      uint32_t    crosshair  :  1;
+      uint32_t    isShadow   :  1;
+    };
+#if DEBUG_FORWARDS
+    uint32_t    numFwds;
+#endif
+      
+    vec3f       origin;
+#if 1
+    inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
+    inline __device__ vec3f getDirection() const { return from_half(direction); }
+    small_vec3f direction;
+#else
+    inline __device__ void setDirection(vec3f v) { direction = fixDir(normalize(v)); }
+    inline __device__ vec3f getDirection() const { return direction; }
+    vec3f direction;
+#endif
+    small_vec3f throughput;
+  };
+
+  inline __device__ bool checkOrigin(float x)
+  {
+    if (isnan(x) || fabsf(x) > 1e4f)
+      return false;
+    return true;
+  }
+  
+  inline __device__ bool checkOrigin(vec3f org)
+  { return checkOrigin(org.x) && checkOrigin(org.y) && checkOrigin(org.z); }
+
+  inline __device__ bool checkOrigin(const Ray &ray)
+  { return checkOrigin(ray.origin); }
+
+  
+}
+

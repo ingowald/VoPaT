@@ -18,40 +18,13 @@
 
 #include "VolumeRendererBase.h"
 #include "SurfaceIntersector.h"
+#include "Ray.h"
 
 namespace vopat {
 
   struct Vopat
   {
-    struct Ray {
-      struct {
-        /*! note this always refers to a GLOBAL pixel ID even if we
-            use islands; ie, this number may be LARGER than the number
-            of pixels in the local frame buffer */
-        uint32_t    pixelID    : 25;
-        uint32_t    numBounces :  4;
-        uint32_t    dbg        :  1;
-        uint32_t    crosshair  :  1;
-        uint32_t    isShadow   :  1;
-      };
-#if DEBUG_FORWARDS
-      uint32_t    numFwds;
-#endif
-      
-      vec3f       origin;
-#if 1
-      inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
-      inline __device__ vec3f getDirection() const { return from_half(direction); }
-      small_vec3f direction;
-#else
-      inline __device__ void setDirection(vec3f v) { direction = fixDir(normalize(v)); }
-      inline __device__ vec3f getDirection() const { return direction; }
-      vec3f direction;
-#endif
-      small_vec3f throughput;
-    };
-    
-    using ForwardGlobals = typename RayForwardingRenderer<Ray>::Globals;
+    using ForwardGlobals = typename RayForwardingRenderer::Globals;
     using VolumeGlobals  = typename VolumeRenderer::Globals;
     using SurfaceGlobals = typename SurfaceIntersector::Globals;
     
@@ -71,7 +44,7 @@ namespace vopat {
                            bool dbg=false);
 
     static inline __device__
-    vec3f backgroundColor(const Vopat::Ray &ray,
+    vec3f backgroundColor(const Ray &ray,
                           const Vopat::ForwardGlobals &globals)
     {
       int iy = ray.pixelID / globals.worldFbSize.x;
@@ -85,7 +58,7 @@ namespace vopat {
 
   inline __device__
   bool boxTest(box3f box,
-               Vopat::Ray ray,
+               Ray ray,
                float &t0,
                float &t1,
                bool dbg=false)
@@ -121,9 +94,9 @@ namespace vopat {
 
   
   inline __device__
-  Vopat::Ray Vopat::generateRay(const Vopat::ForwardGlobals &globals,
-                                vec2i pixelID,
-                                vec2f pixelPos)
+  Ray Vopat::generateRay(const Vopat::ForwardGlobals &globals,
+                         vec2i pixelID,
+                         vec2f pixelPos)
   {
     Ray ray;
     ray.pixelID  = pixelID.x + globals.worldFbSize.x*pixelID.y;
@@ -140,7 +113,7 @@ namespace vopat {
 
   inline __device__
   int Vopat::computeNextNode(const Vopat::VolumeGlobals &vopat,
-                             const Vopat::Ray &ray,
+                             const Ray &ray,
                              const float t_already_travelled,
                              bool dbg)
   {
@@ -190,12 +163,11 @@ namespace vopat {
 
   template<typename DeviceKernels>
   struct VopatNodeRenderer
-    : public RayForwardingRenderer<typename DeviceKernels::Ray>::NodeRenderer,
+    : public RayForwardingRenderer::NodeRenderer,
       public VolumeRenderer,
       public SurfaceIntersector
   {
-    using inherited    = typename RayForwardingRenderer<typename DeviceKernels::Ray>::NodeRenderer;
-    using Ray          = typename DeviceKernels::Ray;
+    using inherited    = typename RayForwardingRenderer::NodeRenderer;
     using ForwardGlobals = typename DeviceKernels::ForwardGlobals;
     using VolumeGlobals  = typename DeviceKernels::VolumeGlobals;
     using SurfaceGlobals = typename DeviceKernels::SurfaceGlobals;
@@ -260,6 +232,9 @@ namespace vopat {
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
     { VolumeRenderer::setLights(ambient,dirLights); }
+
+    OWLLaunchParams lp;
+    OWLRayGen traceLocallyRG;
   };
 
   
@@ -280,6 +255,11 @@ namespace vopat {
   (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &forward,
    bool fishy)
   {
+#if VOPAT_UMESH_OPTIX
+    owlParamsSetRaw(lp,"forwardGlobals",&forward);
+    owlParamsSetGroup(lp,"umeshAccel",umeshAccel);
+    owlLaunch2D(traceLocallyRG,forward.numRaysInQueue,1,lp);
+#else
     // CUDA_SYNC_CHECK();
     int blockSize = 64;
     int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
@@ -288,6 +268,7 @@ namespace vopat {
       doTraceRaysLocally<DeviceKernels><<<numBlocks,blockSize>>>
         (forward,VolumeRenderer::globals,SurfaceIntersector::globals);
     // CUDA_SYNC_CHECK();
+#endif
   }
 
 
@@ -306,8 +287,7 @@ namespace vopat {
     int world_iy
       = vopat.islandIndex
       + iy * vopat.islandCount;
-    typename DeviceKernels::Ray
-      ray    = DeviceKernels::generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
+    Ray ray    = DeviceKernels::generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
 #if 0
     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
     if (ray.dbg) printf("----------- NEW RAY -----------\n");
