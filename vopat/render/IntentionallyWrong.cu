@@ -23,6 +23,7 @@
 
 namespace vopat {
 
+#if 0
   struct WrongShadowsKernels : public Vopat
   {
     static inline __device__
@@ -254,16 +255,18 @@ namespace vopat {
 #endif
     }
   };
-
+#endif
+  
   Renderer *createRenderer_WrongShadows(CommBackend *comm,
                                     Model::SP model,
                                     const std::string &fileNameBase,
                                         int rank, int numSPP)
   {
-    VopatNodeRenderer<WrongShadowsKernels> *nodeRenderer
-      = new VopatNodeRenderer<WrongShadowsKernels>
-      (model,fileNameBase,rank);
-    return new RayForwardingRenderer<WrongShadowsKernels::Ray>(comm,nodeRenderer,numSPP);
+    throw std::runtime_error("needs re-activation...");
+    // VopatNodeRenderer<WrongShadowsKernels> *nodeRenderer
+    //   = new VopatNodeRenderer<WrongShadowsKernels>
+    //   (model,fileNameBase,rank);
+    // return new RayForwardingRenderer<WrongShadowsKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
   Renderer *createRenderer_NoShadows(CommBackend *comm,
@@ -271,10 +274,11 @@ namespace vopat {
                                      const std::string &fileNameBase,
                                      int rank, int numSPP)
   {
-    VopatNodeRenderer<EmissionAbsorptionKernels> *nodeRenderer
-      = new VopatNodeRenderer<EmissionAbsorptionKernels>
-      (model,fileNameBase,rank);
-    return new RayForwardingRenderer<EmissionAbsorptionKernels::Ray>(comm,nodeRenderer,numSPP);
+    throw std::runtime_error("needs re-activation...");
+    // VopatNodeRenderer<EmissionAbsorptionKernels> *nodeRenderer
+    //   = new VopatNodeRenderer<EmissionAbsorptionKernels>
+    //   (model,fileNameBase,rank);
+    // return new RayForwardingRenderer<EmissionAbsorptionKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
 } // ::vopat

@@ -19,6 +19,7 @@
 
 namespace vopat {
 
+#if 0
   /*! a version of the data parallel ray forwarding renderer that uses
     DDA to step through all cells of the local volume, sampling each one */
   struct CellMarchKernels : public Vopat
@@ -180,17 +181,19 @@ namespace vopat {
     }
 #endif
   }
-
+#endif
+  
   
   Renderer *createRenderer_CellMarch(CommBackend *comm,
                                      Model::SP model,
                                      const std::string &fileNameBase,
                                      int rank,int numSPP)
   {
-    VopatNodeRenderer<CellMarchKernels> *nodeRenderer
-      = new VopatNodeRenderer<CellMarchKernels>
-      (model,fileNameBase,rank);
-    return new RayForwardingRenderer<CellMarchKernels::Ray>(comm,nodeRenderer,numSPP);
+    throw std::runtime_error("needs re-activation...");
+    // VopatNodeRenderer<CellMarchKernels> *nodeRenderer
+    //   = new VopatNodeRenderer<CellMarchKernels>
+    //   (model,fileNameBase,rank);
+    // return new RayForwardingRenderer<CellMarchKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 
 } // ::vopat

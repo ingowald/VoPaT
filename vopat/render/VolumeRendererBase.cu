@@ -16,8 +16,11 @@
 
 #include <string.h>
 #include "VolumeRendererBase.h"
+#include "../LaunchParams.h"
 
 namespace vopat {
+
+  extern "C" char deviceCode_ptx[];
 
 #if VOPAT_UMESH
   inline __device__
@@ -145,14 +148,71 @@ namespace vopat {
     }
   }
 
+  void sortIndices(int &A, int &B, int orientation)
+  {
+    if (A > B) {
+      std::swap(A,B);
+      orientation = 1-orientation;
+    }
+  }
+  
+  void sortIndices(vec3i &face, int orientation)
+  {
+    sortIndices(face.y,face.z,orientation);
+    sortIndices(face.x,face.y,orientation);
+    sortIndices(face.y,face.z,orientation);
+  };
+  
+  template<typename Lambda>
+  void iterateFaces(umesh::Tet tet, const Lambda &lambda)
+  {
+    int A = tet.x;
+    int B = tet.y;
+    int C = tet.z;
+    int D = tet.w;
+    std::array<vec3i,4> faces = {
+                                 vec3i{ A, C, B },
+                                 vec3i{ A, D, C },
+                                 vec3i{ A, B, D },
+                                 vec3i{ B, C, D }
+    };
+    for (auto face : faces) {
+      int orientation = 0;
+      sortIndices(face,orientation);
+      lambda(face,orientation);
+    }
+  }
+  
   VolumeRenderer::VolumeRenderer(Model::SP model,
                                  const std::string &baseFileName,
-                                 int islandRank)
+                                 int islandRank,
+                                 int gpuID)
     : model(model), islandRank(islandRank)
   {
+    //    CUDA_CALL(SetDevice(comm->worker.gpuID));
+    
     if (islandRank < 0)
       return;
-      
+
+
+#if VOPAT_UMESH_OPTIX
+    PING; PRINT(gpuID);
+    owl = owlContextCreate(&gpuID,1);
+    PING;
+    owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
+    OWLVarDecl args[] = {
+                         { "vertices", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,vertices) },
+                         { "scalars", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,scalars) },
+                         { "tets", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,tets) },
+                         { "tetsOnFace", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,tetsOnFace) },
+                         { nullptr }
+    };
+    umeshGT = owlGeomTypeCreate(owl,OWL_TRIANGLES,
+                                sizeof(UMeshGeom),
+                                args,-1);
+    owlGeomTypeSetClosestHit(umeshGT,0,owlDevCode,"UMeshGeomCH");
+#endif
+    
     // ------------------------------------------------------------------
     // upload per-rank boxes
     // ------------------------------------------------------------------
@@ -174,6 +234,8 @@ namespace vopat {
     myBrick->load(fileName);
 
     std::cout << "brick and umesh loaded" << std::endl;
+# if VOPAT_UMESH_OPTIX
+# else
     //    gdt::qbvh::BVH4 bvh;
     vopat::BVH bvh;
     std::cout << "building bvh ... " << prettyNumber(myBrick->umesh->tets.size()) << " tets" << std::endl;
@@ -185,25 +247,84 @@ namespace vopat {
                          .including((const vec3f&)myBrick->umesh->vertices[tet.z])
                          .including((const vec3f&)myBrick->umesh->vertices[tet.w]);
                      });
+# endif
     globals.myRegion      = myBrick->domain;
     globals.umesh.domain = myBrick->domain;
 
+#if VOPAT_UMESH_OPTIX
+    umeshScalarsBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT,
+                                               myBrick->umesh->perVertex->values.size(),
+                                               myBrick->umesh->perVertex->values.data());
+    globals.umesh.scalars = (float*)owlBufferGetPointer(umeshScalarsBuffer,0);
+    
+    umeshVerticesBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT3,
+                                                myBrick->umesh->vertices.size(),
+                                                myBrick->umesh->vertices.data());
+    globals.umesh.vertices = (vec3f*)owlBufferGetPointer(umeshVerticesBuffer,0);
+
+    umeshTetsBuffer = owlDeviceBufferCreate(owl,OWL_INT4,
+                                            myBrick->umesh->tets.size(),
+                                            myBrick->umesh->tets.data());
+    globals.umesh.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(umeshTetsBuffer,0);
+    
+#else
     myScalars.upload(myBrick->umesh->perVertex->values);
     globals.umesh.scalars   = myScalars.get();
-
-#if 1
     std::vector<vec3f> _vertices;
     for (auto &v : myBrick->umesh->vertices)
       _vertices.push_back(vec3f(v.x,v.y,v.z));
     myVertices.upload(_vertices);
-#else
-    myVertices.upload((const std::vector<vec3f> &)myBrick->umesh->vertices);
-#endif
+// #else
+//     myVertices.upload((const std::vector<vec3f> &)myBrick->umesh->vertices);
+// #endif
     globals.umesh.vertices   = myVertices.get();
-    
+
     myTets.upload(myBrick->umesh->tets);
     globals.umesh.tets   = myTets.get();
+#endif
     
+// #if 1
+    
+
+# if VOPAT_UMESH_OPTIX
+    std::cout << "building shared faces accel" << std::endl;
+    std::map<vec3i,vec2i> sharedFaces;
+    for (auto tet : myBrick->umesh->tets)
+      iterateFaces(tet,[&](vec3i faceVertices, int side){
+                         sharedFaces[faceVertices] = {-1,-1};
+                       });
+    for (int tetID=0;tetID<myBrick->umesh->tets.size();tetID++)
+      iterateFaces(myBrick->umesh->tets[tetID],[&](vec3i faceVertices, int side){
+          sharedFaces[faceVertices][side] = tetID;
+        });
+    std::vector<vec3i> sharedFaceIndices;
+    std::vector<vec2i> sharedFaceNeighbors;
+    for (auto it : sharedFaces) {
+      sharedFaceIndices.push_back(it.first);
+      sharedFaceNeighbors.push_back(it.second);
+    }
+
+    sharedFaceIndicesBuffer
+      = owlDeviceBufferCreate(owl,OWL_INT3,
+                              sharedFaceIndices.size(),sharedFaceIndices.data());
+    sharedFaceNeighborsBuffer
+      = owlDeviceBufferCreate(owl,OWL_INT2,
+                              sharedFaceNeighbors.size(),sharedFaceNeighbors.data());
+    umeshGeom = owlGeomCreate(owl,umeshGT);
+    owlTrianglesSetVertices(umeshGeom,umeshVerticesBuffer,
+                            myBrick->umesh->vertices.size(),sizeof(vec3f),0);
+    owlTrianglesSetIndices(umeshGeom,sharedFaceIndicesBuffer,
+                           sharedFaceIndices.size(),sizeof(vec3i),0);
+    owlGeomSetBuffer(umeshGeom,"tets",umeshTetsBuffer);
+    owlGeomSetBuffer(umeshGeom,"vertices",umeshVerticesBuffer);
+    owlGeomSetBuffer(umeshGeom,"scalars",umeshScalarsBuffer);
+    owlGeomSetBuffer(umeshGeom,"tetsOnFace",sharedFaceNeighborsBuffer);
+    umeshAccel = owlTrianglesGeomGroupCreate(owl,1,&umeshGeom);
+    owlGroupBuildAccel(umeshAccel);
+    owlBuildPrograms(owl);
+    owlBuildPipeline(owl);
+    owlBuildSBT(owl);
+# else
     std::cout << "uploading nodes" << std::endl;
     PRINT(bvh.nodes[0].numChildren);
     PRINT(sizeof(bvh.nodes[0]));
@@ -213,16 +334,17 @@ namespace vopat {
         PING; PRINT(node.skipTreeChild);
       };
     globals.umesh.bvhNodes = myBVHNodes.get();
-    PRINT(bvh.nodes.size());
-    PRINT(myBrick->umesh->perVertex->values.size());
-    {
-      int bs = 128;
-      int nb = divRoundUp((int)bvh.nodes.size(),bs);
-      std::cout << "device-checking " << bvh.nodes.size() << " nodes' skip values (2)" << std::endl;
-      checkSkipTree<<<nb,bs>>>(globals.umesh.bvhNodes,bvh.nodes.size());
-      CUDA_SYNC_CHECK();
-      std::cout << "done DEVICE checking of skip tree" << std::endl;
-    }
+    // PRINT(bvh.nodes.size());
+    // PRINT(myBrick->umesh->perVertex->values.size());
+    // {
+    //   int bs = 128;
+    //   int nb = divRoundUp((int)bvh.nodes.size(),bs);
+    //   std::cout << "device-checking " << bvh.nodes.size() << " nodes' skip values (2)" << std::endl;
+    //   checkSkipTree<<<nb,bs>>>(globals.umesh.bvhNodes,bvh.nodes.size());
+    //   CUDA_SYNC_CHECK();
+    //   std::cout << "done DEVICE checking of skip tree" << std::endl;
+    // }
+# endif
     
 #else
 # if VOPAT_VOXELS_AS_TEXTURE

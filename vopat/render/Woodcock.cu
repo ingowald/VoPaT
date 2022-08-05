@@ -520,7 +520,7 @@ namespace vopat {
   {
     VopatNodeRenderer<WoodcockKernels> *nodeRenderer
       = new VopatNodeRenderer<WoodcockKernels>
-      (model,fileNameBase,rank);
+      (model,fileNameBase,rank,comm->worker.gpuID);
     return new RayForwardingRenderer<WoodcockKernels::Ray>(comm,nodeRenderer,numSPP);
   }
 

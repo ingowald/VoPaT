@@ -21,6 +21,10 @@
 #include "vopat/render/MacroCell.h"
 #include "vopat/render/VoxelData.h"
 
+#ifdef VOPAT_UMESH
+# define VOPAT_UMESH_OPTIX 1
+#endif
+
 namespace vopat {
 
   /*! misc helpers, might eventually move somewhere else */
@@ -164,7 +168,9 @@ namespace vopat {
 
     VolumeRenderer(Model::SP model,
                    const std::string &baseFileName,
-                   int islandRank);
+                   int islandRank,
+                   /*! local rank's linear GPU ID on which to create the owl device */
+                   int gpuID);
     void initMacroCells();
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &xfDomain,
@@ -189,10 +195,21 @@ namespace vopat {
     Brick::SP            myBrick;
     CUDAArray<MacroCell> mcData;
 #if VOPAT_UMESH
+# if VOPAT_UMESH_OPTIX
+    OWLBuffer /*float*/umeshScalarsBuffer;
+    OWLBuffer /*vec3f*/umeshVerticesBuffer;
+    OWLBuffer /*vec4i*/umeshTetsBuffer;
+    OWLBuffer sharedFaceIndicesBuffer;
+    OWLBuffer sharedFaceNeighborsBuffer;
+    OWLGeomType umeshGT;
+    OWLGeom     umeshGeom;
+    OWLGroup    umeshAccel;
+# else
     CUDAArray<BVHNode> myBVHNodes;
     CUDAArray<float> myScalars;
     CUDAArray<vec3f> myVertices;
     CUDAArray<umesh::UMesh::Tet> myTets;
+# endif
 #else
 # if VOPAT_VOXELS_AS_TEXTURE
     cudaArray_t          voxelArray;
@@ -202,6 +219,9 @@ namespace vopat {
     CUDAArray<vec4f>     colorMap;
     int mcWidth = 8;
     int islandRank = -1;
+
+    OWLContext owl;
+    OWLModule  owlDevCode;
   };
 
 

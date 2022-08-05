@@ -15,7 +15,45 @@
 // ======================================================================== //
 
 // #include "deviceCode.h"
+#include "LaunchParams.h"
 #include <owl/owl.h>
+
+using namespace vopat;
+
+/*! closest-hit program for shared-faces geometry */
+OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
+{
+  const UMeshGeom &geom = owl::getProgramData<UMeshGeom>();
+  int faceID = optixGetPrimitiveIndex();
+  const vec2i &tetsOnFace = geom.tetsOnFace[faceID];
+  int side   = optixIsFrontFaceHit();
+  int tetID  = (&tetsOnFace.x)[side];
+  if (tetID < 0)
+    // outside face - no hit
+    return;
+  
+  vec4i tet  = geom.tets[tetID];
+  const vec3f P    = optixGetWorldRayOrigin();
+  const vec3f A    = geom.vertices[tet.x] - P;
+  const vec3f B    = geom.vertices[tet.y] - P;
+  const vec3f C    = geom.vertices[tet.z] - P;
+  const vec3f D    = geom.vertices[tet.w] - P;
+  float fA = fabsf(dot(B,cross(C,D)));
+  float fB = fabsf(dot(C,cross(D,A)));
+  float fC = fabsf(dot(D,cross(A,B)));
+  float fD = fabsf(dot(A,cross(B,C)));
+  const float scale = 1.f/(fA+fB+fC+fD);
+  fA *= scale;
+  fB *= scale;
+  fC *= scale;
+  fD *= scale;
+  auto &prd = owl::getPRD<UMeshSamplePRD>();
+  prd.sampledValue
+    = fA * geom.scalars[tet.x]
+    + fB * geom.scalars[tet.y]
+    + fC * geom.scalars[tet.z]
+    + fD * geom.scalars[tet.w];
+}
 
 OPTIX_RAYGEN_PROGRAM(traceLocally)()
 {

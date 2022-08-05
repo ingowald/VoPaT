@@ -202,8 +202,9 @@ namespace vopat {
     
     VopatNodeRenderer(Model::SP model,
                       const std::string &baseFileName,
-                      int islandRank)
-      : VolumeRenderer(model,baseFileName,islandRank)
+                      int islandRank,
+                      int gpuID)
+      : VolumeRenderer(model,baseFileName,islandRank,gpuID)
     // : inherited(model,baseFileName,myRank),
     //   VolumeRenderer(
     {
@@ -259,7 +260,6 @@ namespace vopat {
     void setLights(float ambient,
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
     { VolumeRenderer::setLights(ambient,dirLights); }
-    
   };
 
   
