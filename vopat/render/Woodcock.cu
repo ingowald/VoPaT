@@ -28,17 +28,17 @@ namespace vopat {
   {
     static inline __device__
     void traceRay(int tid,
-                  const typename Vopat::ForwardGlobals &vopat,
-                  const typename Vopat::VolumeGlobals  &dvr,
-                  const typename Vopat::SurfaceGlobals &surf);
+                  const ForwardGlobals &vopat,
+                  const VolumeGlobals  &dvr,
+                  const SurfaceGlobals &surf);
   };
   
 
   inline __device__
   void WoodcockKernels::traceRay(int tid,
-                                 const typename Vopat::ForwardGlobals &vopat,
-                                 const typename Vopat::VolumeGlobals  &dvr,
-                                 const typename Vopat::SurfaceGlobals &surf)
+                                 const ForwardGlobals &vopat,
+                                 const VolumeGlobals  &dvr,
+                                 const SurfaceGlobals &surf)
   {
     Ray ray = vopat.rayQueueIn[tid];
     if (!checkOrigin(ray))

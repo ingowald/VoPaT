@@ -19,6 +19,9 @@
 #include "common.h"
 #include "owl/common/math/random.h"
 #include "owl/common/math/box.h"
+#include "render/RayForwardingRenderer.h"
+#include "render/VolumeRendererBase.h"
+#include "render/SurfaceIntersector.h"
 
 namespace vopat {
 
@@ -26,6 +29,10 @@ namespace vopat {
   using namespace owl::common;
   using Random = owl::common::LCG<8>;
 
+  using ForwardGlobals = typename RayForwardingRenderer::Globals;
+  using VolumeGlobals  = typename VolumeRenderer::Globals;
+  using SurfaceGlobals = typename SurfaceIntersector::Globals;
+    
   /*! "triangle mesh" geometry type for shared-faces method */
   struct UMeshGeom {
     vec4i *tets;
@@ -38,6 +45,9 @@ namespace vopat {
   };
   
   struct LaunchParams {
+    ForwardGlobals forwardGlobals;
+    VolumeGlobals  volumeGlobals;
+    OptixTraversableHandle umeshSampleBVH;
     // struct {
     //   uint32_t *pointer;
     //   float4   *accum;

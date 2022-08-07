@@ -126,6 +126,8 @@ embed_ptx(
     deviceCode.cu
 )
 
+target_include_directories(deviceCode-ptx PUBLIC ${PROJECT_SOURCE_DIR})
+target_include_directories(deviceCode-ptx_ptx PUBLIC ${PROJECT_SOURCE_DIR})
 
 target_link_libraries(vopat_render
   PUBLIC

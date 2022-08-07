@@ -18,6 +18,21 @@
 #include "VolumeRendererBase.h"
 #include "../LaunchParams.h"
 
+
+namespace std {
+inline bool operator<(const owl::common::vec3i &a,
+                      const owl::common::vec3i &b)
+{
+  if (a.x < b.x) return true;
+  if (a.x > b.x) return false;
+  if (a.y < b.y) return true;
+  if (a.y > b.y) return false;
+  if (a.z < b.z) return true;
+  if (a.z > b.z) return false;
+  return false;
+}
+}
+
 namespace vopat {
 
   extern "C" char deviceCode_ptx[];
@@ -148,7 +163,7 @@ namespace vopat {
     }
   }
 
-  void sortIndices(int &A, int &B, int orientation)
+  void sortIndices(int &A, int &B, int &orientation)
   {
     if (A > B) {
       std::swap(A,B);
@@ -156,7 +171,7 @@ namespace vopat {
     }
   }
   
-  void sortIndices(vec3i &face, int orientation)
+  void sortIndices(vec3i &face, int &orientation)
   {
     sortIndices(face.y,face.z,orientation);
     sortIndices(face.x,face.y,orientation);
@@ -164,17 +179,17 @@ namespace vopat {
   };
   
   template<typename Lambda>
-  void iterateFaces(umesh::Tet tet, const Lambda &lambda)
+  void iterateFaces(umesh::Tet tet, Lambda lambda)
   {
     int A = tet.x;
     int B = tet.y;
     int C = tet.z;
     int D = tet.w;
-    std::array<vec3i,4> faces = {
-                                 vec3i{ A, C, B },
-                                 vec3i{ A, D, C },
-                                 vec3i{ A, B, D },
-                                 vec3i{ B, C, D }
+    std::vector<vec3i> faces = {
+                                vec3i{ A, C, B },
+                                vec3i{ A, D, C },
+                                vec3i{ A, B, D },
+                                vec3i{ B, C, D }
     };
     for (auto face : faces) {
       int orientation = 0;
@@ -196,9 +211,7 @@ namespace vopat {
 
 
 #if VOPAT_UMESH_OPTIX
-    PING; PRINT(gpuID);
     owl = owlContextCreate(&gpuID,1);
-    PING;
     owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
     OWLVarDecl args[] = {
                          { "vertices", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,vertices) },
@@ -288,21 +301,31 @@ namespace vopat {
 
 # if VOPAT_UMESH_OPTIX
     std::cout << "building shared faces accel" << std::endl;
-    std::map<vec3i,vec2i> sharedFaces;
-    for (auto tet : myBrick->umesh->tets)
-      iterateFaces(tet,[&](vec3i faceVertices, int side){
-                         sharedFaces[faceVertices] = {-1,-1};
-                       });
-    for (int tetID=0;tetID<myBrick->umesh->tets.size();tetID++)
-      iterateFaces(myBrick->umesh->tets[tetID],[&](vec3i faceVertices, int side){
-          sharedFaces[faceVertices][side] = tetID;
-        });
+    std::map<vec3i,int> faceID;
     std::vector<vec3i> sharedFaceIndices;
     std::vector<vec2i> sharedFaceNeighbors;
-    for (auto it : sharedFaces) {
-      sharedFaceIndices.push_back(it.first);
-      sharedFaceNeighbors.push_back(it.second);
+    for (auto tet : myBrick->umesh->tets)
+      iterateFaces(tet,
+                   [&faceID,&sharedFaceIndices,&sharedFaceNeighbors]
+                   (const vec3i faceVertices, int side)
+                   {
+                     if (faceID.find(faceVertices) == faceID.end()) {
+                       faceID[faceVertices] = sharedFaceIndices.size();
+                       sharedFaceIndices.push_back(faceVertices);
+                       sharedFaceNeighbors.push_back(vec2i(-1));
+                     }
+                   });
+    
+    for (int tetID=0;tetID<myBrick->umesh->tets.size();tetID++) {
+      auto tet = myBrick->umesh->tets[tetID];
+      iterateFaces(myBrick->umesh->tets[tetID],[&](vec3i faceVertices, int side){
+          sharedFaceIndices[faceID[faceVertices]][side] = tetID;
+        });
     }
+    // for (auto it : sharedFaces) {
+    //   sharedFaceIndices.push_back(it.first);
+    //   sharedFaceNeighbors.push_back(it.second);
+    // }
 
     sharedFaceIndicesBuffer
       = owlDeviceBufferCreate(owl,OWL_INT3,

@@ -19,15 +19,12 @@
 #include "VolumeRendererBase.h"
 #include "SurfaceIntersector.h"
 #include "Ray.h"
+#include "vopat/LaunchParams.h"
 
 namespace vopat {
 
   struct Vopat
   {
-    using ForwardGlobals = typename RayForwardingRenderer::Globals;
-    using VolumeGlobals  = typename VolumeRenderer::Globals;
-    using SurfaceGlobals = typename SurfaceIntersector::Globals;
-    
     static inline __device__
     Ray generateRay(const ForwardGlobals &globals,
                     vec2i pixelID,
@@ -45,7 +42,7 @@ namespace vopat {
 
     static inline __device__
     vec3f backgroundColor(const Ray &ray,
-                          const Vopat::ForwardGlobals &globals)
+                          const ForwardGlobals &globals)
     {
       int iy = ray.pixelID / globals.worldFbSize.x;
       float t = iy / float(globals.worldFbSize.y);
@@ -94,7 +91,7 @@ namespace vopat {
 
   
   inline __device__
-  Ray Vopat::generateRay(const Vopat::ForwardGlobals &globals,
+  Ray Vopat::generateRay(const ForwardGlobals &globals,
                          vec2i pixelID,
                          vec2f pixelPos)
   {
@@ -112,7 +109,7 @@ namespace vopat {
   }
 
   inline __device__
-  int Vopat::computeNextNode(const Vopat::VolumeGlobals &vopat,
+  int Vopat::computeNextNode(const VolumeGlobals &vopat,
                              const Ray &ray,
                              const float t_already_travelled,
                              bool dbg)
@@ -141,7 +138,7 @@ namespace vopat {
   }
 
   inline __device__
-  int Vopat::computeInitialRank(const Vopat::VolumeGlobals &vopat,
+  int Vopat::computeInitialRank(const VolumeGlobals &vopat,
                                 Ray ray,
                                 bool dbg)
   {
@@ -168,9 +165,9 @@ namespace vopat {
       public SurfaceIntersector
   {
     using inherited    = typename RayForwardingRenderer::NodeRenderer;
-    using ForwardGlobals = typename DeviceKernels::ForwardGlobals;
-    using VolumeGlobals  = typename DeviceKernels::VolumeGlobals;
-    using SurfaceGlobals = typename DeviceKernels::SurfaceGlobals;
+    // using ForwardGlobals = typename DeviceKernels::ForwardGlobals;
+    // using VolumeGlobals  = typename DeviceKernels::VolumeGlobals;
+    // using SurfaceGlobals = typename DeviceKernels::SurfaceGlobals;
     
     VopatNodeRenderer(Model::SP model,
                       const std::string &baseFileName,
@@ -180,6 +177,20 @@ namespace vopat {
     // : inherited(model,baseFileName,myRank),
     //   VolumeRenderer(
     {
+      if (islandRank >= 0) {
+        traceLocallyRG = owlRayGenCreate(owl,owlDevCode,"traceLocallyRG",0,0,0);
+        generatePrimaryWaveRG = owlRayGenCreate(owl,owlDevCode,"generatePrimaryWaveRG",0,0,0);
+        OWLVarDecl lpArgs[]
+          = {
+             {"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)},
+             {"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)},
+             {"umeshSampleBVH",OWL_GROUP,OWL_OFFSETOF(LaunchParams,umeshSampleBVH)},
+             {nullptr}
+        };
+        lp = owlParamsCreate(owl,sizeof(LaunchParams),
+                             lpArgs,-1);
+      }
+                           
       // Reuse for ISOs
       SurfaceIntersector::globals.gradientDelta = VolumeRenderer::globals.gradientDelta;
 #if VOPAT_UMESH
@@ -235,14 +246,15 @@ namespace vopat {
 
     OWLLaunchParams lp;
     OWLRayGen traceLocallyRG;
+    OWLRayGen generatePrimaryWaveRG;
   };
 
   
   template<typename DeviceKernels>
   __global__
-  void doTraceRaysLocally(typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals forward,
-                          typename VopatNodeRenderer<DeviceKernels>::VolumeGlobals  volume,
-                          typename VopatNodeRenderer<DeviceKernels>::SurfaceGlobals surf)
+  void doTraceRaysLocally(ForwardGlobals forward,
+                          VolumeGlobals  volume,
+                          SurfaceGlobals surf)
   {
     int tid = threadIdx.x+blockIdx.x*blockDim.x;
     if (tid >= forward.numRaysInQueue) return;
@@ -252,7 +264,7 @@ namespace vopat {
   
   template<typename DeviceKernels>
   void VopatNodeRenderer<DeviceKernels>::traceLocally
-  (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &forward,
+  (const ForwardGlobals &forward,
    bool fishy)
   {
 #if VOPAT_UMESH_OPTIX
@@ -273,12 +285,13 @@ namespace vopat {
 
 
   template<typename DeviceKernels>
-  __global__
-  void doGeneratePrimaryWave(typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals vopat,
-                             typename VopatNodeRenderer<DeviceKernels>::VolumeGlobals globals)
+  inline __device__
+  void generatePrimaryWaveKernel(const vec2i launchIdx,
+                                 const ForwardGlobals &vopat,
+                                 const VolumeGlobals &globals)
   {
-    int ix = threadIdx.x + blockIdx.x*blockDim.x;
-    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    int ix = launchIdx.x;
+    int iy = launchIdx.y;
     
     if (ix >= vopat.islandFbSize.x) return;
     if (iy >= vopat.islandFbSize.y) return;
@@ -325,13 +338,34 @@ namespace vopat {
   }
   
   template<typename DeviceKernels>
+  __global__
+  void doGeneratePrimaryWave(ForwardGlobals forward,
+                             VolumeGlobals globals)
+  {
+    int ix = threadIdx.x + blockIdx.x*blockDim.x;
+    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    generatePrimaryWaveKernel<DeviceKernels>(vec2i(ix,iy),forward,globals);
+  }
+  
+  template<typename DeviceKernels>
   void VopatNodeRenderer<DeviceKernels>::generatePrimaryWave
-  (const typename VopatNodeRenderer<DeviceKernels>::ForwardGlobals &vopat)
+  (const ForwardGlobals &forwardGlobals)
   {
     CUDA_SYNC_CHECK();
-    vec2i blockSize(16);
+#if VOPAT_UMESH_OPTIX
+    auto volumeGlobals = VolumeRenderer::globals;
+    owlParamsSetRaw(lp,"forwardGlobals",&forwardGlobals);
+    owlParamsSetRaw(lp,"volumeGlobals",&volumeGlobals);
+
+    owlLaunch2D(generatePrimaryWaveRG,
+                forwardGlobals.islandFbSize.x,
+                forwardGlobals.islandFbSize.y,
+                lp);
+#else
+    vec2i blockSize(16);q
     vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
     doGeneratePrimaryWave<DeviceKernels><<<numBlocks,blockSize>>>(vopat,VolumeRenderer::globals);
+#endif
     CUDA_SYNC_CHECK();
   }
 
