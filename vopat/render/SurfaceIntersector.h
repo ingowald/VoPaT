@@ -151,86 +151,11 @@ namespace vopat {
                                        float t1,
                                        bool dbg=false) const
       {
-        // Surflet res{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
 
 #if VOPAT_UMESH
         auto &volume = umesh;
 #endif
         
-//         // ISOs
-//         if (iso.numActive > 0) {
-//           const float dt = .5f;
-//           Surflet resISO{Surflet::None,FLT_MAX,vec3f(0.f),-1,-1,vec3f(0.f),vec3f(0.f)};
-//           float t0 = 0.f;
-//           while (t0 < tmin) t0 += dt;
-//           float t1 = 0.f;
-//           while (t1 < tmax) t1 += dt;
-//           if (ray.dbg) {
-//             printf("Integrating ISOs, t0=%f, t1=%f\n",t0,t1);
-//           }
-//           float t_last = t0;
-//           const vec3f p_last = ray.origin + t_last * ray.getDirection() - myRegion.lower;
-//           float v_last = 0.f;
-//           volume.sample(v_last,p_last,ray.dbg);
-//           if (ray.dbg) {
-//             printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",p_last.x,p_last.y,p_last.z,
-//                    t_last,v_last);
-//           }
-//           float t_i = t0+dt;
-//           for (;true;t_i += dt) {
-//             const float t_next = min(t_i,t1);
-//             const vec3f pos = ray.origin + t_next * ray.getDirection() - myRegion.lower;
-//             float v_next = 0.f;
-//             if (!volume.sample(v_next,pos,ray.dbg)) {
-//               break;
-//             }
-//             if (ray.dbg) {
-//               printf("ISO sample pos: (%f,%f,%f) (t=%f), value: %f\n",pos.x,pos.y,pos.z,
-//                      t_next,v_next);
-//             }
-//             if (isnan(v_next) || isnan(v_last))
-//               break;
-
-//             bool wasHit = false;
-//             for (int i=0; i<MaxISOs; ++i) {
-//               if (iso.active[i] && min(v_next,v_last) <= iso.values[i]
-//                                 && max(v_next,v_last) >= iso.values[i])
-//               {
-//                 float alpha = (iso.values[i]-v_last)/(v_next-v_last);
-//                 float thit = min(max(t_last * (t_next-t_last),t_last),t_next);
-
-//                 const vec3f isopt = ray.origin + thit * ray.getDirection() - myRegion.lower;
-//                 float v = 0.f;
-//                 if (!volume.sample(v,isopt,ray.dbg))
-//                   continue;
-//                 vec3f grad(0.f);
-//                 if (!volume.gradient(grad,isopt,gradientDelta,ray.dbg))
-//                   continue;
-//                 if (dot(grad,grad) < 1e-10f)
-//                   grad = -ray.getDirection();
-//                 vec3f N = normalize(grad);
-//                 // face-forward
-//                 if (dot(N,ray.getDirection()) > 0.f)
-//                   N = -N;
-
-//                 wasHit = true;
-//                 resISO.type = Surflet::ISO;
-//                 resISO.t        = thit;
-//                 resISO.isectPos = isopt + myRegion.lower;
-//                 resISO.gn       = N;
-//                 resISO.sn       = N;
-//                 resISO.kd       = iso.colors[i];
-//                 break;
-//               }
-//             }
-
-//             if (wasHit)
-//               break;
-
-//             t_last = t_next;
-//             v_last = v_next;
-//             if (t_next >= t1) break;
-// =======
         t1 = min(t1,dg.t);
         if (t1 <= t0) return;
 
@@ -289,17 +214,8 @@ namespace vopat {
             dg.Ng     = normalize(grad);
             dg.kd     = iso.colors[i];
             t1 = min(t1,dg.t);
-            // and shorten active search interval for future steps:
-            // t1        = dg.t;
-            // if (dbg)
-            //   printf("HIT a iso hit...  at %f\n",tIso);
           }
           
-          // // aaaaand.... step to next segment          
-          // t_last = t_next;
-          // v_last = v_next;
-          // t_next = min(t1,t_last + dt);
-          // if (isnan(t_next) || isnan(t_last)) return;
         }
       }
     };

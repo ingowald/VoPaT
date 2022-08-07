@@ -40,14 +40,12 @@ namespace vopat {
     float *scalars;
     vec2i *tetsOnFace;
   };
-  struct UMeshSamplePRD {
-    float sampledValue;
-  };
   
   struct LaunchParams {
-    ForwardGlobals forwardGlobals;
-    VolumeGlobals  volumeGlobals;
-    OptixTraversableHandle umeshSampleBVH;
+    ForwardGlobals         forwardGlobals;
+    VolumeGlobals          volumeGlobals;
+    SurfaceGlobals         surfaceGlobals;
+    // OptixTraversableHandle umeshSampleBVH;
     // struct {
     //   uint32_t *pointer;
     //   float4   *accum;

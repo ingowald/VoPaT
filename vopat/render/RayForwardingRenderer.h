@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "vopat/render/DistributedRendererBase.h"
+#include "vopat/render/AddWorkersRenderer.h"
 #include "vopat/model/Model.h"
 #include "vopat/render/Ray.h"
 #include "3rdParty/stb_image//stb/stb_image_write.h"

@@ -17,16 +17,14 @@
 // #include "deviceCode.h"
 #include "LaunchParams.h"
 #include <owl/owl.h>
-#include "vopat/render/VopatBase.h"
-
-#include "vopat/render/Woodcock.cu"
+#include "vopat/render/NodeRenderer.h"
 
 using namespace vopat;
 
-__constant__ uint8_t _optixLaunchParams[sizeof(LaunchParams)];
+extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 
 inline __device__ const LaunchParams &getLP()
-{ return (const LaunchParams &)_optixLaunchParams; }
+{ return (const LaunchParams &)optixLaunchParams[0]; }
 
 /*! closest-hit program for shared-faces geometry */
 OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
@@ -65,14 +63,19 @@ OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
 
 OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
 {
-  printf("blad\n");
+  auto &lp = getLP();
+  int rayID = owl::getLaunchIndex().x;
+  traceRaysKernel(rayID,
+                  lp.forwardGlobals,
+                  lp.volumeGlobals,
+                  lp.surfaceGlobals);
 }
 
 OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
 {
   auto &lp = getLP();
   const vec2i launchIdx = owl::getLaunchIndex();
-  generatePrimaryWaveKernel<WoodcockKernels>
+  generatePrimaryWaveKernel
     (launchIdx,
      lp.forwardGlobals,
      lp.volumeGlobals);

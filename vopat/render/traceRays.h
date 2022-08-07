@@ -14,20 +14,21 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/render/DistributedRendererBase.h"
-#include <mpi.h>
+#pragma once
 
-// #define MEASURE_PERF
+#include "VopatBase.h"
+#include "DeviceKernels.h"
 
-namespace vopat {
-  
-  std::string Renderer::screenShotFileName = "vopat";
-  
-  Renderer::Renderer(CommBackend *comm)
-    : comm(comm)
+namespace vopat
+{
+
+  inline __device__
+  void traceRaysKernel(int rayID,
+                       const ForwardGlobals &forward,
+                       const VolumeGlobals  &volume,
+                       const SurfaceGlobals &surf)
   {
-    cudaFree(0);
+    DeviceKernels::traceRay(rayID,forward,volume,surf);
   }
-
-
+  
 }

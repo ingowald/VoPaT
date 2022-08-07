@@ -279,7 +279,6 @@ namespace vopat {
                                             myBrick->umesh->tets.size(),
                                             myBrick->umesh->tets.data());
     globals.umesh.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(umeshTetsBuffer,0);
-    
 #else
     myScalars.upload(myBrick->umesh->perVertex->values);
     globals.umesh.scalars   = myScalars.get();
@@ -346,6 +345,8 @@ namespace vopat {
     umeshAccel = owlInstanceGroupCreate(owl,1,&umeshAccel);
     
     owlGroupBuildAccel(umeshAccel);
+    globals.umesh.sampleAccel = owlGroupGetTraversable(umeshAccel,0);
+    
 # else
     std::cout << "uploading nodes" << std::endl;
     PRINT(bvh.nodes[0].numChildren);
@@ -451,15 +452,6 @@ namespace vopat {
     const unsigned int blockSize = 128;
     unsigned int numTets = (int)myBrick->umesh->tets.size();
     const unsigned int numBlocks = divRoundUp(numTets,blockSize*1024u);
-    // PING;
-    // PRINT(globals.mc.data);
-    // PRINT(globals.mc.dims);
-    // PRINT(globals.umesh.domain);
-    // PRINT(globals.umesh.vertices);
-    // PRINT(globals.umesh.scalars);
-    // PRINT(globals.umesh.tets);
-    // PRINT(numTets);
-    PRINT(numBlocks);
     rasterTets
       <<<{1024u,numBlocks},{blockSize,1u}>>>
                              (globals.mc.data,

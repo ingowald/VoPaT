@@ -103,9 +103,14 @@ add_library(vopat_render
   
   render/DistributedRendererBase.h
   render/DistributedRendererBase.cu
+  render/AddWorkersRenderer.h
+  render/AddWorkersRenderer.cu
   render/RayForwardingRenderer.h
   render/RayForwardingRenderer.cu
-#  render/SimpleNodeRenderer.cu
+  render/NodeRenderer.h
+  render/NodeRenderer.cu
+  
+  render/Woodcock.h
   render/Woodcock.cu
   render/IntentionallyWrong.cu
   render/CellMarchRenderer.cu
