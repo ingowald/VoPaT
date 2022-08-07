@@ -18,7 +18,6 @@
 
 #include "vopat/common.h"
 #if VOPAT_UMESH
-# include "vopat/umesh/qbvh.h"
 # include <umesh/UMesh.h>
 #endif
 #include "owl/owl.h"
@@ -26,9 +25,6 @@
 namespace vopat {
 
 #if VOPAT_UMESH
-  typedef gdt::qbvh::BVH<4> BVH;
-  typedef gdt::qbvh::Node<4> BVHNode;
-  
   struct UMeshSamplePRD {
     float sampledValue;
   };

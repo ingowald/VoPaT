@@ -195,7 +195,6 @@ namespace vopat {
     Brick::SP            myBrick;
     CUDAArray<MacroCell> mcData;
 #if VOPAT_UMESH
-# if VOPAT_UMESH_OPTIX
     OWLBuffer /*float*/umeshScalarsBuffer;
     OWLBuffer /*vec3f*/umeshVerticesBuffer;
     OWLBuffer /*vec4i*/umeshTetsBuffer;
@@ -204,12 +203,6 @@ namespace vopat {
     OWLGeomType umeshGT;
     OWLGeom     umeshGeom;
     OWLGroup    umeshAccel;
-# else
-    CUDAArray<BVHNode> myBVHNodes;
-    CUDAArray<float> myScalars;
-    CUDAArray<vec3f> myVertices;
-    CUDAArray<umesh::UMesh::Tet> myTets;
-# endif
 #else
 # if VOPAT_VOXELS_AS_TEXTURE
     cudaArray_t          voxelArray;

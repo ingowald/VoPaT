@@ -151,18 +151,6 @@ namespace vopat {
   }
 #endif
   
-  __global__ void checkSkipTree(BVHNode *nodes, int numNodes)
-  {
-    int tid = threadIdx.x+blockIdx.x*blockDim.x;
-    if (tid >= numNodes) return;
-    if (nodes[tid].skipTreeChild >=4) {
-      printf("CHECK : %i -> %i (byte %lx ptr 0x%lx)\n",
-             tid,nodes[tid].skipTreeChild,
-             tid*sizeof(*nodes),
-             &nodes[tid]);
-    }
-  }
-
   void sortIndices(int &A, int &B, int &orientation)
   {
     if (A > B) {
@@ -204,13 +192,9 @@ namespace vopat {
                                  int gpuID)
     : model(model), islandRank(islandRank)
   {
-    //    CUDA_CALL(SetDevice(comm->worker.gpuID));
-    
     if (islandRank < 0)
       return;
 
-
-#if VOPAT_UMESH_OPTIX
     owl = owlContextCreate(&gpuID,1);
     owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
     OWLVarDecl args[] = {
@@ -224,7 +208,6 @@ namespace vopat {
                                 sizeof(UMeshGeom),
                                 args,-1);
     owlGeomTypeSetClosestHit(umeshGT,0,owlDevCode,"UMeshGeomCH");
-#endif
     
     // ------------------------------------------------------------------
     // upload per-rank boxes
@@ -247,24 +230,9 @@ namespace vopat {
     myBrick->load(fileName);
 
     std::cout << "brick and umesh loaded" << std::endl;
-# if VOPAT_UMESH_OPTIX
-# else
-    //    gdt::qbvh::BVH4 bvh;
-    vopat::BVH bvh;
-    std::cout << "building bvh ... " << prettyNumber(myBrick->umesh->tets.size()) << " tets" << std::endl;
-    gdt::qbvh::build(bvh,myBrick->umesh->tets.size(),
-                     [&](size_t tetID)->box3f {
-                       auto tet = myBrick->umesh->tets[tetID];
-                       return box3f((const vec3f&)myBrick->umesh->vertices[tet.x])
-                         .including((const vec3f&)myBrick->umesh->vertices[tet.y])
-                         .including((const vec3f&)myBrick->umesh->vertices[tet.z])
-                         .including((const vec3f&)myBrick->umesh->vertices[tet.w]);
-                     });
-# endif
     globals.myRegion      = myBrick->domain;
     globals.umesh.domain = myBrick->domain;
 
-#if VOPAT_UMESH_OPTIX
     umeshScalarsBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT,
                                                myBrick->umesh->perVertex->values.size(),
                                                myBrick->umesh->perVertex->values.data());
@@ -279,26 +247,7 @@ namespace vopat {
                                             myBrick->umesh->tets.size(),
                                             myBrick->umesh->tets.data());
     globals.umesh.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(umeshTetsBuffer,0);
-#else
-    myScalars.upload(myBrick->umesh->perVertex->values);
-    globals.umesh.scalars   = myScalars.get();
-    std::vector<vec3f> _vertices;
-    for (auto &v : myBrick->umesh->vertices)
-      _vertices.push_back(vec3f(v.x,v.y,v.z));
-    myVertices.upload(_vertices);
-// #else
-//     myVertices.upload((const std::vector<vec3f> &)myBrick->umesh->vertices);
-// #endif
-    globals.umesh.vertices   = myVertices.get();
 
-    myTets.upload(myBrick->umesh->tets);
-    globals.umesh.tets   = myTets.get();
-#endif
-    
-// #if 1
-    
-
-# if VOPAT_UMESH_OPTIX
     std::cout << "building shared faces accel" << std::endl;
     std::map<vec3i,int> faceID;
     std::vector<vec3i> sharedFaceIndices;
@@ -346,28 +295,6 @@ namespace vopat {
     
     owlGroupBuildAccel(umeshAccel);
     globals.umesh.sampleAccel = owlGroupGetTraversable(umeshAccel,0);
-    
-# else
-    std::cout << "uploading nodes" << std::endl;
-    PRINT(bvh.nodes[0].numChildren);
-    PRINT(sizeof(bvh.nodes[0]));
-    myBVHNodes.upload(bvh.nodes);
-    for (auto &node : bvh.nodes)
-      if (node.skipTreeChild >= 4) {
-        PING; PRINT(node.skipTreeChild);
-      };
-    globals.umesh.bvhNodes = myBVHNodes.get();
-    // PRINT(bvh.nodes.size());
-    // PRINT(myBrick->umesh->perVertex->values.size());
-    // {
-    //   int bs = 128;
-    //   int nb = divRoundUp((int)bvh.nodes.size(),bs);
-    //   std::cout << "device-checking " << bvh.nodes.size() << " nodes' skip values (2)" << std::endl;
-    //   checkSkipTree<<<nb,bs>>>(globals.umesh.bvhNodes,bvh.nodes.size());
-    //   CUDA_SYNC_CHECK();
-    //   std::cout << "done DEVICE checking of skip tree" << std::endl;
-    // }
-# endif
     
 #else
 # if VOPAT_VOXELS_AS_TEXTURE
