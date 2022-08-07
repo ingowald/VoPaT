@@ -25,9 +25,6 @@ add_library(vopat_model
   model/Model.h
   model/Model.cpp
   )
-if (VOPAT_UMESH)
-  target_compile_definitions(vopat_model PUBLIC -DVOPAT_UMESH=1)
-endif()
 target_include_directories(vopat_model PUBLIC ${PROJECT_SOURCE_DIR})
 target_link_libraries(vopat_model PUBLIC
   owl::owl
@@ -125,6 +122,15 @@ embed_ptx(
   SOURCES
     deviceCode.cu
 )
+
+if (VOPAT_UMESH)
+  target_compile_definitions(vopat_model PUBLIC -DVOPAT_UMESH=1)
+  target_compile_definitions(deviceCode-ptx PUBLIC -DVOPAT_UMESH=1)
+  target_compile_definitions(deviceCode-ptx_ptx PUBLIC -DVOPAT_UMESH=1)
+  target_link_libraries(deviceCode-ptx PUBLIC umesh)
+  target_link_libraries(deviceCode-ptx_ptx PUBLIC umesh)
+endif()
+
 
 target_include_directories(deviceCode-ptx PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(deviceCode-ptx_ptx PUBLIC ${PROJECT_SOURCE_DIR})

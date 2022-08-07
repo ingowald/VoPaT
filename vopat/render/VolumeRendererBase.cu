@@ -319,21 +319,18 @@ namespace vopat {
     for (int tetID=0;tetID<myBrick->umesh->tets.size();tetID++) {
       auto tet = myBrick->umesh->tets[tetID];
       iterateFaces(myBrick->umesh->tets[tetID],[&](vec3i faceVertices, int side){
-          sharedFaceIndices[faceID[faceVertices]][side] = tetID;
+          sharedFaceNeighbors[faceID[faceVertices]][side] = tetID;
         });
     }
-    // for (auto it : sharedFaces) {
-    //   sharedFaceIndices.push_back(it.first);
-    //   sharedFaceNeighbors.push_back(it.second);
-    // }
 
     sharedFaceIndicesBuffer
-      = owlDeviceBufferCreate(owl,OWL_INT3,
+      = owlManagedMemoryBufferCreate(owl,OWL_INT3,
                               sharedFaceIndices.size(),sharedFaceIndices.data());
     sharedFaceNeighborsBuffer
-      = owlDeviceBufferCreate(owl,OWL_INT2,
+      = owlManagedMemoryBufferCreate(owl,OWL_INT2,
                               sharedFaceNeighbors.size(),sharedFaceNeighbors.data());
     umeshGeom = owlGeomCreate(owl,umeshGT);
+    
     owlTrianglesSetVertices(umeshGeom,umeshVerticesBuffer,
                             myBrick->umesh->vertices.size(),sizeof(vec3f),0);
     owlTrianglesSetIndices(umeshGeom,sharedFaceIndicesBuffer,
@@ -343,10 +340,12 @@ namespace vopat {
     owlGeomSetBuffer(umeshGeom,"scalars",umeshScalarsBuffer);
     owlGeomSetBuffer(umeshGeom,"tetsOnFace",sharedFaceNeighborsBuffer);
     umeshAccel = owlTrianglesGeomGroupCreate(owl,1,&umeshGeom);
+
+    // and put this into a single-instnace tlas
     owlGroupBuildAccel(umeshAccel);
-    owlBuildPrograms(owl);
-    owlBuildPipeline(owl);
-    owlBuildSBT(owl);
+    umeshAccel = owlInstanceGroupCreate(owl,1,&umeshAccel);
+    
+    owlGroupBuildAccel(umeshAccel);
 # else
     std::cout << "uploading nodes" << std::endl;
     PRINT(bvh.nodes[0].numChildren);

@@ -88,10 +88,7 @@ namespace vopat {
   inline void CUDAArray<T>::upload(const std::vector<T> &vt)
   {
     resize(vt.size());
-    PRINT(vt.size());
-    PRINT(sizeof(T));
     size_t sz = vt.size() * sizeof(T);
-    PRINT((int*)sz);
     CUDA_CALL(Memcpy(devMem,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
     CUDA_SYNC_CHECK();
   }

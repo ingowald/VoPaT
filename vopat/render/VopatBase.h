@@ -189,6 +189,9 @@ namespace vopat {
         };
         lp = owlParamsCreate(owl,sizeof(LaunchParams),
                              lpArgs,-1);
+        owlBuildPrograms(owl);
+        owlBuildPipeline(owl);
+        owlBuildSBT(owl);
       }
                            
       // Reuse for ISOs
@@ -268,8 +271,9 @@ namespace vopat {
    bool fishy)
   {
 #if VOPAT_UMESH_OPTIX
+    printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
-    owlParamsSetGroup(lp,"umeshAccel",umeshAccel);
+    owlParamsSetGroup(lp,"umeshSampleBVH",umeshAccel);
     owlLaunch2D(traceLocallyRG,forward.numRaysInQueue,1,lp);
 #else
     // CUDA_SYNC_CHECK();
@@ -296,6 +300,9 @@ namespace vopat {
     if (ix >= vopat.islandFbSize.x) return;
     if (iy >= vopat.islandFbSize.y) return;
 
+    bool dbg = vec2i(ix,iy) == vopat.islandFbSize/2;
+    if (dbg) printf("=======================================================\ngeneratePrimaryWaveKernel %i %i\n",ix,iy);
+    
     int myRank = vopat.islandRank;//myRank;
     int world_iy
       = vopat.islandIndex
@@ -362,7 +369,7 @@ namespace vopat {
                 forwardGlobals.islandFbSize.y,
                 lp);
 #else
-    vec2i blockSize(16);q
+    vec2i blockSize(16);
     vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
     doGeneratePrimaryWave<DeviceKernels><<<numBlocks,blockSize>>>(vopat,VolumeRenderer::globals);
 #endif
