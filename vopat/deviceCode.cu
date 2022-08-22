@@ -18,6 +18,8 @@
 #include "LaunchParams.h"
 #include <owl/owl.h>
 #include "vopat/render/NodeRenderer.h"
+#include "vopat/render/NextDomainKernel.h"
+#include <cuda.h>
 
 using namespace vopat;
 
@@ -25,6 +27,45 @@ extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 
 inline __device__ const LaunchParams &getLP()
 { return (const LaunchParams &)optixLaunchParams[0]; }
+
+
+OPTIX_BOUNDS_PROGRAM(proxyBounds)(const void  *geomData,
+                                  box3f       &primBounds,
+                                  const int    primID)
+{
+  NextDomainKernel::DD &geom = *(NextDomainKernel::DD*)geomData;
+  auto &proxy = geom.proxies[primID];
+  primBounds = proxy.domain;
+}
+
+OPTIX_INTERSECT_PROGRAM(proxyIsec)()
+{
+  auto &geom = owl::getProgramData<NextDomainKernel::DD>();
+  int primID = optixGetPrimitiveIndex();
+  auto proxy = geom.proxies[primID];
+
+  auto &prd = owl::getPRD<NextDomainKernel::PRD>();
+  if (prd.skipCurrentRank && prd.currentRank == proxy.rankID) return;
+  
+  vec3f org = optixGetWorldRayOrigin();
+  vec3f dir = optixGetWorldRayDirection();
+  float t0 = optixGetRayTmin();
+  float t1 = optixGetRayTmax();
+  if (!boxTest(proxy.domain,org,dir,t0,t1))
+    return;
+  if ((t0 > prd.closestDist)
+      ||
+      ((t0 == prd.closestDist)
+       &&
+       (proxy.rankID >= prd.closestRank)
+       ))
+    return;
+
+  prd.closestDist = t0;
+  prd.closestRank = prd.currentRank;
+  float reported_t = nextafterf(t0,CUDART_INF);
+  optixReportIntersection(reported_t,0);
+}
 
 #if VOPAT_UMESH
 /*! closest-hit program for shared-faces geometry */

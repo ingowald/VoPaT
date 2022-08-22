@@ -26,10 +26,18 @@ namespace vopat {
   
   struct NextDomainKernel {
     enum { RETRY = 1<<30 };
+    
     struct Proxy {
       box3f domain;
       int   rankID;
       float majorant;
+    };
+
+    struct PRD {
+      int   currentRank;
+      int   skipCurrentRank;
+      int   closestRank;
+      float closestDist;
     };
     
     struct DD {

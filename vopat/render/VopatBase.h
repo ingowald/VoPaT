@@ -54,6 +54,42 @@ namespace vopat {
 
   inline __device__
   bool boxTest(box3f box,
+               vec3f org,
+               vec3f dir,
+               float &t0,
+               float &t1,
+               bool dbg=false)
+  {
+    if (dbg)
+      printf(" ray (%f %f %f)(%f %f %f) box (%f %f %f)(%f %f %f)\n",
+             org.x,
+             org.y,
+             org.z,
+             dir.x,
+             dir.y,
+             dir.z,
+             box.lower.x,
+             box.lower.y,
+             box.lower.z,
+             box.upper.x,
+             box.upper.y,
+             box.upper.z);
+    
+    vec3f t_lo = (box.lower - org) * rcp(dir);
+    vec3f t_hi = (box.upper - org) * rcp(dir);
+    
+    vec3f t_nr = min(t_lo,t_hi);
+    vec3f t_fr = max(t_lo,t_hi);
+
+    t0 = max(t0,reduce_max(t_nr));
+    t1 = min(t1,reduce_min(t_fr));
+    if (dbg) printf("  -> t0 %f t1 %f\n",t0,t1);
+    return (t0 <= t1);
+  }
+
+
+  inline __device__
+  bool boxTest(box3f box,
                Ray ray,
                float &t0,
                float &t1,
@@ -75,17 +111,8 @@ namespace vopat {
              box.upper.x,
              box.upper.y,
              box.upper.z);
-    
-    vec3f t_lo = (box.lower - ray.origin) * rcp(dir);
-    vec3f t_hi = (box.upper - ray.origin) * rcp(dir);
-    
-    vec3f t_nr = min(t_lo,t_hi);
-    vec3f t_fr = max(t_lo,t_hi);
 
-    t0 = max(t0,reduce_max(t_nr));
-    t1 = min(t1,reduce_min(t_fr));
-    if (dbg) printf("  -> t0 %f t1 %f\n",t0,t1);
-    return (t0 <= t1);
+    return boxTest(box,ray.origin,dir,t0,t1,dbg);
   }
 
   
