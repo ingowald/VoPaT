@@ -49,15 +49,15 @@ namespace vopat {
                            const std::string &fileNameBase,
                            int rank, int numSPP)
   {
-    if (rendererName == "wc" || rendererName == "woodock")
+    // if (rendererName == "wc" || rendererName == "woodock")
       return createRenderer_Woodcock(comm,model,fileNameBase,rank,numSPP);
-    if (rendererName == "ws" || rendererName == "wrong-shadows")
-      return createRenderer_WrongShadows(comm,model,fileNameBase,rank,numSPP);
-    if (rendererName == "ns" || rendererName == "no-shadows")
-      return createRenderer_NoShadows(comm,model,fileNameBase,rank,numSPP);
-    if (rendererName == "cm" || rendererName == "cell-march")
-      return createRenderer_CellMarch(comm,model,fileNameBase,rank,numSPP);
-    throw std::runtime_error("unknown renderer mode '"+rendererName+"'");
+    // if (rendererName == "ws" || rendererName == "wrong-shadows")
+    //   return createRenderer_WrongShadows(comm,model,fileNameBase,rank,numSPP);
+    // if (rendererName == "ns" || rendererName == "no-shadows")
+    //   return createRenderer_NoShadows(comm,model,fileNameBase,rank,numSPP);
+    // if (rendererName == "cm" || rendererName == "cell-march")
+    //   return createRenderer_CellMarch(comm,model,fileNameBase,rank,numSPP);
+    // throw std::runtime_error("unknown renderer mode '"+rendererName+"'");
   }
 
 }

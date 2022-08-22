@@ -16,7 +16,8 @@
 
 #pragma once
 
-#include "owl/owl_device.h"
+// #include "owl/owl_device.h"
+#include "owl/owl.h"
 #include "vopat/render/RayForwardingRenderer.h"
 #include "vopat/render/MacroCell.h"
 #include "vopat/render/VoxelData.h"
@@ -213,7 +214,7 @@ namespace vopat {
     int mcWidth = 8;
     int islandRank = -1;
 
-    OWLContext owl;
+    OWLContext owl = 0;
     OWLModule  owlDevCode;
   };
 

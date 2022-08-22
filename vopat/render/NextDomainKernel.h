@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022++ Ingo Wald                                               //
+// Copyright 2022-2022 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -16,36 +16,36 @@
 
 #pragma once
 
-#include "vopat/common.h"
-#include "VoxelData.h"
+#include "../common.h"
+#include "owl/owl.h"
+#include "Ray.h"
 
 namespace vopat {
 
-  struct MacroCell {
-    /*! input values _before_ transfer function */
-    interval<float> inputRange;
-    /*! max opacity value _after_ transfer function */
-    float maxOpacity;
+  struct VopatNodeRenderer;
+  
+  struct NextDomainKernel {
+    enum { RETRY = 1<<30 };
+    struct Proxy {
+      box3f domain;
+      int   rankID;
+      float majorant;
+    };
+    
+    struct DD {
+      Proxy                 *proxies;
+      OptixTraversableHandle proxyBVH;
+    };
+    inline static __device__
+    int computeNextNode(Ray ray, int thisNodeID, float t_already_travelled);
+
+    void create(VopatNodeRenderer *vopat);
+    
+    std::vector<Proxy> proxies;
+    OWLBuffer proxiesBuffer;
+    OWLGeomType gt;
+    OWLGeom    geom;
+    OWLGroup   blas, tlas;
   };
 
-#if VOPAT_UMESH
-#else
-  /*! computes initial *input* range of the macrocells; ie, min/max of
-    raw data values *excluding* any transfer fucntion */
-  __global__ void initMacroCell(MacroCell *mcData,
-                                vec3i mcDims,
-                                int mcWidth,
-                                VoxelData volume);
-#endif
-  
-  /*! assuming the min/max of the raw data values are already set in a
-    macrocell, this updates the *mapped* min/amx values from a given
-    transfer function */
-  __global__ void mapMacroCell(MacroCell *mcData,
-                               vec3i mcDims,
-                               vec4f *xfValues,
-                               int numXfValues,
-                               interval<float> xfDomain);
-
-}
-  
+} // ::vopat

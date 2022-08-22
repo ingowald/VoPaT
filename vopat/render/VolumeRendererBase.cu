@@ -149,7 +149,6 @@ namespace vopat {
 
     rasterBox(mcData,mcDims,domain,primBounds4);
   }
-#endif
   
   void sortIndices(int &A, int &B, int &orientation)
   {
@@ -185,6 +184,7 @@ namespace vopat {
       lambda(face,orientation);
     }
   }
+#endif
   
   VolumeRenderer::VolumeRenderer(Model::SP model,
                                  const std::string &baseFileName,
@@ -192,11 +192,15 @@ namespace vopat {
                                  int gpuID)
     : model(model), islandRank(islandRank)
   {
+    PING;
+    CUDA_SYNC_CHECK();
     if (islandRank < 0)
       return;
 
     owl = owlContextCreate(&gpuID,1);
     owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
+    CUDA_SYNC_CHECK();
+#if VOPAT_UMESH
     OWLVarDecl args[] = {
                          { "vertices", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,vertices) },
                          { "scalars", OWL_BUFPTR, OWL_OFFSETOF(UMeshGeom,scalars) },
@@ -208,10 +212,12 @@ namespace vopat {
                                 sizeof(UMeshGeom),
                                 args,-1);
     owlGeomTypeSetClosestHit(umeshGT,0,owlDevCode,"UMeshGeomCH");
+#endif
     
     // ------------------------------------------------------------------
     // upload per-rank boxes
     // ------------------------------------------------------------------
+    CUDA_SYNC_CHECK();
     std::vector<box3f> hostRankBoxes;
     for (auto brick : model->bricks)
       hostRankBoxes.push_back(
@@ -223,6 +229,7 @@ namespace vopat {
                               );
     rankBoxes.upload(hostRankBoxes);
     globals.rankBoxes = rankBoxes.get();
+    CUDA_SYNC_CHECK();
 
     myBrick = model->bricks[islandRank];
     const std::string fileName = Model::canonicalRankFileName(baseFileName,islandRank);
@@ -248,6 +255,7 @@ namespace vopat {
                                             myBrick->umesh->tets.data());
     globals.umesh.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(umeshTetsBuffer,0);
 
+    CUDA_SYNC_CHECK();
     std::cout << "building shared faces accel" << std::endl;
     std::map<vec3i,int> faceID;
     std::vector<vec3i> sharedFaceIndices;
@@ -271,6 +279,7 @@ namespace vopat {
         });
     }
 
+    CUDA_SYNC_CHECK();
     sharedFaceIndicesBuffer
       = owlManagedMemoryBufferCreate(owl,OWL_INT3,
                               sharedFaceIndices.size(),sharedFaceIndices.data());
@@ -296,7 +305,9 @@ namespace vopat {
     owlGroupBuildAccel(umeshAccel);
     globals.umesh.sampleAccel = owlGroupGetTraversable(umeshAccel,0);
     
+    CUDA_SYNC_CHECK();
 #else
+    CUDA_SYNC_CHECK();
 # if VOPAT_VOXELS_AS_TEXTURE
     std::vector<float> hostVoxels;
     myBrick->load(hostVoxels,fileName);

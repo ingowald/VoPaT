@@ -25,9 +25,15 @@ namespace vopat {
                                     int rank,
                                     int numSPP)
   {
+    PING;
+    PRINT(model);
+    PRINT(comm);
+    CUDA_SYNC_CHECK();
     VopatNodeRenderer *nodeRenderer
       = new VopatNodeRenderer
       (model,fileNameBase,rank,comm->worker.gpuID);
+    PING;
+    CUDA_SYNC_CHECK();
     return new RayForwardingRenderer(comm,nodeRenderer,numSPP);
   }
 

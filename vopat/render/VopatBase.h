@@ -49,7 +49,6 @@ namespace vopat {
       const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
       return c;
     }
-  
   };
 
 

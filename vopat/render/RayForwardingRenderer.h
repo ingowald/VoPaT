@@ -61,12 +61,12 @@ namespace vopat {
 
       /*! queue of rays received during ray exchange, and to be
           traced/shaded on this node */
-      Ray     *rayQueueIn;
+      Ray         *rayQueueIn;
       
       /*! ray queue used for sending rays; generarting by
           sorting/compacting the input queue after ti has been traced
           locally */
-      Ray     *rayQueueOut;
+      Ray         *rayQueueOut;
       
       /*! number of rays in the input queue */
       int          numRaysInQueue;
@@ -223,7 +223,6 @@ namespace vopat {
     for (int i=0;i<globals.islandSize;i++) {
       globals.perRankSendOffsets[i] = ofs;
       ofs += globals.perRankSendCounts[i];
-      // if (fishy) printf("(%i) sendCounts[%i] = %i\n",globals.islandRank,i,globals.perRankSendCounts[i]);
     }
   }
   

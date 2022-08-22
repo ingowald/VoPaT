@@ -18,6 +18,9 @@
 
 namespace vopat {
 
+#if VOPAT_UMESH
+  // this gets done in VolumeRendererBase.cu:rasterTets
+#else
 /*! computes initial *input* range of the macrocells; ie, min/max of
     raw data values *excluding* any transfer fucntion */
   __global__ void initMacroCell(MacroCell *mcData,
@@ -55,7 +58,8 @@ namespace vopat {
     mc.inputRange = valueRange;
     mc.maxOpacity = 1.f;
   }
-
+#endif
+  
   /*! assuming the min/max of the raw data values are already set in a
     macrocell, this updates the *mapped* min/amx values from a given
     transfer function */

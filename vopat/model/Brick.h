@@ -23,7 +23,7 @@
 #endif
 
 namespace vopat {
-  
+
   /*! a "brick" refers to a sub-range of a larger (structured)
     volume, such that the entirety of all bricks conver all of the
     input volume's cells, and as such all share one "boundary"
@@ -63,13 +63,18 @@ namespace vopat {
 #if VOPAT_UMESH
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(const std::string &fileName);
+    box3f getDomain() const { return domain; }
 #else
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(CUDAArray<float> &devMem, const std::string &fileName);
 
     /*! load a given time step and variable's worth of voxels from given file name */
     void load(std::vector<float> &hostMem, const std::string &fileName);
+    box3f getDomain() const { return spaceRange; }
 #endif
+
+
+
     
     /*! linear numbering of this brick, relative to all bricks in the parent model */
     const int ID;

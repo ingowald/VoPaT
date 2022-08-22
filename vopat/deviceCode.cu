@@ -26,6 +26,7 @@ extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 inline __device__ const LaunchParams &getLP()
 { return (const LaunchParams &)optixLaunchParams[0]; }
 
+#if VOPAT_UMESH
 /*! closest-hit program for shared-faces geometry */
 OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
 {
@@ -60,6 +61,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
     + fC * geom.scalars[tet.z]
     + fD * geom.scalars[tet.w];
 }
+#endif
 
 OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
 {

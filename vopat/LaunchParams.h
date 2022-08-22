@@ -22,6 +22,7 @@
 #include "render/RayForwardingRenderer.h"
 #include "render/VolumeRendererBase.h"
 #include "render/SurfaceIntersector.h"
+#include "render/NextDomainKernel.h"
 
 namespace vopat {
 
@@ -45,6 +46,7 @@ namespace vopat {
     ForwardGlobals         forwardGlobals;
     VolumeGlobals          volumeGlobals;
     SurfaceGlobals         surfaceGlobals;
+    NextDomainKernel::DD   nextDomainKernel;
     // OptixTraversableHandle umeshSampleBVH;
     // struct {
     //   uint32_t *pointer;

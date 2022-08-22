@@ -316,6 +316,9 @@ namespace vopat {
 
   extern "C" int main(int argc, char **argv)
   {
+    cudaFree(0);
+    CUDA_SYNC_CHECK();
+    
     // ******************************************************************
     // parse OUR stuff
     // ******************************************************************
@@ -396,11 +399,14 @@ namespace vopat {
 #endif
       if (!isMaster)
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
+      PING; PRINT((int)isMaster);
+      CUDA_SYNC_CHECK();
       Renderer *renderer
         = createRenderer(rendererName,
                          &mpiBackend,model,
                          inFileBase,myRank,cmdline.spp);
-
+      CUDA_SYNC_CHECK();
+      PING;
       if (!isMaster) {
         /* this is a worker - run the worker mpi backend, which will
            not return */

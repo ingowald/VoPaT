@@ -23,9 +23,6 @@ namespace vopat {
   
   struct VopatNodeRenderer
     : public RayForwardingRenderer::NodeRenderer
-    // ,
-    //   public VolumeRenderer,
-    //   public SurfaceIntersector
   {
     using inherited    = typename RayForwardingRenderer::NodeRenderer;
     
@@ -61,12 +58,17 @@ namespace vopat {
                    const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
     { volume.setLights(ambient,dirLights); }
 
+    void createNextDomainKernel();
+    
     VolumeRenderer volume;
     SurfaceIntersector surface;
 
-      OWLLaunchParams lp;
+    OWLLaunchParams lp;
     OWLRayGen traceLocallyRG;
     OWLRayGen generatePrimaryWaveRG;
+
+    //    OWLGroup  nextDomainGroup;
+    NextDomainKernel nextDomainKernel;
   };
 
   

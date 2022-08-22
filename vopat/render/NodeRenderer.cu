@@ -24,9 +24,20 @@ namespace vopat {
                                        int gpuID)
     : volume(model,baseFileName,islandRank,gpuID)
   {
+    PING;
+    CUDA_SYNC_CHECK();
     auto &owl = volume.owl;
+    
     auto &owlDevCode = volume.owlDevCode;
+    PING;
     if (islandRank >= 0) {
+      if (!owl) throw std::runtime_error("owl not yet initialized");
+
+      PING;
+      createNextDomainKernel();
+      
+      CUDA_SYNC_CHECK();
+      PING;
       traceLocallyRG = owlRayGenCreate(owl,owlDevCode,"traceLocallyRG",0,0,0);
       generatePrimaryWaveRG = owlRayGenCreate(owl,owlDevCode,"generatePrimaryWaveRG",0,0,0);
       OWLVarDecl lpArgs[]
@@ -39,11 +50,17 @@ namespace vopat {
       };
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
                            lpArgs,-1);
+      CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
+      CUDA_SYNC_CHECK();
       owlBuildPipeline(owl);
+      CUDA_SYNC_CHECK();
       owlBuildSBT(owl);
+      CUDA_SYNC_CHECK();
     }
                            
+    PING;
+    CUDA_SYNC_CHECK();
     // Reuse for ISOs
     surface.globals.gradientDelta = volume.globals.gradientDelta;
 #if VOPAT_UMESH
@@ -56,17 +73,23 @@ namespace vopat {
     // surface.globals.numRanks      = volume.globals.numRanks;
     surface.globals.myRegion      = volume.globals.myRegion;
 
+    PING;
     std::vector<int> hIsoActive({0,0,0,0});
     std::vector<float> hIsoValues({0.f,0.f,0.f,0.f});
     std::vector<vec3f> hIsoColors({{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f}});
+    PING;
     surface.isoActive.upload(hIsoActive);
+    PING;
     surface.isoValues.upload(hIsoValues);
+    PING;
     surface.isoColors.upload(hIsoColors);
+    PING;
 
     surface.globals.iso.numActive = 0;
     surface.globals.iso.active    = surface.isoActive.get();
     surface.globals.iso.values    = surface.isoValues.get();
     surface.globals.iso.colors    = surface.isoColors.get();
+    PING;
   }
 
   // __global__
@@ -87,23 +110,23 @@ namespace vopat {
     PING;
     PRINT(forward.numRaysInQueue);
     if (forward.numRaysInQueue == 0) return;
-#if VOPAT_UMESH_OPTIX
+// #if VOPAT_UMESH_OPTIX
     printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
     owlParamsSetRaw(lp,"volumeGlobals",&volume.globals);
     owlParamsSetRaw(lp,"surfaceGlobals",&surface.globals);
     // owlParamsSetGroup(lp,"umeshSampleBVH",volume.umeshAccel);
     owlLaunch2D(traceLocallyRG,forward.numRaysInQueue,1,lp);
-#else
-    // CUDA_SYNC_CHECK();
-    int blockSize = 64;
-    int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
-    if (fishy) printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
-    if (numBlocks)
-      doTraceRaysLocally<<<numBlocks,blockSize>>>
-        (forward,volume.globals,surface.globals);
-    // CUDA_SYNC_CHECK();
-#endif
+// #else
+//     // CUDA_SYNC_CHECK();
+//     int blockSize = 64;
+//     int numBlocks = divRoundUp(forward.numRaysInQueue,blockSize);
+//     if (fishy) printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
+//     if (numBlocks)
+//       doTraceRaysLocally<<<numBlocks,blockSize>>>
+//         (forward,volume.globals,surface.globals);
+//     // CUDA_SYNC_CHECK();
+// #endif
   }
 
   // __global__
@@ -122,7 +145,7 @@ namespace vopat {
     PING;
     PRINT(forwardGlobals.islandFbSize);
     
-#if VOPAT_UMESH_OPTIX
+// #if VOPAT_UMESH_OPTIX
     if (forwardGlobals.islandFbSize.y <= 0)
       return;
     
@@ -140,12 +163,29 @@ namespace vopat {
     owlLaunchSync(lp);
     std::cout << "##################################################################" << std::endl;
     fflush(0);
-#else
-    vec2i blockSize(16);
-    vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
-    doGeneratePrimaryWave<<<numBlocks,blockSize>>>(vopat,volume.globals);
-#endif
+// #else
+//     vec2i blockSize(16);
+//     vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
+//     doGeneratePrimaryWave<<<numBlocks,blockSize>>>(vopat,volume.globals);
+// #endif
     CUDA_SYNC_CHECK();
   }
 
+
+  void VopatNodeRenderer::createNextDomainKernel()
+  {
+    NextDomainKernel &ndk = nextDomainKernel;
+    PING;
+    std::cout << "building proxies" << std::endl;
+    for (int rankID=0;rankID<volume.model->bricks.size();rankID++) {
+      NextDomainKernel::Proxy proxy;
+      proxy.rankID = rankID;
+      proxy.majorant = 1e20f;
+      proxy.domain = volume.model->bricks[rankID]->getDomain();
+      ndk.proxies.push_back(proxy);
+    }
+    
+    ndk.create(this);
+  }
+  
 } // ::vopat

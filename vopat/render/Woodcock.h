@@ -56,23 +56,23 @@ namespace vopat {
 
     Random rnd((int)ray.pixelID,vopat.sampleID+vopat.islandRank*0x123456);
 #if VOPAT_UMESH
-      const vec3i numMacrocells = dvr.mc.dims;
-      const vec3f stretch = vec3f(1.f);
-      const vec3f mcScale = vec3f(numMacrocells);
+    const vec3i numMacrocells = dvr.mc.dims;
+    const vec3f stretch = vec3f(1.f);
+    const vec3f mcScale = vec3f(numMacrocells);
 #else
-      vec3i numVoxels = dvr.volume.dims;
-      vec3i numCells  = numVoxels - 1;
+    vec3i numVoxels = dvr.volume.dims;
+    vec3i numCells  = numVoxels - 1;
 
-      vec3i numMacrocells = dvr.mc.dims;
+    vec3i numMacrocells = dvr.mc.dims;
 
-      if (ray.dbg) printf("Woodcock (%f %f %f) mc (%i %i %i)!\n"
-                          ,myBox.upper.x
-                          ,myBox.upper.y
-                          ,myBox.upper.z
-                          ,numMacrocells.x
-                          ,numMacrocells.y
-                          ,numMacrocells.z
-                          );
+    // if (ray.dbg) printf("Woodcock (%f %f %f) mc (%i %i %i)!\n"
+    //                     ,myBox.upper.x
+    //                     ,myBox.upper.y
+    //                     ,myBox.upper.z
+    //                     ,numMacrocells.x
+    //                     ,numMacrocells.y
+      //                     ,numMacrocells.z
+      //                     );
       
       vec3f stretch = vec3f(numMacrocells)*dvr.mc.width / vec3f(dvr.volume.dims-1);
       const vec3f mcScale = vec3f(numMacrocells) * rcp(stretch);
