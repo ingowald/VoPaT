@@ -87,11 +87,8 @@ namespace vopat {
   template<typename T>
   inline void CUDAArray<T>::upload(const std::vector<T> &vt)
   {
-    PING;
-    PRINT(vt.size());
     resize(vt.size());
     size_t sz = vt.size() * sizeof(T);
-    PRINT(sz);
     CUDA_CALL(Memcpy(devMem,vt.data(),vt.size()*sizeof(T),cudaMemcpyDefault));
     CUDA_SYNC_CHECK();
   }
@@ -106,14 +103,11 @@ namespace vopat {
     if (N < 0)
       throw std::runtime_error("invalid array size!?");
 
-    PING; PRINT(N);
-    
     if (this->N == N) return;
     this->N = N;
     if (devMem) CUDA_CALL(Free(devMem));
     devMem = 0;
 #if 1
-    PING; PRINT(N*sizeof(T));
     CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
 #else
     CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));

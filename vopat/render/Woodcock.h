@@ -153,24 +153,24 @@ namespace vopat {
       }
       
       if (t1 < t0) {
-        // if (t1 != 0 || t0 != 0)
-        {
-          printf("(%i) - huh ... ray we got sent (age=%i) doesn't actually overlap this box!? ...\n",vopat.islandRank,age);
-          printf("box : (%f %f %f)(%f %f %f)\n",
-                 myBox.lower.x,
-                 myBox.lower.y,
-                 myBox.lower.z,
-                 myBox.upper.x,
-                 myBox.upper.y,
-                 myBox.upper.z);
-          printf("ray %f %f %f + t (%f %f %f) range (%f %f)\n",
-                 ray.origin.x,
-                 ray.origin.y,
-                 ray.origin.z,
-                 dir.x,
-                 dir.y,
-                 dir.z,t0,t1);
-        }
+      //   // if (t1 != 0 || t0 != 0)
+      //   {
+      //     printf("(%i) - huh ... ray we got sent (age=%i) doesn't actually overlap this box!? ...\n",vopat.islandRank,age);
+      //     printf("box : (%f %f %f)(%f %f %f)\n",
+      //            myBox.lower.x,
+      //            myBox.lower.y,
+      //            myBox.lower.z,
+      //            myBox.upper.x,
+      //            myBox.upper.y,
+      //            myBox.upper.z);
+      //     printf("ray %f %f %f + t (%f %f %f) range (%f %f)\n",
+      //            ray.origin.x,
+      //            ray.origin.y,
+      //            ray.origin.z,
+      //            dir.x,
+      //            dir.y,
+      //            dir.z,t0,t1);
+      //   }
 
         // we're just KILLING these rays here, but this is actually
         // not entirely correct - the ray COULD be out of box by
