@@ -20,8 +20,8 @@ add_library(vopat_model
   Brick.cpp
   Model.h
   Model.cpp
-  ModelConfig.h
-  ModelConfig.cpp
+  Config.h
+  Config.cpp
   )
 target_link_libraries(vopat_model
   PUBLIC

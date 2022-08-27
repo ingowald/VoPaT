@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "model/ModelConfig.h"
+#include "model/Config.h"
 #include "model/IO.h"
 
 namespace vopat {

@@ -23,7 +23,6 @@ add_library(vopat_render
   MacroCell.h
   MacroCell.cu
   VolumeRendererBase.cu
-  VopatBase.cu
   
   DistributedRendererBase.h
   DistributedRendererBase.cu

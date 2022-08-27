@@ -17,7 +17,7 @@
 #include "common/mpi/MPIMaster.h"
 #include "common/mpi/MPIWorker.h"
 #include "vopat/Renderer.h"
-#include "model/ModelConfig.h"
+#include "model/Config.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
