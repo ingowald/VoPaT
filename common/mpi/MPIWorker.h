@@ -16,34 +16,43 @@
 
 #pragma once
 
-#include "vopat/RayForwardingRenderer.h"
-#include "vopat/VolumeRendererBase.h"
-#include "vopat/SurfaceIntersector.h"
-#include "vopat/NextDomainKernel.h"
+#include "common/mpi/MPICommon.h"
+#include "common/mpi/MPIRenderer.h"
 
 namespace vopat {
+  
+  /*! mpi rendering interface for the *receivers* on the workers;
+      these recive the broadcasts from the MPIMaster, and execute them
+      on their (virutal) renderer. */
+  struct MPIWorker : public MPICommon
+  {
+    MPIWorker(MPIBackend &mpi, MPIRenderer *renderer);
 
-  using namespace owl;
-  using namespace owl::common;
-  using Random = owl::common::LCG<8>;
-
-  using ForwardGlobals = typename RayForwardingRenderer::Globals;
-  using VolumeGlobals  = typename VolumeRenderer::Globals;
-  using SurfaceGlobals = typename SurfaceIntersector::Globals;
+    // int myRank() const { return mpi.myRank(); }
+    int islandRank() const { return mpi.islandRank(); }
     
-  /*! "triangle mesh" geometry type for shared-faces method */
-  struct UMeshGeom {
-    vec4i *tets;
-    vec3f *vertices;
-    float *scalars;
-    vec2i *tetsOnFace;
+    /*! the 'main loop' that receives and executes cmmands sent by the master */
+    void run();
+
+    /*! @{ command handlers - each corresponds to exactly one command
+        sent my the master */
+    void cmd_terminate();
+    void cmd_renderFrame();
+    void cmd_resizeFrameBuffer();
+    void cmd_resetAccumulation();
+    void cmd_setCamera();
+    void cmd_setTransferFunction();
+    void cmd_setISO();
+    void cmd_setShadeMode();
+    void cmd_setNodeSelection();
+    void cmd_screenShot();
+    void cmd_setLights();
+    void cmd_script();
+    /* @} */
+    
+    MPIRenderer *renderer = nullptr;
+    MPIBackend  &mpi;
   };
   
-  struct LaunchParams {
-    ForwardGlobals         forwardGlobals;
-    VolumeGlobals          volumeGlobals;
-    SurfaceGlobals         surfaceGlobals;
-    NextDomainKernel::DD   nextDomainKernel;
-  };
-  
-}
+
+} // ::vopat

@@ -16,17 +16,35 @@
 
 #pragma once
 
-#include "vopat/DistributedRendererBase.h"
-#include "model/Model.h"
+#include "VoxelData.h"
 
 namespace vopat {
+
+  struct MacroCell {
+    /*! input values _before_ transfer function */
+    interval<float> inputRange;
+    /*! max opacity value _after_ transfer function */
+    float maxOpacity;
+  };
+
+#if VOPAT_UMESH
+#else
+  /*! computes initial *input* range of the macrocells; ie, min/max of
+    raw data values *excluding* any transfer fucntion */
+  __global__ void initMacroCell(MacroCell *mcData,
+                                vec3i mcDims,
+                                int mcWidth,
+                                VoxelData volume);
+#endif
   
-  /*! creates a renderer from the given name (e.g., "woodcock" or
-    "cell-march") */
-  Renderer *createRenderer(const std::string &rendererName,
-                           CommBackend *comm,
-                           Model::SP model,
-                           const std::string &fileNameBase,
-                           // this is the rank WITHIN THE ISLAND
-                           int rank, int numSPP);
+  /*! assuming the min/max of the raw data values are already set in a
+    macrocell, this updates the *mapped* min/amx values from a given
+    transfer function */
+  __global__ void mapMacroCell(MacroCell *mcData,
+                               vec3i mcDims,
+                               vec4f *xfValues,
+                               int numXfValues,
+                               interval<float> xfDomain);
+
 }
+  

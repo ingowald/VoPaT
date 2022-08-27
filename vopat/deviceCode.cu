@@ -16,9 +16,8 @@
 
 // #include "deviceCode.h"
 #include "LaunchParams.h"
-#include <owl/owl.h>
-#include "vopat/render/NodeRenderer.h"
-#include "vopat/render/NextDomainKernel.h"
+#include "vopat/NodeRenderer.h"
+#include "vopat/NextDomainKernel.h"
 #include <cuda.h>
 
 using namespace vopat;

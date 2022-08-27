@@ -14,19 +14,19 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
 #include "vopat/DistributedRendererBase.h"
-#include "model/Model.h"
+
+// #define MEASURE_PERF
 
 namespace vopat {
   
-  /*! creates a renderer from the given name (e.g., "woodcock" or
-    "cell-march") */
-  Renderer *createRenderer(const std::string &rendererName,
-                           CommBackend *comm,
-                           Model::SP model,
-                           const std::string &fileNameBase,
-                           // this is the rank WITHIN THE ISLAND
-                           int rank, int numSPP);
+  std::string Renderer::screenShotFileName = "vopat";
+  
+  Renderer::Renderer(CommBackend *comm)
+    : comm(comm)
+  {
+    cudaFree(0);
+  }
+
+
 }

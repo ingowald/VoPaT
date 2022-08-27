@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022++ Ingo Wald                                               //
+// Copyright 2018-2020 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -16,17 +16,25 @@
 
 #pragma once
 
-#include "vopat/DistributedRendererBase.h"
-#include "model/Model.h"
+#include "common/mpi/MPIBackend.h"
 
 namespace vopat {
   
-  /*! creates a renderer from the given name (e.g., "woodcock" or
-    "cell-march") */
-  Renderer *createRenderer(const std::string &rendererName,
-                           CommBackend *comm,
-                           Model::SP model,
-                           const std::string &fileNameBase,
-                           // this is the rank WITHIN THE ISLAND
-                           int rank, int numSPP);
-}
+  struct MPICommon {
+    typedef enum
+      {
+       SET_CAMERA = 0 ,
+       SET_SHADE_MODE,
+       SET_LIGHTS,
+       CALL_SCRIPT,
+       RESIZE_FRAME_BUFFER,
+       RENDER_FRAME,
+       SCREEN_SHOT,
+       TERMINATE,
+       SET_TRANSFER_FUNCTION,
+       SET_ISO,
+       RESET_ACCUMULATION
+      } Command;
+  };
+
+} // ::vopat
