@@ -29,9 +29,11 @@ namespace vopat {
     layer of voxels */
   struct Brick {
     typedef std::shared_ptr<Brick> SP;
-    
+
     Brick(int ID) : ID(ID) {};
     static SP create(int ID) { return std::make_shared<Brick>(ID); }
+
+
 #if VOPAT_UMESH
 #else
     static SP create(int ID,
@@ -72,8 +74,11 @@ namespace vopat {
     box3f getDomain() const { return spaceRange; }
 #endif
 
-
-
+#if VOPAT_UMESH
+    std::vector<box4f> makeShards(int numShards);
+#else
+    std::vector<box4f> makeShards(int numShards, const float *scalars);
+#endif
     
     /*! linear numbering of this brick, relative to all bricks in the parent model */
     const int ID;

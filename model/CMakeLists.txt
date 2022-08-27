@@ -83,4 +83,3 @@ target_link_libraries(fitsToRaw
 endif()
 
 
-

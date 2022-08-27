@@ -19,6 +19,159 @@
 
 namespace vopat {
 
+#if VOPAT_UMESH
+  std::vector<box4f> Brick::makeShards(int numShards)
+  {
+    struct ShardNode {
+      box3f domain;
+      umesh::range1f valueRange;
+      int childID = -1;
+      int numShards;
+    };
+
+    // ------------------------------------------------------------------
+    // BUILD kd-tree that defines the shards
+    // ------------------------------------------------------------------
+    std::vector<ShardNode> nodes;
+    nodes.resize(1);
+    nodes[0].domain = getDomain();
+    nodes[0].childID = -1;
+    nodes[0].numShards = numShards;
+    std::stack<int> todo; todo.push(0);
+    while (!todo.empty()) {
+      int nodeID = todo.top();todo.pop();
+      if (nodes[nodeID].numShards == 1)
+        continue;
+      int childID = nodes.size();
+      nodes[nodeID].childID = childID;
+      nodes.push_back({});
+      nodes.push_back({});
+
+      int Nl = numShards/2;
+      int Nr = numShards - Nl;
+      float ratio = float(Nl)/float(numShards);
+      auto &pDomain = nodes[nodeID].domain;
+      auto &lDomain = nodes[childID+0].domain;
+      auto &rDomain = nodes[childID+1].domain;
+
+      int dim = arg_max(pDomain.size());
+      float mid = pDomain.lower[dim] + pDomain.size()[dim]*ratio;
+      
+      lDomain = rDomain = domain;
+      lDomain.upper[dim] = rDomain.lower[dim] = mid;
+
+      nodes[childID+0].numShards = Nl;
+      nodes[childID+1].numShards = Nr;
+
+      if (Nl > 1) todo.push(childID+0);
+      if (Nr > 1) todo.push(childID+1);      
+    };
+    
+    // ------------------------------------------------------------------
+    // RASTER the umesh
+    // ------------------------------------------------------------------
+    std::vector<umesh::UMesh::PrimRef> prims = umesh->createVolumePrimRefs();
+    for (auto prim : prims) {
+      umesh::box3f primBounds = umesh->getBounds(prim);
+      umesh::range1f primRange = umesh->getValueRange(prim);
+
+      todo.push(0);
+      while(!todo.empty()) {
+        int nodeID = todo.top(); todo.pop();
+        const int childID = nodes[nodeID].childID;
+        if (childID >= 0) {
+          for (int c=0;c<2;c++)
+            if (nodes[childID+c].domain.overlaps((const box3f&)primBounds))
+              todo.push(nodes[nodeID].childID+c);
+          
+        }
+        else
+          nodes[nodeID].valueRange.extend(primRange);
+      }
+    }
+    
+    // ------------------------------------------------------------------
+    // gather the leaves
+    // ------------------------------------------------------------------
+    std::vector<box4f> result;
+    for (auto &node : nodes) {
+      if (node.childID >= 0) continue;
+      result.push_back({ { node.domain.lower.x,
+                           node.domain.lower.y,
+                           node.domain.lower.z,
+                           node.valueRange.lower },
+                         { node.domain.upper.x,
+                           node.domain.upper.y,
+                           node.domain.upper.z,
+                           node.valueRange.upper }});
+    }
+    return result;
+  }
+#else
+  void Brick::makeShards(std::vector<box4f> &result,
+                         const Brick *brick,
+                         const float *scalars,
+                         const box3i &cellRange,
+                         int numShards)
+  {
+    if (numShards == 1 || cellRange.size() == vec3i(1)) {
+      box4f shard;
+      shard.lower.x = float(cellRange.lower.x);
+      shard.lower.y = float(cellRange.lower.y);
+      shard.lower.z = float(cellRange.lower.z);
+
+      shard.upper.x = float(cellRange.upper.x);
+      shard.upper.y = float(cellRange.upper.y);
+      shard.upper.z = float(cellRange.upper.z);
+
+      range1f valueRange;
+      const vec3i localSize = brick->numVoxels;
+      for (int iz=cellRange.lower.z;iz<=cellRange.upper.z;iz++)
+        for (int iy=cellRange.lower.y;iy<=cellRange.upper.y;iy++)
+          for (int ix=cellRange.lower.x;ix<=cellRange.upper.x;ix++) {
+            int scalarIdx
+              = localIdx.x
+              + localSize.x * localIdx.y
+              + localSize.x * localSize.y * localIdx.z;
+            vec3 localIdx = vec3i(ix,iy,iz)-brick->voxelRange.lower;
+            valueRange.extend(scalars[scalarIdx]);
+          }
+      shard.lower.w = valueRange.lower;
+      shard.upper.w = valueRange.upper;
+      results.push_back(shard);
+    } else {
+      int dim = arg_max(cellRange.size());
+      int Nl = numShards/2;
+      int Nr = numShards - Nl;
+      int mid = cellRange.lower[dim] + size_t(Nl * cellRange.size()[dim]) / numShards;
+      box3i lRange = cellRange; lRange.upper[dim] = mid;
+      box3i rRange = cellRange; rRange.lower[dim] = mid;
+      
+      makeShards(result,brick,scalars,lRange,Nl);
+      makeShards(result,brick,scalars,rRange,Nr);
+    }
+  }
+  
+  std::vector<box4f> Brick::makeShards(int numShards, const float *scalars)
+  {
+    std::vector<box4f> result;
+    makeShards(results,this,scalars,this->cellRange,numShards);
+  }
+#endif
+
+  // #if VOPAT_UMESH
+  //   std::vector<box4f> Brick::computeShards(int numShards)
+  //   {
+  //     return {}
+  //   }
+  // #else
+  
+  //   std::vector<box4f> Brick::computeShards(int numShards)
+  //   {
+//     return computeShards(this,cellRange,numShards);  
+//   }
+// #endif    
+
   // float clamp01(float f)
   // { return min(1.f,max(0.f,f)); }
 
