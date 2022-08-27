@@ -14,7 +14,8 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "NodeRenderer.h"
+#include "vopat/NodeRenderer.h"
+#include "vopat/LaunchParams.h"
 
 namespace vopat {
 

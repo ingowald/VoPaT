@@ -360,14 +360,15 @@ namespace vopat {
       
       globals.islandFbSize = islandFbSize;
       globals.worldFbSize  = worldFbSize;
-      
-      rayQueueIn.resize(islandFbSize.x*islandFbSize.y);
+
+      int maxRaysPerPixel = (VOPAT_MAX_BOUNCES+1);
+      rayQueueIn.resize(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
       globals.rayQueueIn   = rayQueueIn.get();
 
-      rayQueueOut.resize(islandFbSize.x*islandFbSize.y);
+      rayQueueOut.resize(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
       globals.rayQueueOut  = rayQueueOut.get();
 
-      rayNextNode.resize(islandFbSize.x*islandFbSize.y);
+      rayNextNode.resize(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
       globals.rayNextNode = rayNextNode.get();
     }
   }

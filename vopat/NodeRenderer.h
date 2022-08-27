@@ -17,7 +17,7 @@
 #pragma once
 
 #include "genPrimaryWave.h"
-#include "traceRays.h"
+#include "vopat/NextDomainKernel.h"
 
 namespace vopat {
   

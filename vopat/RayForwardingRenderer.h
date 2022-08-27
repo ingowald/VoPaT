@@ -21,6 +21,11 @@
 #include "vopat/Ray.h"
 #include <sstream>
 
+#ifndef VOPAT_MAX_BOUNCES
+  // 0 bounces == direct illum only
+# define VOPAT_MAX_BOUNCES 1
+#endif
+
 namespace vopat {
   
   struct RayForwardingRenderer : public AddWorkersRenderer {

@@ -121,7 +121,6 @@ namespace vopat {
   
   static inline __both__
   vec3f floor(vec3f v) { return { floor(v.x),floor(v.y),floor(v.z) }; }
-  
-  
+
 } // ::mini
 

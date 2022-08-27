@@ -26,6 +26,8 @@
 # define VOPAT_UMESH_OPTIX 1
 #endif
 
+
+
 namespace vopat {
 
   /*! misc helpers, might eventually move somewhere else */

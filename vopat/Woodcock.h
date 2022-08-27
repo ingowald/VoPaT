@@ -16,28 +16,45 @@
 
 #pragma once
 
-#include "vopat/VopatBase.h"
+#include "vopat/RayForwardingRenderer.h"
+#include "vopat/VolumeRendererBase.h"
+#include "vopat/SurfaceIntersector.h"
 #include "DDA.h"
 
 namespace vopat {
 
-#ifndef VOPAT_MAX_BOUNCES
-  // 0 bounces == direct illum only
-# define VOPAT_MAX_BOUNCES 0
-#endif
+  using ForwardGlobals = typename RayForwardingRenderer::Globals;
+  using VolumeGlobals  = typename VolumeRenderer::Globals;
+  using SurfaceGlobals = typename SurfaceIntersector::Globals;
+    
+  inline __device__
+  Ray generateRay(const ForwardGlobals &globals,
+                  vec2i pixelID,
+                  vec2f pixelPos);
   
-  struct WoodcockKernels : public Vopat
+  inline __device__
+  vec3f backgroundColor(const Ray &ray,
+                        const ForwardGlobals &globals);
+  
+  struct Woodcock
   {
+    static  inline __device__
+    int computeNextNode(const VolumeGlobals &vopat,
+                        const Ray &ray,
+                        const float t_already_travelled,
+                        bool dbg);
+
     static inline __device__
     void traceRay(int tid,
                   const ForwardGlobals &vopat,
                   const VolumeGlobals  &dvr,
                   const SurfaceGlobals &surf);
+    
   };
   
 
   inline __device__
-  void WoodcockKernels::traceRay(int tid,
+  void Woodcock::traceRay(int tid,
                                  const ForwardGlobals &vopat,
                                  const VolumeGlobals  &dvr,
                                  const SurfaceGlobals &surf)
@@ -349,7 +366,7 @@ namespace vopat {
           if (ray.isShadow) {
             imageContribution = throughput;
           } else if (ray.numBounces == 0) {
-            imageContribution = Vopat::backgroundColor(ray,vopat);
+            imageContribution = backgroundColor(ray,vopat);
             if (ray.crosshair) imageContribution = vec3f(1.f)-imageContribution;
           } else {
             imageContribution = throughput * dvr.ambientEnvLight();
@@ -514,5 +531,54 @@ namespace vopat {
       vopat.killRay(tid);
   }
 
+
+  inline __device__
+  int Woodcock::computeNextNode(const VolumeGlobals &vopat,
+                             const Ray &ray,
+                             const float t_already_travelled,
+                             bool dbg)
+  {
+    if (dbg) printf("finding next that's t >= %f and rank != %i\n",
+                    t_already_travelled,vopat.islandRank);
+      
+    int closest = -1;
+    float t_closest = CUDART_INF;
+    for (int i=0;i<vopat.islandSize;i++) {
+      if (i == vopat.islandRank) continue;
+        
+      float t0 = t_already_travelled * (1.f+1e-5f);
+      float t1 = t_closest; 
+      if (!boxTest(vopat.rankBoxes[i],ray,t0,t1,dbg))
+        continue;
+      // if (t0 == t1)
+      //   continue;
+      
+      if (dbg) printf("   accepted rank %i dist %f\n",i,t0);
+      t_closest = t0;
+      closest = i;
+    }
+    if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.islandRank,closest);
+    return closest;
+  }
+
+  inline __device__
+  int computeInitialRank(const VolumeGlobals &vopat,
+                         Ray ray,
+                         bool dbg=false)
+  {
+    int closest = -1;
+    float t_closest = CUDART_INF;
+    for (int i=0;i<vopat.islandSize;i++) {
+      float t_min = 0.f;
+      float t_max = t_closest;
+      if (!boxTest(vopat.rankBoxes[i],ray,t_min,t_max))
+        continue;
+      closest = i;
+      t_closest = t_min;
+    }
+    // if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
+    return closest;
+  }
+  
 }
 

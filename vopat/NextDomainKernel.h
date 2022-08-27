@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "../common.h"
+#include "common/vopat.h"
 #include "owl/owl.h"
 #include "Ray.h"
 
