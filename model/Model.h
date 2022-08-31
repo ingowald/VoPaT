@@ -26,18 +26,10 @@ namespace vopat {
 
     static SP create() { return std::make_shared<Model>(); }
     static SP load(const std::string &fileName);
-    box3f getBounds() const {
-#if VOPAT_UMESH
-      box3f bounds;
-      for (auto brick : bricks)
-        bounds.extend(brick->domain);
-      return bounds;
-#else
-      if (reduce_min(numVoxelsTotal) <= 0)
-        throw std::runtime_error("invalid model...");
-      return { vec3f(0.f), vec3f(numVoxelsTotal-1) };
-#endif
-    }
+    
+    virtual box3f getBounds() const;
+
+    virtual std::string modelType() const = 0;
     
     void save(const std::string &fileName);
 
@@ -54,10 +46,9 @@ namespace vopat {
                                              const std::string &variable = "unknown",
                                              int timeStep = 0);
 
-    std::vector<Brick::SP>   bricks;
-    
-    vec3i                  numVoxelsTotal { -1,-1,-1 };
-    /* range of values across the entire model */
+    int                    numBricks;
+    int                    numTimeSteps;
+    box3f                  domain;
     interval<float>        valueRange;
   };
 

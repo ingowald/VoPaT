@@ -20,6 +20,10 @@ add_library(vopat_model
   Brick.cpp
   Model.h
   Model.cpp
+  StructuredModel.h
+  StructuredModel.cpp
+  UMeshModel.h
+  UMeshModel.cpp
   Config.h
   Config.cpp
   )

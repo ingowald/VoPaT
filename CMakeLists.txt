@@ -50,6 +50,6 @@ option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the devic
 #set(CMAKE_CUDA_ARCHITECTURES "75") 
 add_subdirectory(common)
 add_subdirectory(model)
-add_subdirectory(vopat)
-add_subdirectory(viewer)
+#add_subdirectory(vopat)
+#add_subdirectory(viewer)
 

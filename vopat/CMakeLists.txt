@@ -22,7 +22,7 @@ add_library(vopat_render
   NextDomainKernel.cu
   MacroCell.h
   MacroCell.cu
-  VolumeRendererBase.cu
+  Volume.cu
   
   DistributedRendererBase.h
   DistributedRendererBase.cu

@@ -15,7 +15,7 @@
 // ======================================================================== //
 
 #include <string.h>
-#include "VolumeRendererBase.h"
+#include "Volume.h"
 #include "LaunchParams.h"
 
 namespace std {

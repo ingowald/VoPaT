@@ -16,38 +16,33 @@
 
 #pragma once
 
-#include "common/CUDAArray.h"
-#if VOPAT_UMESH
-# include "umesh/UMesh.h"
-#endif
+#include "model/Model.h"
 
 namespace vopat {
 
-  struct Shard {
+  struct UMeshBrick : public Brick {
+    std::string toString() const overrride;
+
+    /*! load a given time step and variable's worth of voxels from given file name */
+    void load(const std::string &fileName);
+    box3f getDomain() const { return domain; }
+    std::vector<box4f> makeShards(int numShards) override;
+    void write(std::ostream &out) const override;
+
+    umesh::UMesh::SP umesh;
     box3f domain;
-    interval<float> valueRange;
+  };
+
+  struct UMeshModel : public Model {
+    typedef std::shared_ptr<UMeshModel> SP;
+
+    box3f getBounds() const {
+      box3f bounds;
+      for (auto brick : bricks)
+        bounds.extend(brick->domain);
+      return bounds;
+    }
   };
   
-  /*! a "brick" refers to a sub-range of a larger (structured)
-    volume, such that the entirety of all bricks conver all of the
-    input volume's cells, and as such all share one "boundary"
-    layer of voxels */
-  struct Brick {
-    typedef std::shared_ptr<Brick> SP;
-
-    Brick(int ID) : ID(ID) {};
-
-    virtual std::string toString() const = 0;
-    virtual void writeConstantData(const std::string &fileName) const = 0;
-    virtual void writeTimeStep(const std::string &fileName) const = 0;
-    virtual void loadTimeStep(const std::string &fileName) const = 0;
-    
-    /*! on a given rank, create shards for _exactly this_ brick (ranks
-        can then exchange those as required */
-    virtual std::vector<Shard> makeShards(int numShards) = 0;
-    
-    const int ID;
-    interval<float> valueRange;
-  };
-
 }
+

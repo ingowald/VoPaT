@@ -20,7 +20,7 @@
 
 namespace vopat {
 
-  size_t file_format_version = /*increment this for every change:*/2;
+  size_t file_format_version = /*increment this for every change:*/3;
   size_t file_format_magic = 0x33441232340888ull + file_format_version;
   
   /*! given a base file name prefix (including directory name, if
@@ -28,11 +28,7 @@ namespace vopat {
     file */
   std::string Model::canonicalMasterFileName(const std::string &baseName)
   {
-#if VOPAT_UMESH
-    return baseName+".domains";
-#else
     return baseName+".vopat";
-#endif
   }
     
   /*! given a base file name prefix (including directory name, if
@@ -43,17 +39,17 @@ namespace vopat {
                                            const std::string &variable,
                                            int timeStep)
   {
-#if VOPAT_UMESH
-    char bid[100];
-    sprintf(bid,"%05i",rankID);
-    return baseName+"_"+bid+".umesh";
-#else
+// #if VOPAT_UMESH
+//     char bid[100];
+//     sprintf(bid,"%05i",rankID);
+//     return baseName+"_"+bid+".umesh";
+// #else
     char ts[100];
     sprintf(ts,"%05i",timeStep);
     char bid[100];
     sprintf(bid,"%05i",rankID);
     return baseName+"__"+variable+"__t"+ts+".b"+bid+".brick";
-#endif
+// #endif
   }
 
   void Model::save(const std::string &fileName)
@@ -66,23 +62,27 @@ namespace vopat {
     size_t fileMagic = file_format_magic;
     write(out,fileMagic);
 
-    write(out,numVoxelsTotal);
+    write(out,this->modelType());
+
+    // write(out,numVoxelsTotal);
     // PRINT(valueRange);
     write(out,valueRange);
     // PRINT(numVoxelsTotal);
     write(out,int(bricks.size()));
+    
     for (int i=0;i<bricks.size();i++) {
       Brick::SP brick = bricks[i];
-#if VOPAT_UMESH
-      write(out,brick->domain);
-#else
-      write(out,brick->voxelRange);
-      write(out,brick->cellRange);
-      write(out,brick->spaceRange);
-      write(out,brick->numVoxels);
-      write(out,brick->numCells);
-      write(out,brick->numVoxelsParent);
-#endif
+      brick->write(out);
+// #if VOPAT_UMESH
+//       write(out,brick->domain);
+// #else
+//       write(out,brick->voxelRange);
+//       write(out,brick->cellRange);
+//       write(out,brick->spaceRange);
+//       write(out,brick->numVoxels);
+//       write(out,brick->numCells);
+//       write(out,brick->numVoxelsParent);
+// #endif
     }
     std::cout << OWL_TERMINAL_GREEN
               << "#done writing model to " << fileName
