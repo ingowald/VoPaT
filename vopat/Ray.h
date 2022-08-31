@@ -26,8 +26,12 @@ namespace vopat {
   inline __device__
   vec3f fixDir(vec3f v)
   { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
+
   
   struct Ray {
+    enum { HitType_None = -1 };
+    enum { HitType_Volume = -2 };
+
     struct {
       /*! note this always refers to a GLOBAL pixel ID even if we
         use islands; ie, this number may be LARGER than the number
@@ -38,10 +42,6 @@ namespace vopat {
       uint32_t    crosshair  :  1;
       uint32_t    isShadow   :  1;
     };
-#if DEBUG_FORWARDS
-    uint32_t    numFwds;
-#endif
-      
     vec3f       origin;
 #if 1
     inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
@@ -53,6 +53,8 @@ namespace vopat {
     vec3f direction;
 #endif
     small_vec3f throughput;
+    float tMax = 1e20f;
+    int32_t hitType;
   };
 
   inline __device__ bool checkOrigin(float x)
@@ -72,7 +74,7 @@ namespace vopat {
   
 
 
-    inline __device__
+  inline __device__
   bool boxTest(box3f box,
                vec3f org,
                vec3f dir,

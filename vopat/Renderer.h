@@ -20,13 +20,5 @@
 #include "model/Model.h"
 
 namespace vopat {
-  
-  /*! creates a renderer from the given name (e.g., "woodcock" or
-    "cell-march") */
-  Renderer *createRenderer(const std::string &rendererName,
-                           CommBackend *comm,
-                           Model::SP model,
-                           const std::string &fileNameBase,
-                           // this is the rank WITHIN THE ISLAND
-                           int rank, int numSPP);
+
 }

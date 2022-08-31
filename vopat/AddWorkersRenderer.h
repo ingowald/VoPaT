@@ -26,12 +26,11 @@ namespace vopat {
       frame buffer handling, compositing, and collecting of pixels is
       done by this class */
   struct AddWorkersRenderer
-    : public Renderer
   {
-    AddWorkersRenderer(CommBackend *comm) : Renderer(comm) {}
+    AddWorkersRenderer(CommBackend *comm) : comm(comm) {}
     
-    void resizeFrameBuffer(const vec2i &newSize) override;
-    void render(uint32_t *fbPointer) override;
+    virtual void resizeFrameBuffer(const vec2i &newSize);
+    void render(uint32_t *fbPointer);
 
     static void composeRegion(uint32_t *results,
                               const vec2i &ourRegionSize,
@@ -65,6 +64,8 @@ namespace vopat {
     // vec2i           fullFbSize;
 
     CUDAArray<uint32_t> masterFB;
+    
+    CommBackend *comm;
   };
 
 }

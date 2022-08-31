@@ -26,9 +26,40 @@ extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 
 namespace vopat {
   
-  inline __device__ const LaunchParams &getLP()
+  inline __device__ const LaunchParams &LaunchParams::get()
   { return (const LaunchParams &)optixLaunchParams[0]; }
 
+  inline __device__
+  int computeNextNode(Ray ray, float t_already_travelled)
+  {
+    auto &lp = LaunchParams::get();
+    NextDomainKernel::PRD prd;
+    prd.closestRank = -1;
+    prd.closestDist = ray.tMax;
+    prd.skipCurrentRank = true;
+    prd.dbg = ray.dbg;
+    owl::Ray owlRay(ray.origin,ray.getDirection(),t_already_travelled,ray.tMax);
+    owl::traceRay(lp.nextDomainKernel.proxyBVH,owlRay,prd);
+    return prd.closestRank;
+  }
+  
+  inline __device__
+  int computeInitialRank(Ray ray)
+  {
+    auto &lp = LaunchParams::get();
+    NextDomainKernel::PRD prd;
+    prd.closestRank = -1;
+    prd.closestDist = ray.tMax;
+    prd.skipCurrentRank = false;
+    prd.dbg = ray.dbg;
+    owl::Ray owlRay(ray.origin,ray.getDirection(),0.f,ray.tMax);
+    if (ray.dbg)
+      printf("proxyBVH %lx\n",lp.nextDomainKernel.proxyBVH);
+    owl::traceRay(lp.nextDomainKernel.proxyBVH,owlRay,prd);
+    if (ray.dbg)
+      printf("closest rank %i\n",prd.closestRank);
+    return prd.closestRank;
+  }
 
   inline __device__
   Ray generateRay(const ForwardGlobals &globals,
@@ -67,34 +98,36 @@ namespace vopat {
     int ix = launchIdx.x;
     int iy = launchIdx.y;
 
-    if (vec2i(ix,iy) == vec2i(0))
-      printf("launch 0 : islandsize %i %i \n",
-             vopat.islandFbSize.x,vopat.islandFbSize.y);
+    // if (vec2i(ix,iy) == vec2i(0))
+    //   printf("launch 0 : islandsize %i %i \n",
+    //          vopat.islandFbSize.x,vopat.islandFbSize.y);
              
     if (ix >= vopat.islandFbSize.x) return;
     if (iy >= vopat.islandFbSize.y) return;
 
-    bool dbg = vec2i(ix,iy) == vopat.islandFbSize/2;
-    if (dbg) printf("=======================================================\ngeneratePrimaryWaveKernel %i %i\n",ix,iy);
+    bool dbg = (vec2i(ix,iy) == vopat.islandFbSize/2);
+    // if (dbg) printf("=======================================================\ngeneratePrimaryWaveKernel %i %i\n
+// ",ix,iy);
     
     int myRank = vopat.islandRank;//myRank;
     int world_iy
       = vopat.islandIndex
       + iy * vopat.islandCount;
     Ray ray    = generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
-#if 0
-    ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
-    if (ray.dbg) printf("----------- NEW RAY -----------\n");
-#else
-    ray.dbg    = false;
-#endif
+    ray.dbg = dbg;
+// #if 0
+//     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
+//     if (ray.dbg) printf("----------- NEW RAY -----------\n");
+// #else
+//     ray.dbg    = false;
+// #endif
 
     ray.numBounces = 0;
 #if DEBUG_FORWARDS
     ray.numFwds = 0;
 #endif
     ray.crosshair = (ix == vopat.worldFbSize.x/2) || (world_iy == vopat.worldFbSize.y/2);
-    int dest   = computeInitialRank(globals,ray);
+    int dest   = computeInitialRank(ray);
 
     if (dest < 0) {
       /* "nobody" owns this pixel, set to background on rank 0 */
@@ -122,19 +155,20 @@ namespace vopat {
                                     box3f       &primBounds,
                                     const int    primID)
   {
-    NextDomainKernel::DD &geom = *(NextDomainKernel::DD*)geomData;
+    NextDomainKernel::Geom &geom = *(NextDomainKernel::Geom*)geomData;
     auto &proxy = geom.proxies[primID];
     primBounds = proxy.domain;
   }
 
   OPTIX_INTERSECT_PROGRAM(proxyIsec)()
   {
-    auto &geom = owl::getProgramData<NextDomainKernel::DD>();
+    auto &lp   = LaunchParams::get();
+    auto &geom = owl::getProgramData<NextDomainKernel::Geom>();
     int primID = optixGetPrimitiveIndex();
     auto proxy = geom.proxies[primID];
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
-    if (prd.skipCurrentRank && prd.currentRank == proxy.rankID) return;
+    if (prd.skipCurrentRank && proxy.rankID == lp.nextDomainKernel.myRank) return;
   
     vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
@@ -151,7 +185,7 @@ namespace vopat {
       return;
 
     prd.closestDist = t0;
-    prd.closestRank = prd.currentRank;
+    prd.closestRank = proxy.rankID;
     float reported_t = nextafterf(t0,CUDART_INF);
     optixReportIntersection(reported_t,0);
   }
@@ -195,7 +229,7 @@ namespace vopat {
 
   OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
   {
-    auto &lp = getLP();
+    auto &lp = LaunchParams::get();
     const vec2i launchIdx = owl::getLaunchIndex();
     generatePrimaryWaveKernel
       (launchIdx,
@@ -276,7 +310,7 @@ namespace vopat {
 
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
-    auto &lp = getLP();
+    auto &lp = LaunchParams::get();
     int rayID = owl::getLaunchIndex().x;
     Woodcock::traceRay(rayID,
                        lp.forwardGlobals,

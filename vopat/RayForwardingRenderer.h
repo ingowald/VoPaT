@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "model/Model.h"
 #include "vopat/AddWorkersRenderer.h"
 #include "vopat/Ray.h"
 #include <sstream>
@@ -27,6 +26,13 @@
 #endif
 
 namespace vopat {
+
+  struct RayForwardingRenderer;
+  
+  struct NodeRenderer {
+    virtual void generatePrimaryWave(RayForwardingRenderer *rfr) = 0;
+    virtual void traceLocally(RayForwardingRenderer *rfr) = 0;
+  };
   
   struct RayForwardingRenderer : public AddWorkersRenderer {
     
@@ -77,21 +83,21 @@ namespace vopat {
       bool fishy = false;
     };
 
-    /*! abstraction for any sort of renderer that will generate and/or
-        shade/modify/bounce rays within this ray forwardign context */
-    struct NodeRenderer {
-      virtual void setTransferFunction(const std::vector<vec4f> &cm,
-                                       const interval<float> &range,
-                                       const float density) {};
-      virtual void setISO(int numActive,
-                          const std::vector<int> &active,
-                          const std::vector<float> &values,
-                          const std::vector<vec3f> &colors) {};
-      virtual void generatePrimaryWave(const Globals &globals) = 0;
-      virtual void traceLocally(const Globals &globals, bool fishy) = 0;
-      virtual void setLights(float ambient,
-                             const std::vector<MPIRenderer::DirectionalLight> &dirLights) = 0;
-    };
+    // /*! abstraction for any sort of renderer that will generate and/or
+    //     shade/modify/bounce rays within this ray forwardign context */
+    // struct NodeRenderer {
+    //   virtual void setTransferFunction(const std::vector<vec4f> &cm,
+    //                                    const interval<float> &range,
+    //                                    const float density) {};
+    //   virtual void setISO(int numActive,
+    //                       const std::vector<int> &active,
+    //                       const std::vector<float> &values,
+    //                       const std::vector<vec3f> &colors) {};
+    //   virtual void generatePrimaryWave(const Globals &globals) = 0;
+    //   virtual void traceLocally(const Globals &globals, bool fishy) = 0;
+    //   virtual void setLights(float ambient,
+    //                          const std::vector<MPIRenderer::DirectionalLight> &dirLights) = 0;
+    // };
     
     RayForwardingRenderer(CommBackend *comm,
                           NodeRenderer *nodeRenderer,
@@ -105,45 +111,46 @@ namespace vopat {
         master, but assumes that all workers render their local frame
         buffer(s) that we'll then merge */
     void renderLocal() override;
-    void screenShot() override;
+    // void screenShot() override;
 
     // ==================================================================
     // things we intercept to know what to do
     // ==================================================================
     
     void resizeFrameBuffer(const vec2i &newSize)  override;
-    void setCamera(const vec3f &from,
-                   const vec3f &at,
-                   const vec3f &up,
-                   const float fov) override;
+    // void setCamera(const vec3f &from,
+    //                const vec3f &at,
+    //                const vec3f &up,
+    //                const float fov) override;
     
-    void resetAccumulation() override
-    { AddWorkersRenderer::resetAccumulation(); accumBuffer.bzero(); }
-    void traceRaysLocally(bool fishy);
-    void createSendQueue(bool fishy);
+    void resetAccumulation()
+    { // AddWorkersRenderer::resetAccumulation(); 
+      accumBuffer.bzero(); }
+    void traceRaysLocally();
+    void createSendQueue();
     int  exchangeRays();
 
-     void setTransferFunction(const std::vector<vec4f> &cm,
-                              const interval<float> &range,
-                              const float density) override
-    {
-      nodeRenderer->setTransferFunction(cm,range,density);
-      resetAccumulation();
-    }
-    void setISO(int numActive,
-                const std::vector<int> &active,
-                const std::vector<float> &values,
-                const std::vector<vec3f> &colors) override
-    {
-      nodeRenderer->setISO(numActive,active,values,colors);
-      resetAccumulation();
-    }
-    void setLights(float ambient,
-                   const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
-    {
-      nodeRenderer->setLights(ambient,dirLights); 
-      resetAccumulation();
-    }
+    //  void setTransferFunction(const std::vector<vec4f> &cm,
+    //                           const interval<float> &range,
+    //                           const float density) override
+    // {
+    //   nodeRenderer->setTransferFunction(cm,range,density);
+    //   resetAccumulation();
+    // }
+    // void setISO(int numActive,
+    //             const std::vector<int> &active,
+    //             const std::vector<float> &values,
+    //             const std::vector<vec3f> &colors) override
+    // {
+    //   nodeRenderer->setISO(numActive,active,values,colors);
+    //   resetAccumulation();
+    // }
+    // void setLights(float ambient,
+    //                const std::vector<MPIRenderer::DirectionalLight> &dirLights) override
+    // {
+    //   nodeRenderer->setLights(ambient,dirLights); 
+    //   resetAccumulation();
+    // }
     
     
     /*! ray queues we are expected to trace in the next step */

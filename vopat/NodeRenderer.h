@@ -59,6 +59,8 @@ namespace vopat {
     { volume.setLights(ambient,dirLights); }
 
     void createNextDomainKernel();
+
+    int myRank() const { return volume.islandRank; }
     
     VolumeRenderer volume;
     SurfaceIntersector surface;

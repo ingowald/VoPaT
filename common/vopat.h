@@ -122,5 +122,21 @@ namespace vopat {
   static inline __both__
   vec3f floor(vec3f v) { return { floor(v.x),floor(v.y),floor(v.z) }; }
 
+  /*! misc helpers, might eventually move somewhere else */
+  inline __device__
+  void makeOrthoBasis(vec3f& u, vec3f& v, const vec3f& w)
+  {
+    v = abs(w.x) > abs(w.y)?normalize(vec3f(-w.z,0,w.x)):normalize(vec3f(0,w.z,-w.y));
+    u = cross(v, w);
+  }
+
+  inline __device__ vec3f uniformSampleCone(const vec2f &u, float cosThetaMax)
+  {
+    float cosTheta = (1.f - u.x) + u.x * cosThetaMax;
+    float sinTheta = sqrtf(1.f - cosTheta * cosTheta);
+    float phi = u.y * 2.f * float(M_PI);
+    return {cosf(phi) * sinTheta, sinf(phi) * sinTheta, cosTheta};
+  }
+
 } // ::mini
 

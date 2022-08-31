@@ -34,26 +34,33 @@ namespace vopat {
     };
 
     struct PRD {
-      int   currentRank;
-      int   skipCurrentRank;
-      int   closestRank;
+      uint32_t   skipCurrentRank:1;
+      uint32_t   dbg:1;
+      int   closestRank:30;
       float closestDist;
     };
     
-    struct DD {
+    struct LPData {
+      int                    myRank;
       Proxy                 *proxies;
       OptixTraversableHandle proxyBVH;
     };
-    inline static __device__
-    int computeNextNode(Ray ray, int thisNodeID, float t_already_travelled);
 
+    struct Geom {
+      Proxy                 *proxies;
+    };
+    
     void create(VopatNodeRenderer *vopat);
+    
+    void addLPVars(std::vector<OWLVarDecl> &lpVars);
+    void setLPVars(OWLLaunchParams lp);
     
     std::vector<Proxy> proxies;
     OWLBuffer proxiesBuffer;
     OWLGeomType gt;
     OWLGeom    geom;
     OWLGroup   blas, tlas;
+    int        myRank;
   };
 
 } // ::vopat

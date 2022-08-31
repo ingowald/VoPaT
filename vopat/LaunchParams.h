@@ -40,10 +40,12 @@ namespace vopat {
   };
   
   struct LaunchParams {
-    ForwardGlobals         forwardGlobals;
-    VolumeGlobals          volumeGlobals;
-    SurfaceGlobals         surfaceGlobals;
-    NextDomainKernel::DD   nextDomainKernel;
+    static inline __device__ const LaunchParams &get();
+    
+    ForwardGlobals           forwardGlobals;
+    VolumeGlobals            volumeGlobals;
+    SurfaceGlobals           surfaceGlobals;
+    NextDomainKernel::LPData nextDomainKernel;
   };
   
 }

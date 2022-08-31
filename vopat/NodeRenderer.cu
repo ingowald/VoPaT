@@ -25,32 +25,37 @@ namespace vopat {
                                        int gpuID)
     : volume(model,baseFileName,islandRank,gpuID)
   {
-    PING;
+    // PING;
     CUDA_SYNC_CHECK();
     auto &owl = volume.owl;
     
     auto &owlDevCode = volume.owlDevCode;
-    PING;
+    // PING;
     if (islandRank >= 0) {
       if (!owl) throw std::runtime_error("owl not yet initialized");
 
-      PING;
+      // PING;
       createNextDomainKernel();
       
       CUDA_SYNC_CHECK();
-      PING;
+      // PING;
       traceLocallyRG = owlRayGenCreate(owl,owlDevCode,"traceLocallyRG",0,0,0);
       generatePrimaryWaveRG = owlRayGenCreate(owl,owlDevCode,"generatePrimaryWaveRG",0,0,0);
-      OWLVarDecl lpArgs[]
-        = {
-           {"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)},
-           {"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)},
-           {"surfaceGlobals",OWL_USER_TYPE(SurfaceGlobals),OWL_OFFSETOF(LaunchParams,surfaceGlobals)},
-           // {"umeshSampleBVH",OWL_GROUP,OWL_OFFSETOF(LaunchParams,umeshSampleBVH)},
-           {nullptr}
-      };
+      std::vector<OWLVarDecl> lpArgs;
+
+      nextDomainKernel.addLPVars(lpArgs);
+      lpArgs.push_back
+        ({"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)});
+      lpArgs.push_back
+        ({"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)});
+      lpArgs.push_back
+        ({"surfaceGlobals",OWL_USER_TYPE(SurfaceGlobals),OWL_OFFSETOF(LaunchParams,surfaceGlobals)});
+      
+      lpArgs.push_back({nullptr});
+      
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
-                           lpArgs,-1);
+                           lpArgs.data(),-1);
+      nextDomainKernel.setLPVars(lp);
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
       CUDA_SYNC_CHECK();
@@ -108,11 +113,11 @@ namespace vopat {
   (const ForwardGlobals &forward,
    bool fishy)
   {
-    PING;
-    PRINT(forward.numRaysInQueue);
+    // PING;
+    // PRINT(forward.numRaysInQueue);
     if (forward.numRaysInQueue == 0) return;
 // #if VOPAT_UMESH_OPTIX
-    printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
+    // printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
     owlParamsSetRaw(lp,"volumeGlobals",&volume.globals);
     owlParamsSetRaw(lp,"surfaceGlobals",&surface.globals);
@@ -143,20 +148,20 @@ namespace vopat {
   (const ForwardGlobals &forwardGlobals)
   {
     CUDA_SYNC_CHECK();
-    PING;
-    PRINT(forwardGlobals.islandFbSize);
+    // PING;
+    // PRINT(forwardGlobals.islandFbSize);
     
 // #if VOPAT_UMESH_OPTIX
     if (forwardGlobals.islandFbSize.y <= 0)
       return;
     
     auto volumeGlobals = volume.globals;
-    PRINT(forwardGlobals.islandFbSize);
+    // PRINT(forwardGlobals.islandFbSize);
     owlParamsSetRaw(lp,"forwardGlobals",&forwardGlobals);
     owlParamsSetRaw(lp,"volumeGlobals",&volumeGlobals);
 
-    std::cout << "##################################################################" << std::endl;
-    fflush(0);
+    // std::cout << "##################################################################" << std::endl;
+    // fflush(0);
     owlLaunch2D(generatePrimaryWaveRG,
                 forwardGlobals.islandFbSize.x,
                 forwardGlobals.islandFbSize.y,
@@ -185,8 +190,10 @@ namespace vopat {
       proxy.domain = volume.model->bricks[rankID]->getDomain();
       ndk.proxies.push_back(proxy);
     }
-    
+
+    PING; CUDA_SYNC_CHECK();
     ndk.create(this);
+    PING; CUDA_SYNC_CHECK();
   }
   
 } // ::vopat

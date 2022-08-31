@@ -26,7 +26,13 @@ namespace vopat {
   using ForwardGlobals = typename RayForwardingRenderer::Globals;
   using VolumeGlobals  = typename VolumeRenderer::Globals;
   using SurfaceGlobals = typename SurfaceIntersector::Globals;
-    
+      
+  inline __device__
+  int computeNextNode(Ray ray, float t_already_travelled);
+  
+  inline __device__
+  int computeInitialRank(Ray ray);
+  
   inline __device__
   Ray generateRay(const ForwardGlobals &globals,
                   vec2i pixelID,
@@ -38,26 +44,19 @@ namespace vopat {
   
   struct Woodcock
   {
-    static  inline __device__
-    int computeNextNode(const VolumeGlobals &vopat,
-                        const Ray &ray,
-                        const float t_already_travelled,
-                        bool dbg);
-
     static inline __device__
-    void traceRay(int tid,
-                  const ForwardGlobals &vopat,
-                  const VolumeGlobals  &dvr,
-                  const SurfaceGlobals &surf);
-    
+    void intersectVolume(int tid,
+                         const ForwardGlobals &vopat,
+                         const VolumeGlobals  &dvr,
+                         const SurfaceGlobals &surf);
   };
-  
+
 
   inline __device__
   void Woodcock::traceRay(int tid,
-                                 const ForwardGlobals &vopat,
-                                 const VolumeGlobals  &dvr,
-                                 const SurfaceGlobals &surf)
+                          const ForwardGlobals &vopat,
+                          const VolumeGlobals  &dvr,
+                          const SurfaceGlobals &surf)
   {
     Ray ray = vopat.rayQueueIn[tid];
     if (!checkOrigin(ray))
@@ -352,7 +351,8 @@ namespace vopat {
         // could still be another rank that might have one for this
         // ray - check for that.
         // ------------------------------------------------------------------
-        nextRankToSendTo = computeNextNode(dvr,ray,t1 * 1.001f,/*ray.dbg*/false);
+        // nextRankToSendTo = computeNextNode(dvr,ray,t1 * 1.001f,/*ray.dbg*/false);
+        nextRankToSendTo = computeNextNode(ray,t1);
         if (ray.dbg)
           printf(" => NO_HIT case, next rank %i\n",nextRankToSendTo);
         if (nextRankToSendTo >= 0) {
@@ -532,53 +532,53 @@ namespace vopat {
   }
 
 
-  inline __device__
-  int Woodcock::computeNextNode(const VolumeGlobals &vopat,
-                             const Ray &ray,
-                             const float t_already_travelled,
-                             bool dbg)
-  {
-    if (dbg) printf("finding next that's t >= %f and rank != %i\n",
-                    t_already_travelled,vopat.islandRank);
+  // inline __device__
+  // int Woodcock::computeNextNode(const VolumeGlobals &vopat,
+  //                            const Ray &ray,
+  //                            const float t_already_travelled,
+  //                            bool dbg)
+  // {
+  //   if (dbg) printf("finding next that's t >= %f and rank != %i\n",
+  //                   t_already_travelled,vopat.islandRank);
       
-    int closest = -1;
-    float t_closest = CUDART_INF;
-    for (int i=0;i<vopat.islandSize;i++) {
-      if (i == vopat.islandRank) continue;
+  //   int closest = -1;
+  //   float t_closest = CUDART_INF;
+  //   for (int i=0;i<vopat.islandSize;i++) {
+  //     if (i == vopat.islandRank) continue;
         
-      float t0 = t_already_travelled * (1.f+1e-5f);
-      float t1 = t_closest; 
-      if (!boxTest(vopat.rankBoxes[i],ray,t0,t1,dbg))
-        continue;
-      // if (t0 == t1)
-      //   continue;
+  //     float t0 = t_already_travelled * (1.f+1e-5f);
+  //     float t1 = t_closest; 
+  //     if (!boxTest(vopat.rankBoxes[i],ray,t0,t1,dbg))
+  //       continue;
+  //     // if (t0 == t1)
+  //     //   continue;
       
-      if (dbg) printf("   accepted rank %i dist %f\n",i,t0);
-      t_closest = t0;
-      closest = i;
-    }
-    if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.islandRank,closest);
-    return closest;
-  }
+  //     if (dbg) printf("   accepted rank %i dist %f\n",i,t0);
+  //     t_closest = t0;
+  //     closest = i;
+  //   }
+  //   if (ray.dbg) printf("(%i) NEXT rank is %i\n",vopat.islandRank,closest);
+  //   return closest;
+  // }
 
-  inline __device__
-  int computeInitialRank(const VolumeGlobals &vopat,
-                         Ray ray,
-                         bool dbg=false)
-  {
-    int closest = -1;
-    float t_closest = CUDART_INF;
-    for (int i=0;i<vopat.islandSize;i++) {
-      float t_min = 0.f;
-      float t_max = t_closest;
-      if (!boxTest(vopat.rankBoxes[i],ray,t_min,t_max))
-        continue;
-      closest = i;
-      t_closest = t_min;
-    }
-    // if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
-    return closest;
-  }
+  // inline __device__
+  // int computeInitialRank(const VolumeGlobals &vopat,
+  //                        Ray ray,
+  //                        bool dbg=false)
+  // {
+  //   int closest = -1;
+  //   float t_closest = CUDART_INF;
+  //   for (int i=0;i<vopat.islandSize;i++) {
+  //     float t_min = 0.f;
+  //     float t_max = t_closest;
+  //     if (!boxTest(vopat.rankBoxes[i],ray,t_min,t_max))
+  //       continue;
+  //     closest = i;
+  //     t_closest = t_min;
+  //   }
+  //   // if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
+  //   return closest;
+  // }
   
 }
 

@@ -21,16 +21,17 @@ namespace vopat {
 
   void NextDomainKernel::create(VopatNodeRenderer *vopat)
   {
+    PING;
+    myRank = vopat->volume.islandRank;
     auto &owl = vopat->volume.owl;
     auto &owlDevCode = vopat->volume.owlDevCode;
 
     OWLVarDecl vars[]
       = {
-         { "proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::DD,proxies) },
-         { "proxyBVH",OWL_GROUP,OWL_OFFSETOF(NextDomainKernel::DD,proxyBVH) },
+         { "proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::Geom,proxies) },
          { nullptr }
     };
-    gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(DD),vars,-1);
+    gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(Geom),vars,-1);
     owlGeomTypeSetBoundsProg(gt,owlDevCode,"proxyBounds");
     owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"proxyIsec");
     
@@ -39,8 +40,6 @@ namespace vopat {
     proxiesBuffer
       = owlDeviceBufferCreate(owl,OWL_USER_TYPE(box3f),
                               proxies.size(),proxies.data());
-    owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
-
     CUDA_SYNC_CHECK();
     owlBuildPrograms(owl);
     CUDA_SYNC_CHECK();
@@ -54,7 +53,24 @@ namespace vopat {
                                   OPTIX_BUILD_FLAG_ALLOW_UPDATE);
     owlGroupBuildAccel(tlas);
     CUDA_SYNC_CHECK();
+
+    owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
   }
+
+  void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars)
+  {
+    lpVars.push_back({"proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::LPData,proxies)});
+    lpVars.push_back({"proxyBVH",OWL_GROUP,OWL_OFFSETOF(NextDomainKernel::LPData,proxyBVH)});
+    lpVars.push_back({"myRank",OWL_INT,OWL_OFFSETOF(NextDomainKernel::LPData,myRank)});
+  }
+  
+  void NextDomainKernel::setLPVars(OWLLaunchParams lp)
+  {
+    owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
+    owlParamsSetGroup(lp,"proxyBVH",tlas);
+    owlParamsSet1i(lp,"myRank",myRank);
+  }
+    
   
 }
 
