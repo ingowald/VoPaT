@@ -20,11 +20,19 @@
 
 namespace vopat {
 
-  std::vector<box4f> Brick::makeShards(int numShards)
+  std::string UMeshBrick::toString() const
+  {
+    std::stringstream ss;
+    ss << "UMeshBrick #"<<ID << " " << domain << " " << (umesh?umesh->toString():std::string("<no mesh>"));
+    
+    return ss.str();
+  }
+  
+  std::vector<Shard> UMeshBrick::makeShards(int numShards)
   {
     struct ShardNode {
       box3f domain;
-      umesh::range1f valueRange;
+      range1f valueRange;
       int childID = -1;
       int numShards;
     };
@@ -34,7 +42,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     std::vector<ShardNode> nodes;
     nodes.resize(1);
-    nodes[0].domain = getDomain();
+    (umesh::box3f&)nodes[0].domain = umesh->getBounds();
     nodes[0].childID = -1;
     nodes[0].numShards = numShards;
     std::stack<int> todo; todo.push(0);
@@ -86,49 +94,72 @@ namespace vopat {
           
         }
         else
-          nodes[nodeID].valueRange.extend(primRange);
+          nodes[nodeID].valueRange.extend((const range1f&)primRange);
       }
     }
     
     // ------------------------------------------------------------------
     // gather the leaves
     // ------------------------------------------------------------------
-    std::vector<box4f> result;
+    std::vector<Shard> result;
     for (auto &node : nodes) {
       if (node.childID >= 0) continue;
-      result.push_back({ { node.domain.lower.x,
-                           node.domain.lower.y,
-                           node.domain.lower.z,
-                           node.valueRange.lower },
-                         { node.domain.upper.x,
-                           node.domain.upper.y,
-                           node.domain.upper.z,
-                           node.valueRange.upper }});
+      if (node.valueRange.upper < node.valueRange.lower) {
+        std::cout << "WARNING: got a shard with zero elements here !?" << std::endl;
+        continue;
+      }
+      result.push_back(Shard{ node.domain, node.valueRange });
     }
     return result;
   }
-
-  void UMeshBrick::UMeshBrick(const std::string &constantDataFileName)
+  
+  void UMeshBrick::writeConstantData(const std::string &fileName) const
   {
-    umesh = umesh::UMesh::loadFrom(constantDataFileName);
-    valueRange = {};
-    for (auto v : umesh->perVertex->values)
-      valueRange.extend(v);
-    PRINT(umesh->toString());
   }
   
-  void UMeshBrick::write(std::ostream &out) const
+  void UMeshBrick::writeTimeStep(const std::string &fileName) const
   {
-// #if VOPAT_UMESH
-//       write(out,brick->domain);
-// #else
-//       write(out,brick->voxelRange);
-//       write(out,brick->cellRange);
-//       write(out,brick->spaceRange);
-//       write(out,brick->numVoxels);
-//       write(out,brick->numCells);
-//       write(out,brick->numVoxelsParent);
-// #endif
   }
+  
+  /*! load all of the time-step and variabel independent data */
+  void UMeshBrick::loadConstantData(const std::string &fileName) 
+  {
+    this->umesh = umesh::UMesh::loadFrom(fileName+".umesh");
+    
+    std::ifstream in(fileName,std::ios::binary);
+    read(in,domain);
+  }
+    
+  /*! load a given time step and variable's worth of voxels from given file name */
+  void UMeshBrick::loadTimeStep(const std::string &fileName) 
+  {
+    std::ifstream in(fileName,std::ios::binary);
+    read(in,umesh->perVertex->values);
+    read(in,(range1f&)umesh->perVertex->valueRange);
+  }
+    
+  
+  // void UMeshBrick::UMeshBrick(int ID) : Brick(ID) {}
+  // {
+  //   umesh = umesh::UMesh::loadFrom(constantDataFileName);
+  //   valueRange = {};
+  //   for (auto v : umesh->perVertex->values)
+  //     valueRange.extend(v);
+  //   PRINT(umesh->toString());
+  // }
+  
+//   void UMeshBrick::write(std::ostream &out) const
+//   {
+// // #if VOPAT_UMESH
+// //       write(out,brick->domain);
+// // #else
+// //       write(out,brick->voxelRange);
+// //       write(out,brick->cellRange);
+// //       write(out,brick->spaceRange);
+// //       write(out,brick->numVoxels);
+// //       write(out,brick->numCells);
+// //       write(out,brick->numVoxelsParent);
+// // #endif
+//   }
   
 }

@@ -14,18 +14,18 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/model/Model.h"
-#include "vopat/model/IO.h"
+#include "model/StructuredModel.h"
 
 namespace vopat {
 
-  Brick::SP kdCreateBrick(int rank, int numRanks, const vec3i &inputSize)
+  box3i kdCreateBrick(int rank, int numRanks, const vec3i &inputSize)
   {
     const int inputRank = rank;
-    box3i region{vec3i(0),inputSize-vec3i(1)};
+    // number of CELLS:
+    box3i region = {vec3i(0),inputSize-vec3i(1)};
     while (1) {
       if (numRanks == 1)
-        return Brick::create(inputRank,inputSize,region);
+        return region;//Brick::create(inputRank,inputSize,region);
       
       int lCount = numRanks / 2;
       int rCount = numRanks - lCount;
@@ -100,39 +100,43 @@ int main(int ac, char **av)
   if (inFileName.empty()) usage("invalid or not-specified input file name");
   if (inFormat == "") usage("input format not specified");
   if (inFormat != "uint8" && inFormat != "uint16" && inFormat != "float") usage("unknown input format (allowed 'uint8' 'uint16' 'float')");
-  Model::SP model = Model::create();
-  model->numVoxelsTotal = inputSize;
-  for (int brickID=0;brickID<numBricks;brickID++) {
-    model->bricks.push_back(kdCreateBrick(brickID,numBricks,inputSize));
-    std::cout << "... created brick " << model->bricks.back()->toString() << std::endl;
-  }
+
+  
+  StructuredModel::SP model = StructuredModel::create();
+  model->numTimeSteps = 1;
 
   int timeStep = 0;
   std::string variable = "unknown";
-  for (auto brick : model->bricks) {
-    std::vector<float> scalars;
-    std::cout << "extracting var '" << variable << "', time step " << timeStep << ", brick " << brick->ID << std::endl;
+  
+  for (int brickID=0;brickID<numBricks;brickID++) {
+    std::cout << "extracting var '" << variable << "', time step " << timeStep << ", brick " << brickID << std::endl;
+
+    box3i cellRange = kdCreateBrick(brickID,numBricks,inputSize);
+    StructuredBrick::SP brick;
     if (inFormat == "float")
-      scalars = brick->loadRegionRAW<float>(inFileName);
+      brick = makeBrickRaw<float>(brickID,cellRange,inputSize,inFileName);
     else if (inFormat == "uint8")
-      scalars = brick->loadRegionRAW<uint8_t>(inFileName);
+      brick = makeBrickRaw<uint8_t>(brickID,cellRange,inputSize,inFileName);
     else if (inFormat == "uint16")
-      scalars = brick->loadRegionRAW<uint16_t>(inFileName);
+      brick = makeBrickRaw<uint16_t>(brickID,cellRange,inputSize,inFileName); 
     else
       throw std::runtime_error("unsupported raw format");
-    for (auto v : scalars)
-      model->valueRange.extend(v);
-    PRINT(model->valueRange);
-    std::string outFileName = Model::canonicalRankFileName(outFileBase,brick->ID);
-    std::ofstream out(outFileName,std::ios::binary);
-    // write(out,scalars);
-    out.write((const char *)scalars.data(),scalars.size()*sizeof(scalars[0]));
-    std::cout << OWL_TERMINAL_GREEN
-              << " -> " << outFileName
-              << OWL_TERMINAL_DEFAULT << std::endl;
+    
+    model->domain.extend(brick->spaceRange);
+    range1f valueRange;
+    for (auto scalar : brick->scalars)
+      valueRange.extend(scalar);
+    model->numBricks++;
+    model->valueRange.extend(valueRange);
 
-    std::cout << OWL_TERMINAL_BLUE << "saving meta..." << OWL_TERMINAL_DEFAULT << std::endl;
-    model->save(Model::canonicalMasterFileName(outFileBase));
-}
+    std::cout << "- created brick #" << brickID << " range " << brick->spaceRange << " values " << valueRange << std::endl;
+
+    brick->writeConstantData(Model::canonicalBrickFileName(outFileBase,brick->ID));
+    brick->writeTimeStep(Model::canonicalTimeStepFileName(outFileBase,brick->ID,
+                                                       "unknown",0));
+  }
+  
+  std::cout << OWL_TERMINAL_BLUE << "saving model..." << OWL_TERMINAL_DEFAULT << std::endl;
+  model->save(Model::canonicalMasterFileName(outFileBase));
   
 }

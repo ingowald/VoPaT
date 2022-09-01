@@ -23,63 +23,57 @@ namespace vopat {
 
   struct StructuredBrick : public Brick {
     typedef std::shared_ptr<StructuredBrick> SP;
-    static SP create(int ID,
-                     const vec3i &numVoxelsTotal,
-                     const box3i &desiredCellRange)
-    { return std::make_shared<StructuredBrick>(ID,numVoxelsTotal,desiredCellRange); }
-
-    StructuredBrick(int ID, const std::string &constDataFileName);
-    // StructuredBrick(int ID,
-    //                 /*! total num voxels in the *entire* model */
-    //                 const vec3i &numVoxelsTotal,
-    //                 /*! desired range of *cells* (not voxels) to load from this
-    //                   volume, *including* the lower coordinates but *excluding* the
-    //                   upper. 
-            
-    //                   Eg, for a volume of 10x10 voxels (ie, 9x9 cells) the
-    //                   range {(2,2),(4,4)} would span cells (2,2),(3,2),(3,2) and
-    //                   (3,3); and to do that wouldread the voxels from (2,2) to
-    //                   including (4,4) (ie, the brick would have 2x2 cells and 3x3
-    //                   voxels. */
-    //                 const box3i &desiredCellRange);
     
-    std::string toString() const overrride;
+    static SP create(int ID)
+    { return std::make_shared<StructuredBrick>(ID); }
 
-    /*! load a given time step and variable's worth of voxels from given file name */
-    void load(CUDAArray<float> &devMem, const std::string &fileName);
+    StructuredBrick(int ID) : Brick(ID) {}
+    
+    std::string toString() const override;
 
-    /*! load a given time step and variable's worth of voxels from given file name */
-    void load(std::vector<float> &hostMem, const std::string &fileName);
-    box3f getDomain() const { return spaceRange; }
-    void write(std::ostream &out) const override;
-
-    /*! loads this brick's voxels - ie, only a range of the full file - from a raw file */
-    template<typename T=float>
-    std::vector<float> loadRegionRAW(const std::string &rawFileName);
+    // ------------------------------------------------------------------
+    // interface for the BUILDER/SPLITTER 
+    // ------------------------------------------------------------------
+    void writeConstantData(const std::string &fileName) const override;
+    void writeTimeStep(const std::string &fileName) const override;
+    
+    // ------------------------------------------------------------------
+    // interface for the RENDERER
+    // ------------------------------------------------------------------
+    
+    void loadConstantData(const std::string &fileName) override;
+    void loadTimeStep(const std::string &fileName) override;
+    
     std::vector<Shard> makeShards(int numShards) override;
-    
+
+  private:
+    /*! internal helper function for recursive subdividion when making shards */
+    void recMakeShards(std::vector<Shard> &result,
+                       const box3i &cellRange,
+                       int numShardsForThisRange);
+  public:
     box3i cellRange;
     box3i voxelRange;
     box3f spaceRange;
     vec3i numVoxels;
     vec3i numCells;
     vec3i numVoxelsParent;
+
     std::vector<float> scalars;
   };
 
   template<typename T>
-  StructuredBrick::SP makeBrickRaw(const box3i &cellRange,
+  StructuredBrick::SP makeBrickRaw(int ID,
+                                   const box3i &cellRange,
                                    const vec3i &numVoxels,
                                    const std::string &rawFileName);
   
   struct StructuredModel : public Model {
     typedef std::shared_ptr<StructuredModel> SP;
-
-    box3f getBounds() const {
-      if (reduce_min(numVoxelsTotal) <= 0)
-        throw std::runtime_error("invalid model...");
-      return { vec3f(0.f), vec3f(numVoxelsTotal-1) };
-    }
+      
+    StructuredModel() : Model("StructuredModel<float>") {}
+    
+    static StructuredModel::SP create() { return std::make_shared<StructuredModel>(); }
   };
   
 }

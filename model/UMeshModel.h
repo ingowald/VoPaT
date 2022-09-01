@@ -17,17 +17,40 @@
 #pragma once
 
 #include "model/Model.h"
+#include <umesh/UMesh.h>
 
 namespace vopat {
 
+  /*! this is for a spatially patitioned umesh, so each brick has a
+    domain that doesn't overlap other bricks */
   struct UMeshBrick : public Brick {
-    std::string toString() const overrride;
+    typedef std::shared_ptr<UMeshBrick> SP;
+    
+    static SP create(int ID)
+    { return std::make_shared<UMeshBrick>(ID); }
 
+    UMeshBrick(int ID) : Brick(ID) {}
+    
+    std::string toString() const override;
+
+    // ------------------------------------------------------------------
+    // interface for the BUILDER/SPLITTER 
+    // ------------------------------------------------------------------
+    void writeConstantData(const std::string &fileName) const override;
+    void writeTimeStep(const std::string &fileName) const override;
+
+    // ------------------------------------------------------------------
+    // interface for the RENDERER
+    // ------------------------------------------------------------------
+    
+    /*! load all of the time-step and variabel independent data */
+    void loadConstantData(const std::string &fileName) override;
+    
     /*! load a given time step and variable's worth of voxels from given file name */
-    void load(const std::string &fileName);
-    box3f getDomain() const { return domain; }
-    std::vector<box4f> makeShards(int numShards) override;
-    void write(std::ostream &out) const override;
+    void loadTimeStep(const std::string &fileName) override;
+    
+    /*! create given number of shards to describe the currently loaded data */
+    std::vector<Shard> makeShards(int numShards) override;
 
     umesh::UMesh::SP umesh;
     box3f domain;
@@ -36,12 +59,9 @@ namespace vopat {
   struct UMeshModel : public Model {
     typedef std::shared_ptr<UMeshModel> SP;
 
-    box3f getBounds() const {
-      box3f bounds;
-      for (auto brick : bricks)
-        bounds.extend(brick->domain);
-      return bounds;
-    }
+    UMeshModel() : Model("UMeshModel/Spatial") {}
+    
+    static UMeshModel::SP create() { return std::make_shared<UMeshModel>(); }
   };
   
 }

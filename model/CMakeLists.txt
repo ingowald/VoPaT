@@ -18,12 +18,14 @@
 add_library(vopat_model
   Brick.h
   Brick.cpp
-  Model.h
-  Model.cpp
+
   StructuredModel.h
   StructuredModel.cpp
   UMeshModel.h
   UMeshModel.cpp
+
+  Model.h
+  Model.cpp
   Config.h
   Config.cpp
   )
@@ -32,24 +34,27 @@ target_link_libraries(vopat_model
   vopat_common
   )
 
-if (VOPAT_UMESH)
-  add_custom_target(vopat_umesh_tools ALL)
-  add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
-  target_link_libraries(vopat_model PUBLIC
-    umesh
-    )
-endif()
+add_custom_target(vopat_umesh_tools ALL)
+add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
+target_link_libraries(vopat_model PUBLIC
+  umesh
+  )
 
 # ==================================================================
-if (VOPAT_UMESH)
-else()
 add_executable(vopatSplitRaw
   splitter.cpp
   )
 target_link_libraries(vopatSplitRaw
   vopat_model
   )
-endif()
+
+# ==================================================================
+add_executable(vopatSplitUMesh
+  partitionUMesh.cpp
+  )
+target_link_libraries(vopatSplitUMesh
+  vopat_model
+  )
 
 # ==================================================================
 add_executable(vopatMakeMagField

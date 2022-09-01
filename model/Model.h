@@ -22,15 +22,15 @@ namespace vopat {
 
   /*! a model made up of multiple bricks; usually one per rank */
   struct Model {
+    Model(const std::string &type) : type(type) {}
+    
     typedef std::shared_ptr<Model> SP;
 
-    static SP create() { return std::make_shared<Model>(); }
+    // static SP create(const std::string &) { return std::make_shared<Model>(); }
     static SP load(const std::string &fileName);
     
-    virtual box3f getBounds() const;
+    virtual box3f getBounds() const { return domain; }
 
-    virtual std::string modelType() const = 0;
-    
     void save(const std::string &fileName);
 
     /*! given a base file name prefix (including directory name, if
@@ -41,13 +41,19 @@ namespace vopat {
     /*! given a base file name prefix (including directory name, if
         desired), return a canonical file name for the data file for
         the 'rankID'th rank */
-    static std::string canonicalRankFileName(const std::string &baseName,
-                                             int rankID,
-                                             const std::string &variable = "unknown",
-                                             int timeStep = 0);
+    static std::string canonicalBrickFileName(const std::string &baseName,
+                                              int brickID);
+    static std::string canonicalTimeStepFileName(const std::string &baseName,
+                                                 int rankID,
+                                                 const std::string &variable,
+                                                 int timeStep);
 
-    int                    numBricks;
-    int                    numTimeSteps;
+    virtual std::string toString() const
+    { return "Model<"+type+">"; }
+
+    std::string            type;
+    int                    numBricks = 0;
+    int                    numTimeSteps = 0;
     box3f                  domain;
     interval<float>        valueRange;
   };

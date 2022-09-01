@@ -44,7 +44,6 @@ target_compile_definitions(qtOWL
   )
 
 
-option(VOPAT_UMESH "Use unstructured Meshes!?" ON)
 option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the device" ON)
 
 #set(CMAKE_CUDA_ARCHITECTURES "75") 

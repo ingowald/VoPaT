@@ -14,7 +14,8 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "model/Model.h"
+#include "model/StructuredModel.h"
+#include "model/UMeshModel.h"
 #include "model/IO.h"
 #include <fstream>
 
@@ -30,60 +31,68 @@ namespace vopat {
   {
     return baseName+".vopat";
   }
-    
+  
+  std::string Model::canonicalBrickFileName(const std::string &baseName,
+                                            int brickID)
+  {
+    return baseName+"__meta.brick";
+  }
+
   /*! given a base file name prefix (including directory name, if
     desired), return a canonical file name for the data file for
     the 'rankID'th rank */
-  std::string Model::canonicalRankFileName(const std::string &baseName,
-                                           int rankID,
-                                           const std::string &variable,
-                                           int timeStep)
+  std::string Model::canonicalTimeStepFileName(const std::string &baseName,
+                                               int rankID,
+                                               const std::string &variable,
+                                               int timeStep)
   {
-// #if VOPAT_UMESH
-//     char bid[100];
-//     sprintf(bid,"%05i",rankID);
-//     return baseName+"_"+bid+".umesh";
-// #else
+    // #if VOPAT_UMESH
+    //     char bid[100];
+    //     sprintf(bid,"%05i",rankID);
+    //     return baseName+"_"+bid+".umesh";
+    // #else
     char ts[100];
     sprintf(ts,"%05i",timeStep);
     char bid[100];
     sprintf(bid,"%05i",rankID);
     return baseName+"__"+variable+"__t"+ts+".b"+bid+".brick";
-// #endif
+    // #endif
   }
 
   void Model::save(const std::string &fileName)
   {
     std::cout << OWL_TERMINAL_BLUE
-              << "#writing model of " << bricks.size() << " bricks to " << fileName
+              << "#writing model of " << numBricks << " bricks to " << fileName
               << OWL_TERMINAL_DEFAULT << std::endl;
 
     std::ofstream out(fileName);
     size_t fileMagic = file_format_magic;
     write(out,fileMagic);
 
-    write(out,this->modelType());
+    write(out,type);
 
     // write(out,numVoxelsTotal);
     // PRINT(valueRange);
+    write(out,numBricks);
+    write(out,numTimeSteps);
+    write(out,domain);
     write(out,valueRange);
     // PRINT(numVoxelsTotal);
-    write(out,int(bricks.size()));
+    // write(out,int(bricks.size()));
     
-    for (int i=0;i<bricks.size();i++) {
-      Brick::SP brick = bricks[i];
-      brick->write(out);
-// #if VOPAT_UMESH
-//       write(out,brick->domain);
-// #else
-//       write(out,brick->voxelRange);
-//       write(out,brick->cellRange);
-//       write(out,brick->spaceRange);
-//       write(out,brick->numVoxels);
-//       write(out,brick->numCells);
-//       write(out,brick->numVoxelsParent);
-// #endif
-    }
+    // for (int i=0;i<bricks.size();i++) {
+    //   Brick::SP brick = bricks[i];
+    //   brick->write(out);
+    // #if VOPAT_UMESH
+    //       write(out,brick->domain);
+    // #else
+    //       write(out,brick->voxelRange);
+    //       write(out,brick->cellRange);
+    //       write(out,brick->spaceRange);
+    //       write(out,brick->numVoxels);
+    //       write(out,brick->numCells);
+    //       write(out,brick->numVoxelsParent);
+    // #endif
     std::cout << OWL_TERMINAL_GREEN
               << "#done writing model to " << fileName
               << OWL_TERMINAL_DEFAULT << std::endl;
@@ -91,52 +100,71 @@ namespace vopat {
   
   Model::SP Model::load(const std::string &fileName)
   {
-    Model::SP model = std::make_shared<Model>();
-    
     std::ifstream in(fileName);
     if (!in.good())
       throw std::runtime_error("could not open '"+fileName+"'");
 
-#if VOPAT_UMESH
-    std::vector<box3f> brickDomains;
-    read/*Vector*/(in,brickDomains);
-    for (int i=0;i<brickDomains.size();i++) {
-      Brick::SP brick = Brick::create(i);
-      brick->domain = brickDomains[i];
-      model->bricks.push_back(brick);
-    }
-    std::vector<interval<float>> valueRanges;
-    read/*Vector*/(in,valueRanges);
-    if (valueRanges.size() != brickDomains.size())
-      throw std::runtime_error("seems like an older version of a spatially partitioned umesh - pls rebuild w/ value ranges");
-    model->valueRange = {};
-    for (auto vr : valueRanges)
-      model->valueRange.extend(vr);
-    // model->valueRange = { 0.f, 1.f };
-    // model->valueRange = {242616.f,259745.f};
-    // PRINT(model->valueRange);
-#else
     size_t fileMagic;
     read(in,fileMagic);
     if (fileMagic != file_format_magic)
       throw std::runtime_error("invalid model file, or wrong brick/model file format version; please rebuild your model");
     
-    read(in,model->numVoxelsTotal);
+    std::string type = read<std::string>(in);
+    PRINT(type);
+
+    Model::SP model;
+    if (type == "SpatialUMeshModel")
+      model = UMeshModel::create();
+    else  if (type == "Structured<float>")
+      model = StructuredModel::create();
+    else
+      throw std::runtime_error("unknown/unsupported model type '"+type+"'");
+    
+    read(in,model->numBricks);
+    read(in,model->numTimeSteps);
+    read(in,model->domain);
     read(in,model->valueRange);
-    int numBricks = read<int>(in);
-    for (int i=0;i<numBricks;i++) {
-      Brick::SP brick = Brick::create(i);
-      read(in,brick->voxelRange);
-      read(in,brick->cellRange);
-      read(in,brick->spaceRange);
-      read(in,brick->numVoxels);
-      read(in,brick->numCells);
-      read(in,brick->numVoxelsParent);
-      model->bricks.push_back(brick);
-    }
-#endif
+    
+    // #if VOPAT_UMESH
+    //     std::vector<box3f> brickDomains;
+    //     read/*Vector*/(in,brickDomains);
+    //     for (int i=0;i<brickDomains.size();i++) {
+    //       Brick::SP brick = Brick::create(i);
+    //       brick->domain = brickDomains[i];
+    //       model->bricks.push_back(brick);
+    //     }
+    //     std::vector<interval<float>> valueRanges;
+    //     read/*Vector*/(in,valueRanges);
+    //     if (valueRanges.size() != brickDomains.size())
+    //       throw std::runtime_error("seems like an older version of a spatially partitioned umesh - pls rebuild w/ value ranges");
+    //     model->valueRange = {};
+    //     for (auto vr : valueRanges)
+    //       model->valueRange.extend(vr);
+    //     // model->valueRange = { 0.f, 1.f };
+    //     // model->valueRange = {242616.f,259745.f};
+    //     // PRINT(model->valueRange);
+    // #else
+    //     size_t fileMagic;
+    //     read(in,fileMagic);
+    //     if (fileMagic != file_format_magic)
+    //       throw std::runtime_error("invalid model file, or wrong brick/model file format version; please rebuild your model");
+    
+    //     read(in,model->numVoxelsTotal);
+    //     read(in,model->valueRange);
+    //     int numBricks = read<int>(in);
+    //     for (int i=0;i<numBricks;i++) {
+    //       Brick::SP brick = Brick::create(i);
+    //       read(in,brick->voxelRange);
+    //       read(in,brick->cellRange);
+    //       read(in,brick->spaceRange);
+    //       read(in,brick->numVoxels);
+    //       read(in,brick->numCells);
+    //       read(in,brick->numVoxelsParent);
+    //       model->bricks.push_back(brick);
+    //     }
+    // #endif
     std::cout << OWL_TERMINAL_GREEN
-              << "#done loading, found " << model->bricks.size()
+              << "#done loading model meta info, expecting " << model->numBricks
               << " bricks..."
               << OWL_TERMINAL_DEFAULT << std::endl;
     return model;

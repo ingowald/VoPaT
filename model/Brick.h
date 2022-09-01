@@ -17,37 +17,49 @@
 #pragma once
 
 #include "common/CUDAArray.h"
-#if VOPAT_UMESH
-# include "umesh/UMesh.h"
-#endif
+#include "umesh/UMesh.h"
 
 namespace vopat {
 
+  using range1f = interval<float>;
+  
   struct Shard {
     box3f domain;
-    interval<float> valueRange;
+    range1f valueRange;
   };
   
-  /*! a "brick" refers to a sub-range of a larger (structured)
-    volume, such that the entirety of all bricks conver all of the
-    input volume's cells, and as such all share one "boundary"
-    layer of voxels */
+  /*! a "brick" refers to one of the parts of a distribtued
+      model. this can be a umesh that's part of a larger umesh, or a
+      set of structured-volume voxels that are a region of the model
+      (possibly includign ghost layers), etc */
   struct Brick {
     typedef std::shared_ptr<Brick> SP;
 
     Brick(int ID) : ID(ID) {};
 
     virtual std::string toString() const = 0;
+    
+    // ------------------------------------------------------------------
+    // interface for the BUILDER/SPLITTER 
+    // ------------------------------------------------------------------
     virtual void writeConstantData(const std::string &fileName) const = 0;
     virtual void writeTimeStep(const std::string &fileName) const = 0;
-    virtual void loadTimeStep(const std::string &fileName) const = 0;
+
+    // ------------------------------------------------------------------
+    // interface for the RENDERER
+    // ------------------------------------------------------------------
+    
+    /*! load all of the time-step and variabel independent data */
+    virtual void loadConstantData(const std::string &fileName) = 0;
+    
+    /*! load a given time step and variable's worth of voxels from given file name */
+    virtual void loadTimeStep(const std::string &fileName) = 0;
     
     /*! on a given rank, create shards for _exactly this_ brick (ranks
         can then exchange those as required */
     virtual std::vector<Shard> makeShards(int numShards) = 0;
     
     const int ID;
-    interval<float> valueRange;
   };
 
 }
