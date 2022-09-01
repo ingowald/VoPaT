@@ -161,11 +161,12 @@ namespace umesh {
         outFileBase = av[++i];
       else if (arg == "-lt" || arg == "--leaf-threshold")
         leafThreshold = atoi(av[++i]);
-      else if (arg == "-n" || arg == "-mb" || arg == "--max-bricks")
+      else if (arg == "-n" || arg == "-mb" || arg == "--max-bricks") {
         maxBricks = atoi(av[++i]);
+        leafThreshold = 1;
       // else if (arg == "-pro" || arg == "--prim-refs-only")
       //   primRefsOnly = true;
-      else if (arg[0] != '-')
+      } else if (arg[0] != '-')
         inFileName = arg;
       else
         usage("unknown arg "+arg);

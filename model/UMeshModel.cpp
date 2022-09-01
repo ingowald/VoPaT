@@ -115,14 +115,17 @@ namespace vopat {
   
   void UMeshBrick::writeConstantData(const std::string &fileName) const
   {
+    std::cout << " .... writing brick meta to " << (fileName) << std::endl;
     std::ofstream out(fileName,std::ios::binary);
     write(out,domain);
 
+    std::cout << " .... writing umesh to " << (fileName+".umesh") << std::endl;
     umesh->saveTo(fileName+".umesh");
   }
   
   void UMeshBrick::writeTimeStep(const std::string &fileName) const
   {
+    std::cout << " .... writing scalars to " << fileName << std::endl;
     std::ofstream out(fileName,std::ios::binary);
     write(out,umesh->perVertex->values);
     write(out,umesh->perVertex->valueRange);
