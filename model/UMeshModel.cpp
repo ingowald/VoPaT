@@ -115,10 +115,17 @@ namespace vopat {
   
   void UMeshBrick::writeConstantData(const std::string &fileName) const
   {
+    std::ofstream out(fileName,std::ios::binary);
+    write(out,domain);
+
+    umesh->saveTo(fileName+".umesh");
   }
   
   void UMeshBrick::writeTimeStep(const std::string &fileName) const
   {
+    std::ofstream out(fileName,std::ios::binary);
+    write(out,umesh->perVertex->values);
+    write(out,umesh->perVertex->valueRange);
   }
   
   /*! load all of the time-step and variabel independent data */
@@ -135,7 +142,7 @@ namespace vopat {
   {
     std::ifstream in(fileName,std::ios::binary);
     read(in,umesh->perVertex->values);
-    read(in,(range1f&)umesh->perVertex->valueRange);
+    read(in,umesh->perVertex->valueRange);
   }
     
   
