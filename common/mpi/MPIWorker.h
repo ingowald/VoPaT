@@ -26,7 +26,7 @@ namespace vopat {
       on their (virutal) renderer. */
   struct MPIWorker : public MPICommon
   {
-    MPIWorker(MPIBackend &mpi, MPIRenderer *renderer);
+    MPIWorker(CommBackend *comms, MPIRenderer *renderer);
 
     // int myRank() const { return mpi.myRank(); }
     int islandRank() const { return mpi.islandRank(); }
@@ -51,7 +51,7 @@ namespace vopat {
     /* @} */
     
     MPIRenderer *renderer = nullptr;
-    MPIBackend  &mpi;
+    CommBackend *comms;
   };
   
 

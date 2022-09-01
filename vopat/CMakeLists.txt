@@ -15,6 +15,9 @@
 # ======================================================================== #
 
 add_library(vopat_render
+  volume/StructuredVolume.cu
+  volume/UMeshVolume.cu
+  
   Renderer.cpp
 #  ModelConfig.cpp
   
@@ -42,19 +45,15 @@ add_library(vopat_render
 embed_ptx(
   OUTPUT_TARGET
   deviceCode-ptx
+  
   PTX_LINK_LIBRARIES
-    owl::owl
+  owl::owl
+  umesh
+  
   SOURCES
-    deviceCode.cu
+  deviceCode.cu
 )
 
-if (VOPAT_UMESH)
-  target_compile_definitions(vopat_model PUBLIC -DVOPAT_UMESH=1)
-  target_compile_definitions(deviceCode-ptx PUBLIC -DVOPAT_UMESH=1)
-  target_compile_definitions(deviceCode-ptx_ptx PUBLIC -DVOPAT_UMESH=1)
-  target_link_libraries(deviceCode-ptx PUBLIC umesh)
-  target_link_libraries(deviceCode-ptx_ptx PUBLIC umesh)
-endif()
 
 
 target_include_directories(deviceCode-ptx PUBLIC ${PROJECT_SOURCE_DIR})

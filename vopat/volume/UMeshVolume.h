@@ -1,0 +1,84 @@
+// ======================================================================== //
+// Copyright 2022++ Ingo Wald                                               //
+//                                                                          //
+// Licensed under the Apache License, Version 2.0 (the "License");          //
+// you may not use this file except in compliance with the License.         //
+// You may obtain a copy of the License at                                  //
+//                                                                          //
+//     http://www.apache.org/licenses/LICENSE-2.0                           //
+//                                                                          //
+// Unless required by applicable law or agreed to in writing, software      //
+// distributed under the License is distributed on an "AS IS" BASIS,        //
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
+// See the License for the specific language governing permissions and      //
+// limitations under the License.                                           //
+// ======================================================================== //
+
+#pragma once
+
+#include "vopat/volume/Volume.h"
+#include "model/UMeshVolume.h"
+
+namespace vopat {
+  
+  struct UMeshVolume : public Volume {
+    UMeshVolume(UMeshBrick::SP brick);
+    
+    struct SamplePRD {
+      float sampledValue;
+    };
+
+    struct DD {
+      inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
+      inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
+      /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
+      inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
+
+      OptixTraversableHandle sampleAccel;
+      box3f  domain;
+      vec3f *vertices;
+      float *scalars;
+      umesh::UMesh::Tet *tets;
+    };
+
+    void build(OWLContext owl) override;
+    void setDD(OWLLaunchParms lp) override;
+    
+    DD globals;
+    UMesh::SP umesh;
+  };
+
+  // ------------------------------------------------------------------
+  
+  inline __device__
+  bool UMeshVolume::DD::sample(float &f, vec3f P, bool dbg) const
+  {
+    UMeshSamplePRD prd;
+    const float INVALID_VALUE = 1e20f;
+    prd.sampledValue = INVALID_VALUE;
+    owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);
+    traceRay(sampleAccel,sampleRay,prd);
+    f = prd.sampledValue;
+    return prd.sampledValue != INVALID_VALUE;
+    // f = P.x;
+    // return true;
+  }
+
+  inline __device__
+  bool UMeshVolume::DD::gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const
+  {
+    float right,left,top,bottom,front,back;
+    bool valid = true;
+    valid &= sample(right, P+vec3f(delta.x,0.f,0.f),dbg);
+    valid &= sample(left,  P-vec3f(delta.x,0.f,0.f),dbg);
+    valid &= sample(top,   P+vec3f(0.f,delta.y,0.f),dbg);
+    valid &= sample(bottom,P-vec3f(0.f,delta.y,0.f),dbg);
+    valid &= sample(front, P+vec3f(0.f,0.f,delta.z),dbg);
+    valid &= sample(back,  P-vec3f(0.f,0.f,delta.z),dbg);
+    g = vec3f(right-left,top-bottom,front-back);
+    return valid;
+  }
+
+}
+
+

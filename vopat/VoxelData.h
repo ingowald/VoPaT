@@ -25,10 +25,6 @@
 namespace vopat {
 
 #if VOPAT_UMESH
-  struct UMeshSamplePRD {
-    float sampledValue;
-  };
-
   struct UMeshData {
     inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
     inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
@@ -45,33 +41,6 @@ namespace vopat {
     //    BVHNode *bvhNodes;
     OptixTraversableHandle sampleAccel;
   };
-
-  inline __device__ bool UMeshData::sample(float &f, vec3f P, bool dbg) const
-  {
-    UMeshSamplePRD prd;
-    const float INVALID_VALUE = 1e20f;
-    prd.sampledValue = INVALID_VALUE;
-    owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);
-    traceRay(sampleAccel,sampleRay,prd);
-    f = prd.sampledValue;
-    return prd.sampledValue != INVALID_VALUE;
-    // f = P.x;
-    // return true;
-  }
-
-  inline __device__ bool UMeshData::gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const
-  {
-    float right,left,top,bottom,front,back;
-    bool valid = true;
-    valid &= sample(right, P+vec3f(delta.x,0.f,0.f),dbg);
-    valid &= sample(left,  P-vec3f(delta.x,0.f,0.f),dbg);
-    valid &= sample(top,   P+vec3f(0.f,delta.y,0.f),dbg);
-    valid &= sample(bottom,P-vec3f(0.f,delta.y,0.f),dbg);
-    valid &= sample(front, P+vec3f(0.f,0.f,delta.z),dbg);
-    valid &= sample(back,  P-vec3f(0.f,0.f,delta.z),dbg);
-    g = vec3f(right-left,top-bottom,front-back);
-    return valid;
-  }
 
 #else
   
