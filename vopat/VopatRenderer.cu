@@ -35,12 +35,10 @@ namespace vopat {
     printf("#vopat(%i.%i): initializing OWL\n",
            comm->islandIndex(),comm->islandRank());
     
-    owl = owlContextCreate(&comm->worker.gpuID,1);
-    owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
-    
     // PING;
     if (comm->islandRank() >= 0) {
-      if (!owl) throw std::runtime_error("owl not yet initialized");
+      owl = owlContextCreate(&comm->worker.gpuID,1);
+      owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
 
       // PING;
       createNextDomainKernel();

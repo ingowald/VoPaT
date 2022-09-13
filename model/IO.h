@@ -21,33 +21,45 @@
 
 namespace vopat {
 
-  template<typename T> inline T read(std::ifstream &in);
   template<typename T> inline void write(std::ofstream &out, const std::vector<T> &t);
+  // template<typename T> inline void write(std::ofstream &out, const std::string<T> &t);
   template<typename T> inline void write(std::ofstream &out, const T &t);
   
   template<typename T> inline void read(std::ifstream &in, std::vector<T> &t);
-  template<typename T> inline void read(std::ifstream &in, T &t) { t = read<T>(in); }
+  // template<typename T> inline void read(std::ifstream &in, std::string<T> &t);
+  template<typename T> inline void read(std::ifstream &in, T &t)
+  {
+    in.read((char *)&t,sizeof(t));
+  }
+
+  template<typename T> inline T read(std::ifstream &in)
+  {
+    T tmp;
+    read(in,tmp);
+    return tmp;
+  }
 
   // ==================================================================
-  template<typename T> inline void write(std::ofstream &out, const std::string &t)
+  template<> inline void write(std::ofstream &out, const std::string &t)
   {
-    write(out,int(t.size())); out.write((char*)t.data(),t.size());
+    int sz = t.size();
+    write(out,sz);
+    out.write((char*)t.c_str(),sz);
   }
   template<> inline std::string read<std::string>(std::ifstream &in)
   {
     int len = read<int>(in);
     std::string s; s.resize(len);
-    in.read((char*)s.data(),len);
+    in.read((char*)s.c_str(),len);
     return s;
   }
 
   // ==================================================================
   template<typename T> inline void write(std::ofstream &out, const T &t)
-  { out.write((char*)&t,sizeof(t)); }
+  {
+    out.write((char*)&t,sizeof(t));
+  }
   
-  template<typename T> inline T read(std::ifstream &in)
-  { T t; in.read((char*)&t,sizeof(t)); return t; }
-
   template<typename T> inline void write(std::ofstream &out, const std::vector<T> &t)
   { write(out,t.size()); out.write((const char*)t.data(),sizeof(T)*t.size()); }
 

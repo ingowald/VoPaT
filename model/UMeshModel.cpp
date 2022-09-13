@@ -28,13 +28,13 @@ namespace vopat {
     return ss.str();
   }
   
-  std::vector<Shard> UMeshBrick::makeShards(int numShards)
+  std::vector<Shard> UMeshBrick::makeShards(int init_numShards)
   {
     struct ShardNode {
       box3f domain;
       range1f valueRange;
       int childID = -1;
-      int numShards;
+      int numShards = 0;
     };
 
     // ------------------------------------------------------------------
@@ -44,67 +44,106 @@ namespace vopat {
     nodes.resize(1);
     (umesh::box3f&)nodes[0].domain = umesh->getBounds();
     nodes[0].childID = -1;
-    nodes[0].numShards = numShards;
-    std::stack<int> todo; todo.push(0);
-    while (!todo.empty()) {
-      int nodeID = todo.top();todo.pop();
-      if (nodes[nodeID].numShards == 1)
-        continue;
-      int childID = nodes.size();
-      nodes[nodeID].childID = childID;
-      nodes.push_back({});
-      nodes.push_back({});
+    nodes[0].numShards = init_numShards;
+    {
+      std::stack<int> todo; todo.push(0);
+      while (!todo.empty()) {
+        int nodeID = todo.top();todo.pop();
+        if (nodes[nodeID].numShards == 1)
+          continue;
+        int childID = nodes.size();
+        nodes[nodeID].childID = childID;
+        nodes.push_back({});
+        nodes.push_back({});
 
-      int Nl = numShards/2;
-      int Nr = numShards - Nl;
-      float ratio = float(Nl)/float(numShards);
-      auto &pDomain = nodes[nodeID].domain;
-      auto &lDomain = nodes[childID+0].domain;
-      auto &rDomain = nodes[childID+1].domain;
+        int Nl = nodes[nodeID].numShards/2;
+        int Nr = nodes[nodeID].numShards - Nl;
+        float ratio = float(Nl)/float(nodes[nodeID].numShards);
 
-      int dim = arg_max(pDomain.size());
-      float mid = pDomain.lower[dim] + pDomain.size()[dim]*ratio;
-      
-      lDomain = rDomain = domain;
-      lDomain.upper[dim] = rDomain.lower[dim] = mid;
+        auto pDomain = nodes[nodeID].domain;
 
-      nodes[childID+0].numShards = Nl;
-      nodes[childID+1].numShards = Nr;
+        int dim = arg_max(pDomain.size());
+        float mid = pDomain.lower[dim] + pDomain.size()[dim]*ratio;
 
-      if (Nl > 1) todo.push(childID+0);
-      if (Nr > 1) todo.push(childID+1);      
-    };
-    
+        
+        box3f lDomain = pDomain; lDomain.upper[dim] = mid;
+        box3f rDomain = pDomain; rDomain.lower[dim] = mid;
+
+        // std::cout << "node " << nodeID << " " << pDomain << "\n -> L " << lDomain << "\n -> R " << rDomain << std::endl;
+        nodes[childID+0].numShards = Nl;
+        nodes[childID+1].numShards = Nr;
+        nodes[childID+0].domain = lDomain;
+        nodes[childID+1].domain = rDomain;
+
+        // for (int i=0;i<nodes.size();i++) {
+        //   auto &node = nodes[i];
+        //   std::cout << "shard tree node #" << i << " : child " << node.domain << " child " << node.childID << " num " << node.numShards << std::endl;
+        // }
+
+        if (Nl > 1) todo.push(childID+0);
+        if (Nr > 1) todo.push(childID+1);      
+      };
+    }
+
+    // for (int i=0;i<nodes.size();i++) {
+    //   auto &node = nodes[i];
+    //   std::cout << "shard tree node #" << i << " : child " << node.domain << " child " << node.childID << " num " << node.numShards << std::endl;
+    // }
     // ------------------------------------------------------------------
     // RASTER the umesh
     // ------------------------------------------------------------------
     std::vector<umesh::UMesh::PrimRef> prims = umesh->createVolumePrimRefs();
+    // box3f dbgBox(vec3f(-0.024542,-0.014486,-0.00909),
+    //              vec3f(42.3178,127.012,127.01));
     for (auto prim : prims) {
       umesh::box3f primBounds = umesh->getBounds(prim);
       umesh::range1f primRange = umesh->getValueRange(prim);
+      if (primRange.lower > primRange.upper)
+        throw std::runtime_error("invalid prim!?");
+      // bool dbg = dbgBox.overlaps((const box3f&)primBounds);
 
-      todo.push(0);
+      // if (dbg) { PRINT(primBounds); PRINT(primRange); }
+      std::stack<int> todo; todo.push(0);
       while(!todo.empty()) {
         int nodeID = todo.top(); todo.pop();
+        // if (dbg) PRINT(nodeID);
         const int childID = nodes[nodeID].childID;
+        // if (dbg) PRINT(childID);
         if (childID >= 0) {
-          for (int c=0;c<2;c++)
+          for (int c=0;c<2;c++) {
+            // if (dbg) PRINT(nodes[childID+c].domain);
+            // if (dbg) PRINT(nodes[childID+c].domain.overlaps((const box3f&)primBounds));
             if (nodes[childID+c].domain.overlaps((const box3f&)primBounds))
-              todo.push(nodes[nodeID].childID+c);
-          
+              todo.push(childID+c);
+          }
         }
-        else
+        else {
           nodes[nodeID].valueRange.extend((const range1f&)primRange);
+          // if (dbg) std::cout << "EXTENDING " << nodeID << " range " << nodes[nodeID].valueRange << std::endl;
+        }
       }
     }
     
+    // for (int i=0;i<nodes.size();i++) {
+    //   auto &node = nodes[i];
+    //   std::cout << "shard tree node #" << i << " : child " << node.domain << " child " << node.childID << " num " << node.numShards << " range " << node.valueRange << std::endl;
+    // }
+
     // ------------------------------------------------------------------
     // gather the leaves
     // ------------------------------------------------------------------
     std::vector<Shard> result;
-    for (auto &node : nodes) {
+    int dbgID = 0;
+    for (auto node : nodes) {
+      int nodeID = dbgID++;
       if (node.childID >= 0) continue;
       if (node.valueRange.upper < node.valueRange.lower) {
+        PING;
+        PRINT(nodeID);
+        PRINT(node.domain);
+        PRINT(node.valueRange);
+        PRINT(node.childID);
+        PRINT(node.numShards);
         std::cout << "WARNING: got a shard with zero elements here !?" << std::endl;
         continue;
       }

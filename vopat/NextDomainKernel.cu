@@ -28,9 +28,12 @@ namespace vopat {
   {
     auto comm = vopat->comm;
     
+    PING;fflush(0);
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
-
+    PING;fflush(0);
+    PRINT(myShards.size());
+    
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
 
@@ -46,7 +49,9 @@ namespace vopat {
     // ------------------------------------------------------------------
     int allNumShards = 0;
     for (auto sor : shardsOnRank) allNumShards += sor;
+    PRINT(allNumShards);
     std::vector<Shard> allShards(allNumShards);
+    
     
     // ------------------------------------------------------------------
     // *exchange all* shards across all ranks
@@ -81,18 +86,24 @@ namespace vopat {
   {
     PING;
     auto &owl = vopat->owl;
+    if (!owl) return;
+    
     auto &owlDevCode = vopat->owlDevCode;
+    PRINT(owlDevCode);
 
     OWLVarDecl vars[]
       = {
          { "proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::Geom,proxies) },
          { nullptr }
     };
+    PING; fflush(0);
     gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(Geom),vars,-1);
     owlGeomTypeSetBoundsProg(gt,owlDevCode,"proxyBounds");
     owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"proxyIsec");
 
+    PING;fflush(0);
     createProxies(vopat);
+    PING;fflush(0);
 
     geom = owlGeomCreate(owl,gt);
     owlGeomSetPrimCount(geom,numProxies);
@@ -100,16 +111,20 @@ namespace vopat {
     owlBuildPrograms(owl);
     CUDA_SYNC_CHECK();
 
+    PING; fflush(0);
+    
     blas = owlUserGeomGroupCreate(owl,1,&geom,OPTIX_BUILD_FLAG_ALLOW_UPDATE);
     owlGroupBuildAccel(blas);
     CUDA_SYNC_CHECK();
     
+    PING; fflush(0);
     tlas = owlInstanceGroupCreate(owl,1,&blas,0,0,
                                   OWL_MATRIX_FORMAT_OWL,
                                   OPTIX_BUILD_FLAG_ALLOW_UPDATE);
     owlGroupBuildAccel(tlas);
     CUDA_SYNC_CHECK();
 
+    PING; fflush(0);
     owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
   }
 

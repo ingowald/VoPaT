@@ -408,9 +408,9 @@ namespace vopat {
       VopatRenderer::SP renderer
         = VopatRenderer::create(&mpiBackend,volume);
 
-      
       AppInterface appInterface(&mpiBackend,renderer);
       if (!isMaster) {
+        PRINT(mpiBackend.worker.gpuID);
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
         appInterface.runWorker();
         exit(0);

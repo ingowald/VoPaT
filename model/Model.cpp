@@ -65,7 +65,7 @@ namespace vopat {
               << "#writing model of " << numBricks << " bricks to " << fileName
               << OWL_TERMINAL_DEFAULT << std::endl;
 
-    std::ofstream out(fileName);
+    std::ofstream out(fileName,std::ios::binary);
     size_t fileMagic = file_format_magic;
     write(out,fileMagic);
 
@@ -100,7 +100,7 @@ namespace vopat {
   
   Model::SP Model::load(const std::string &fileName)
   {
-    std::ifstream in(fileName);
+    std::ifstream in(fileName,std::ios::binary);
     if (!in.good())
       throw std::runtime_error("could not open '"+fileName+"'");
 
@@ -108,12 +108,10 @@ namespace vopat {
     read(in,fileMagic);
     if (fileMagic != file_format_magic)
       throw std::runtime_error("invalid model file, or wrong brick/model file format version; please rebuild your model");
-    
     std::string type = read<std::string>(in);
-    PRINT(type);
 
     Model::SP model;
-    if (type == "SpatialUMeshModel")
+    if (type == "UMeshModel/Spatial")
       model = UMeshModel::create();
     else  if (type == "Structured<float>")
       model = StructuredModel::create();
