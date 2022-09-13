@@ -22,14 +22,59 @@
 
 using namespace vopat;
 
-extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
+// extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
+extern "C" __constant__ LaunchParams optixLaunchParams;
 
 namespace vopat {
 
-#if 0
   inline __device__ const LaunchParams &LaunchParams::get()
-  { return (const LaunchParams &)optixLaunchParams[0]; }
+  { return optixLaunchParams; }
+  // { return (const LaunchParams &)optixLaunchParams[0]; }
 
+  OPTIX_BOUNDS_PROGRAM(proxyBounds)(const void  *geomData,
+                                    box3f       &primBounds,
+                                    const int    primID)
+  {
+    NextDomainKernel::Geom &geom = *(NextDomainKernel::Geom*)geomData;
+    auto &proxy = geom.proxies[primID];
+    if (proxy.majorant == 0.f)
+      primBounds = box3f();
+    else
+      primBounds = proxy.domain;
+  }
+
+  OPTIX_INTERSECT_PROGRAM(proxyIsec)()
+  {
+    auto &lp   = LaunchParams::get();
+    auto &geom = owl::getProgramData<NextDomainKernel::Geom>();
+    int primID = optixGetPrimitiveIndex();
+    auto proxy = geom.proxies[primID];
+
+    auto &prd = owl::getPRD<NextDomainKernel::PRD>();
+    if (prd.skipCurrentRank && proxy.rankID == lp.nextDomainKernel.myRank) return;
+  
+    vec3f org = optixGetWorldRayOrigin();
+    vec3f dir = optixGetWorldRayDirection();
+    float t0 = optixGetRayTmin();
+    float t1 = optixGetRayTmax();
+    if (!boxTest(proxy.domain,org,dir,t0,t1))
+      return;
+    if ((t0 > prd.closestDist)
+        ||
+        ((t0 == prd.closestDist)
+         &&
+         (proxy.rankID >= prd.closestRank)
+         ))
+      return;
+
+    prd.closestDist = t0;
+    prd.closestRank = proxy.rankID;
+    float reported_t = nextafterf(t0,CUDART_INF);
+    optixReportIntersection(reported_t,0);
+  }
+
+
+#if 0
   inline __device__
   int computeNextNode(Ray ray, float t_already_travelled)
   {
@@ -152,45 +197,6 @@ namespace vopat {
       printf("fishy primary ray!\n");
   }
   
-  OPTIX_BOUNDS_PROGRAM(proxyBounds)(const void  *geomData,
-                                    box3f       &primBounds,
-                                    const int    primID)
-  {
-    NextDomainKernel::Geom &geom = *(NextDomainKernel::Geom*)geomData;
-    auto &proxy = geom.proxies[primID];
-    primBounds = proxy.domain;
-  }
-
-  OPTIX_INTERSECT_PROGRAM(proxyIsec)()
-  {
-    auto &lp   = LaunchParams::get();
-    auto &geom = owl::getProgramData<NextDomainKernel::Geom>();
-    int primID = optixGetPrimitiveIndex();
-    auto proxy = geom.proxies[primID];
-
-    auto &prd = owl::getPRD<NextDomainKernel::PRD>();
-    if (prd.skipCurrentRank && proxy.rankID == lp.nextDomainKernel.myRank) return;
-  
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f dir = optixGetWorldRayDirection();
-    float t0 = optixGetRayTmin();
-    float t1 = optixGetRayTmax();
-    if (!boxTest(proxy.domain,org,dir,t0,t1))
-      return;
-    if ((t0 > prd.closestDist)
-        ||
-        ((t0 == prd.closestDist)
-         &&
-         (proxy.rankID >= prd.closestRank)
-         ))
-      return;
-
-    prd.closestDist = t0;
-    prd.closestRank = proxy.rankID;
-    float reported_t = nextafterf(t0,CUDART_INF);
-    optixReportIntersection(reported_t,0);
-  }
-
 #if VOPAT_UMESH
   /*! closest-hit program for shared-faces geometry */
   OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()

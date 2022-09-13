@@ -70,7 +70,9 @@ namespace vopat {
       Proxy proxy;
       proxy.domain = shard.domain;
       proxy.rankID = rank;
-      proxy.majorant = -1.f; // will be set later, once we have XF
+      // majorant will be set later, once we have XF - just cannot be
+      // 0.f or bounds prog will axe this
+      proxy.majorant = -1.f;
       allProxies.push_back(proxy);
       allValueRanges.push_back(shard.valueRange);
     }
@@ -107,6 +109,11 @@ namespace vopat {
 
     geom = owlGeomCreate(owl,gt);
     owlGeomSetPrimCount(geom,numProxies);
+    PING;
+    PRINT(proxiesBuffer);
+    fflush(0);
+    owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
+
     CUDA_SYNC_CHECK();
     owlBuildPrograms(owl);
     CUDA_SYNC_CHECK();
@@ -124,8 +131,6 @@ namespace vopat {
     owlGroupBuildAccel(tlas);
     CUDA_SYNC_CHECK();
 
-    PING; fflush(0);
-    owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
   }
 
   void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars)
@@ -137,6 +142,8 @@ namespace vopat {
   
   void NextDomainKernel::setLPVars(OWLLaunchParams lp)
   {
+    PING;
+    PRINT(proxiesBuffer);
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
     owlParamsSet1i(lp,"myRank",myRank);
