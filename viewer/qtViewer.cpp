@@ -154,6 +154,7 @@ namespace vopat {
 
     void setKeyLight(uint32_t lightID)
     {
+      PING;
       std::vector<vec3f> lightDirs = {
                                       vec3f(1.f,.1f,.1f),
                                       vec3f(-1.f,.1f,.1f),
@@ -179,6 +180,7 @@ namespace vopat {
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
     {
+      PING;
       static uint32_t keyLightID = 0;
       
       switch (key) {
@@ -410,12 +412,10 @@ namespace vopat {
 
       AppInterface appInterface(&mpiBackend,renderer);
       if (!isMaster) {
-        PRINT(mpiBackend.worker.gpuID);
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
         appInterface.runWorker();
         exit(0);
       }
-      PING; PRINT((int)isMaster);
       CUDA_SYNC_CHECK();
 
       // ******************************************************************
@@ -423,9 +423,10 @@ namespace vopat {
       // ******************************************************************
       if (modelConfig->xf.absDomain.is_empty())
         modelConfig->xf.absDomain = model->valueRange;
-      if (modelConfig->xf.colorMap.empty())
-        modelConfig->xf.colorMap
-          = qtOWL::ColorMapLibrary().getMap(0);
+      if (modelConfig->xf.colorMap.empty()) {
+        auto cm = qtOWL::ColorMapLibrary().getMap(0);
+        modelConfig->xf.colorMap = cm;
+      }
       box3f sceneBounds = model->getBounds();
       if (modelConfig->camera.up == vec3f(0.f)) {
         modelConfig->camera.from

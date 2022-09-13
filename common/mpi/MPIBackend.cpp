@@ -220,11 +220,9 @@ namespace vopat {
       return;
 
     std::vector<MPI_Request> requests(numBlocks);
-    // printf("(M) gatherRECV %i x %i\n",(int)numBlocks,(int)blockSize);fflush(0);
     for (int i=0;i<numBlocks;i++) {
       int tag = i;
       char *lineRecv = ((char*)recvBuffer)+i*blockSize;
-      // *lineRecv = 0;
       MPI_CALL(Irecv(lineRecv,
                      blockSize,MPI_BYTE,MPI_ANY_SOURCE,tag,
                      comm,&requests[i]));
@@ -235,7 +233,7 @@ namespace vopat {
   
   void MPIToWorkersComm::broadcast(const void *data, size_t size)
   {
-    MPI_CALL(Bcast((void *)data,size,MPI_BYTE,0,comm));
+    MPI_CALL(Bcast((void *)data,size,MPI_BYTE,MPI_ROOT,comm));
   }
 
   void MPIToMasterComm::bc_recv(void *data, size_t size)

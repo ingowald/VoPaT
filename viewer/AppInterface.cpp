@@ -17,6 +17,8 @@
 #include "AppInterface.h"
 
 namespace vopat {
+
+  const int endOfMessageConstant = 0x12345;
   
   typedef enum
     {
@@ -43,7 +45,7 @@ namespace vopat {
     size_t s;
     fromMaster(s);
     t.resize(s);
-    comm->worker.toMaster->bc_recv(t.data(),s*sizeof(T));
+    if (s) comm->worker.toMaster->bc_recv(t.data(),s*sizeof(T));
   }
   
   template<typename T>
@@ -51,7 +53,7 @@ namespace vopat {
   {
     size_t s = t.size();
     sendToWorkers(s);
-    comm->master.toWorkers->broadcast(t.data(),s*sizeof(T));
+    if (s) comm->master.toWorkers->broadcast(t.data(),s*sizeof(T));
   }
   
   template<typename T>
@@ -68,6 +70,22 @@ namespace vopat {
       renderer(renderer)
   {}
 
+  void AppInterface::checkEndOfMessage()
+  {
+    int expected_eomIdentifier = eomIdentifierBase++;
+    int eomIdentifier;
+    fromMaster(eomIdentifier);
+    if(eomIdentifier != expected_eomIdentifier) {
+      throw std::runtime_error("invalid end of message!?");
+    }
+  }
+
+    void AppInterface::sendEndOfMessage()
+    {
+      int eomIdentifier = eomIdentifierBase++;
+      sendToWorkers(eomIdentifier);
+    }
+
   // ==================================================================
   
   void AppInterface::screenShot()
@@ -76,12 +94,15 @@ namespace vopat {
     // send request....
     // ------------------------------------------------------------------
     int cmd = SCREEN_SHOT;
+    PING; PRINT(cmd);
     sendToWorkers(cmd);
+    sendEndOfMessage();
 
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
     renderer->screenShot();
+
   }
 
   void AppInterface::cmd_screenShot()
@@ -89,6 +110,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
+    checkEndOfMessage();
     ;
     // ------------------------------------------------------------------
     // and execute
@@ -106,6 +128,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     int cmd = RESET_ACCUMULATION;
     sendToWorkers(cmd);
+    sendEndOfMessage();
       
     // ------------------------------------------------------------------
     // and do our own....
@@ -118,6 +141,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
+    checkEndOfMessage();
     ;
     // ------------------------------------------------------------------
     // and execute
@@ -134,6 +158,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     int cmd = TERMINATE;
     sendToWorkers(cmd);
+    sendEndOfMessage();
       
     // ------------------------------------------------------------------
     // and do our own....
@@ -148,6 +173,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
+    checkEndOfMessage();
     ;
     // ------------------------------------------------------------------
     // and do our own....
@@ -168,6 +194,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     int cmd = RENDER_FRAME;
     sendToWorkers(cmd);
+    sendEndOfMessage();
       
     // ------------------------------------------------------------------
     // and do our own....
@@ -180,6 +207,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
+    checkEndOfMessage();
     ;
     // ------------------------------------------------------------------
     // and execute
@@ -199,6 +227,7 @@ namespace vopat {
     int cmd = RESIZE_FRAME_BUFFER;
     sendToWorkers(cmd);
     sendToWorkers(newSize);
+    sendEndOfMessage();
     
     // ------------------------------------------------------------------
     // and do our own....
@@ -215,6 +244,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     vec2i newSize;
     fromMaster(newSize);
+    checkEndOfMessage();
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
@@ -239,6 +269,7 @@ namespace vopat {
     sendToWorkers(at);
     sendToWorkers(up);
     sendToWorkers(fovy);
+    sendEndOfMessage();
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
@@ -256,6 +287,7 @@ namespace vopat {
     fromMaster(at);
     fromMaster(up);
     fromMaster(fovy);
+    checkEndOfMessage();
 
     // ------------------------------------------------------------------
     // and execute
@@ -277,6 +309,7 @@ namespace vopat {
     sendToWorkers(cm);
     sendToWorkers(range);
     sendToWorkers(density);
+    sendEndOfMessage();
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
@@ -288,13 +321,13 @@ namespace vopat {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
-    int count;
     std::vector<vec4f> cm;
     interval<float> range;
     float density;
     fromMaster(cm);
     fromMaster(range);
     fromMaster(density);
+    checkEndOfMessage();
 
     // ------------------------------------------------------------------
     // and execute
@@ -317,10 +350,11 @@ namespace vopat {
     sendToWorkers(active);
     sendToWorkers(values);
     sendToWorkers(colors);
+    sendEndOfMessage();
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
+    // std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
     // renderer->setISO(numActive,active,values,colors);
   }
 
@@ -337,11 +371,12 @@ namespace vopat {
     fromMaster(active);
     fromMaster(values);
     fromMaster(colors);
+    checkEndOfMessage();
 
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
+    // std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
     // renderer->setISO(numActive,active,values,colors);
   }
 
@@ -355,7 +390,9 @@ namespace vopat {
     // ------------------------------------------------------------------
     int cmd = SET_LIGHTS;
     sendToWorkers(cmd);
+    sendToWorkers(ambient);
     sendToWorkers(dirLights);
+    sendEndOfMessage();
     
     // ------------------------------------------------------------------
     // and do our own....
@@ -372,6 +409,7 @@ namespace vopat {
     fromMaster(ambient);
     std::vector<DirectionalLight> dirLights;
     fromMaster(dirLights);
+    checkEndOfMessage();
     
     // ------------------------------------------------------------------
     // and execute
@@ -384,8 +422,9 @@ namespace vopat {
   void AppInterface::runWorker()
   {
     while (1) {
-      int cmd;
+      int cmd = -1;
       fromMaster(cmd);
+
       switch(cmd) {
       case SET_CAMERA:
         cmd_setCamera();

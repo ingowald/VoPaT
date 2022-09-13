@@ -250,16 +250,6 @@ namespace vopat {
       printf("fishy primary ray!\n");
   }
   
-  OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
-  {
-    auto &lp = LaunchParams::get();
-    const vec2i launchIdx = owl::getLaunchIndex();
-    generatePrimaryWaveKernel
-      (launchIdx,
-       lp.forwardGlobals,
-       lp.volumeGlobals);
-  }
-
   // OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
   // {
   //   const RayGenData &self = owl::getProgramData<RayGenData>();
@@ -331,15 +321,26 @@ namespace vopat {
 
 
 
+#endif  
+
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
     auto &lp = LaunchParams::get();
     int rayID = owl::getLaunchIndex().x;
-    Woodcock::traceRay(rayID,
-                       lp.forwardGlobals,
-                       lp.volumeGlobals,
-                       lp.surfaceGlobals);
+    // Woodcock::traceRay(rayID,
+    //                    lp.forwardGlobals,
+    //                    lp.volumeGlobals,
+    //                    lp.surfaceGlobals);
   }
 
-#endif  
+  OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
+  {
+    auto &lp = LaunchParams::get();
+    const vec2i launchIdx = owl::getLaunchIndex();
+    // generatePrimaryWaveKernel
+    //   (launchIdx,
+    //    lp.forwardGlobals,
+    //    lp.volumeGlobals);
+  }
+
 }

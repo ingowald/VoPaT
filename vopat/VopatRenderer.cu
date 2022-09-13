@@ -64,7 +64,8 @@ namespace vopat {
 
       volume->build(owl,owlDevCode);
       volume->setDD(lp);
-      
+
+      PING;
       nextDomainKernel.setLPVars(lp);
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
@@ -73,11 +74,11 @@ namespace vopat {
       CUDA_SYNC_CHECK();
       owlBuildSBT(owl);
       CUDA_SYNC_CHECK();
+      PING;
     }
                            
     // volume = std::make_shared<Volume>(model,baseFileName,islandRank,gpuID);
       
-      PING;
     CUDA_SYNC_CHECK();
     // Reuse for ISOs
 //     surface.globals.gradientDelta = volume.globals.gradientDelta;
@@ -91,7 +92,6 @@ namespace vopat {
 //     // surface.globals.numRanks      = volume.globals.numRanks;
 //     surface.globals.myRegion      = volume.globals.myRegion;
 
-    PING;
     // std::vector<int> hIsoActive({0,0,0,0});
     // std::vector<float> hIsoValues({0.f,0.f,0.f,0.f});
     // std::vector<vec3f> hIsoColors({{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f}});
@@ -123,8 +123,6 @@ namespace vopat {
   
   void VopatRenderer::traceLocally()
   {
-    // PING;
-    // PRINT(forward.numRaysInQueue);
     if (forwardingLayer.numRaysIn == 0)
       return;
 
@@ -219,6 +217,10 @@ namespace vopat {
 
   void VopatRenderer::resizeFrameBuffer(const vec2i &newSize)
   {
+    printf("#(%i.%i) resize(%i %i)\n",
+           comm->islandIndex(),comm->islandRank(),
+           newSize.x,newSize.y);
+    
     addLocalFBsLayer.resize(newSize);
 
     if (isMaster()) {
@@ -235,16 +237,41 @@ namespace vopat {
                                           const interval<float> &range,
                                           const float density)
   {
+    // printf("(%i.%i) setting transfer function num %i range %f %f\n",
+    //        comm->islandIndex(),
+    //        comm->islandRank(),
+    //        int(cm.size()),range.lower,range.upper);
+
+    if (isMaster()) return;
+    
     volume->setTransferFunction(cm,range,density);
-    printf("todo - update macro cells; todo - update shards/proxies\n"); 
+    // printf("todo - update macro cells; todo - update shards/proxies\n"); 
   }
   
 
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
-    PING;
-    resetAccumulation();
+    printf("(%i.%i) renderframe stage %i\n",
+           comm->islandIndex(),
+           comm->islandRank(),
+           0);
+    CUDA_SYNC_CHECK();
+    // resetAccumulation();
+    printf("(%i.%i) renderframe stage %i\n",
+           comm->islandIndex(),
+           comm->islandRank(),
+           1);
+    CUDA_SYNC_CHECK();
     addLocalFBsLayer.addLocalFBs(fbPointer);
+    printf("(%i.%i) renderframe stage %i\n",
+           comm->islandIndex(),
+           comm->islandRank(),
+           2);
+    CUDA_SYNC_CHECK();
+    printf("(%i.%i) renderframe stage %i\n",
+           comm->islandIndex(),
+           comm->islandRank(),
+           3);
   }
 
 } // ::vopat

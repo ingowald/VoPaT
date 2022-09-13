@@ -78,14 +78,12 @@ namespace vopat {
   bool UMeshVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
     SamplePRD prd;
-    const float INVALID_VALUE = 1e20f;
+    const float INVALID_VALUE = CUDART_INF;//1e20f;
     prd.sampledValue = INVALID_VALUE;
     owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);
     traceRay(sampleAccel,sampleRay,prd);
     f = prd.sampledValue;
     return prd.sampledValue != INVALID_VALUE;
-    // f = P.x;
-    // return true;
   }
 
   inline __device__

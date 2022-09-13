@@ -24,6 +24,9 @@ namespace vopat {
     vec3f dir;
     vec3f pow;
   };
+
+  inline std::ostream &operator<<(std::ostream &out, const DirectionalLight &dl)
+  { out << "DirectionalLight{dir="<<dl.dir<<",pow="<<dl.pow<<"}"; return out; }
   
   /*! a model made up of multiple bricks; usually one per rank */
   struct Model {

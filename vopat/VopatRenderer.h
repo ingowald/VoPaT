@@ -79,7 +79,7 @@ namespace vopat {
     void setLights(float ambient,
                    const std::vector<DirectionalLight> &dirLights) 
     {// volume.setLights(ambient,dirLights);
-      PING;
+      // PING;
     }
 
     void setCamera(const vec3f &from,
@@ -87,7 +87,7 @@ namespace vopat {
                    const vec3f &up,
                    const float fovy)
     {
-      PING;
+      // PING;
     }
     void createNextDomainKernel();
     /*! render frame to given frame buffer pointer. fbPointer will be

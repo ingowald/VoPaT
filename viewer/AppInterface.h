@@ -81,6 +81,11 @@ namespace vopat {
     
     CommBackend *comm;
     VopatRenderer::SP renderer;
+
+  private:
+    int eomIdentifierBase = 0x12345;
+    void checkEndOfMessage();
+    void sendEndOfMessage();
   };
 
 }

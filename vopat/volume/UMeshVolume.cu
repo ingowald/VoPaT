@@ -108,6 +108,7 @@ namespace vopat {
         });
     }
 
+    std::cout << "shared faces stuff built on host, setting up device geom" << std::endl;
     CUDA_SYNC_CHECK();
     sharedFaceIndicesBuffer
       = owlManagedMemoryBufferCreate(owl,OWL_INT3,
@@ -135,6 +136,7 @@ namespace vopat {
     globals.sampleAccel = owlGroupGetTraversable(tlas,0);
     
     CUDA_SYNC_CHECK();
+    std::cout << "shared faces stuff built. done" << std::endl;
   }
   
   void UMeshVolume::setDD(OWLLaunchParams lp) 

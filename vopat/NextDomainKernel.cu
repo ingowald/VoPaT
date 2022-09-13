@@ -84,7 +84,7 @@ namespace vopat {
   {
     auto &owl = vopat->owl;
     if (!owl) return;
-    
+
     auto &owlDevCode = vopat->owlDevCode;
 
     OWLVarDecl vars[]
