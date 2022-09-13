@@ -14,17 +14,74 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "NextDomainKernel.h"
-#include "NodeRenderer.h"
+#include "vopat/NextDomainKernel.h"
+#include "vopat/VopatRenderer.h"
 
 namespace vopat {
 
-  void NextDomainKernel::create(VopatNodeRenderer *vopat)
+  int numShardsPerRank = 10;
+  
+  /*! exhanges shards across all range, build *all* ranks' proxies
+    and value ranges, and upload to the proxiesBuffer and
+    valueRangesBuffer */
+  void NextDomainKernel::createProxies(VopatRenderer *vopat)
+  {
+    auto comm = vopat->comm;
+    
+    std::vector<Shard> myShards
+      = vopat->volume->brick->makeShards(numShardsPerRank);
+
+    const int islandSize = comm->islandSize();
+    auto island = comm->worker.withinIsland;
+
+    // ------------------------------------------------------------------
+    // compute how *many* shards each rank has
+    // ------------------------------------------------------------------
+    std::vector<int>   shardsOnRank(islandSize);
+    const int myNumShards = (int)myShards.size();
+    island->allGather(shardsOnRank,myNumShards);
+
+    // ------------------------------------------------------------------
+    // compute *total* number of shards, and allocate
+    // ------------------------------------------------------------------
+    int allNumShards = 0;
+    for (auto sor : shardsOnRank) allNumShards += sor;
+    std::vector<Shard> allShards(allNumShards);
+    
+    // ------------------------------------------------------------------
+    // *exchange all* shards across all ranks
+    // ------------------------------------------------------------------
+    island->allGather(allShards,myShards);
+    
+    // ------------------------------------------------------------------
+    // compute proxies and value ranges
+    // ------------------------------------------------------------------
+    std::vector<Proxy>   allProxies(allNumShards);
+    std::vector<range1f> allValueRanges(allNumShards);
+    int numShardsDone = 0;
+    for (int rank=0;rank<islandSize;rank++) {
+      int shardID = numShardsDone++;
+      auto shard = allShards[shardID];
+      Proxy proxy;
+      proxy.domain = shard.domain;
+      proxy.rankID = rank;
+      proxy.majorant = -1.f; // will be set later, once we have XF
+      allProxies.push_back(proxy);
+      allValueRanges.push_back(shard.valueRange);
+    }
+    this->numProxies = allProxies.size();
+    
+    proxiesBuffer = owlDeviceBufferCreate
+      (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());
+    valueRangesBuffer = owlDeviceBufferCreate
+      (vopat->owl,OWL_USER_TYPE(range1f),allValueRanges.size(),allValueRanges.data());
+  }
+
+  void NextDomainKernel::create(VopatRenderer *vopat)
   {
     PING;
-    myRank = vopat->volume.islandRank;
-    auto &owl = vopat->volume.owl;
-    auto &owlDevCode = vopat->volume.owlDevCode;
+    auto &owl = vopat->owl;
+    auto &owlDevCode = vopat->owlDevCode;
 
     OWLVarDecl vars[]
       = {
@@ -34,12 +91,11 @@ namespace vopat {
     gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(Geom),vars,-1);
     owlGeomTypeSetBoundsProg(gt,owlDevCode,"proxyBounds");
     owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"proxyIsec");
-    
+
+    createProxies(vopat);
+
     geom = owlGeomCreate(owl,gt);
-    owlGeomSetPrimCount(geom,proxies.size());
-    proxiesBuffer
-      = owlDeviceBufferCreate(owl,OWL_USER_TYPE(box3f),
-                              proxies.size(),proxies.data());
+    owlGeomSetPrimCount(geom,numProxies);
     CUDA_SYNC_CHECK();
     owlBuildPrograms(owl);
     CUDA_SYNC_CHECK();

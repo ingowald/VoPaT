@@ -15,26 +15,26 @@
 // ======================================================================== //
 
 #include "Woodcock.h"
-#include "NodeRenderer.h"
+// #include "NodeRenderer.h"
 
 namespace vopat {
 
-  Renderer *createRenderer_Woodcock(CommBackend *comm,
-                                    Model::SP model,
-                                    const std::string &fileNameBase,
-                                    int rank,
-                                    int numSPP)
-  {
-    PING;
-    PRINT(model);
-    PRINT(comm);
-    CUDA_SYNC_CHECK();
-    VopatNodeRenderer *nodeRenderer
-      = new VopatNodeRenderer
-      (model,fileNameBase,rank,comm->worker.gpuID);
-    PING;
-    CUDA_SYNC_CHECK();
-    return new RayForwardingRenderer(comm,nodeRenderer,numSPP);
-  }
+  // Renderer *createRenderer_Woodcock(CommBackend *comm,
+  //                                   Model::SP model,
+  //                                   const std::string &fileNameBase,
+  //                                   int rank,
+  //                                   int numSPP)
+  // {
+  //   PING;
+  //   PRINT(model);
+  //   PRINT(comm);
+  //   CUDA_SYNC_CHECK();
+  //   VopatNodeRenderer *nodeRenderer
+  //     = new VopatNodeRenderer
+  //     (model,fileNameBase,rank,comm->worker.gpuID);
+  //   PING;
+  //   CUDA_SYNC_CHECK();
+  //   return new RayForwardingRenderer(comm,nodeRenderer,numSPP);
+  // }
 
 } // ::vopat

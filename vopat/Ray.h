@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "vopat/DistributedRendererBase.h"
+#include "common/vopat.h"
 
 namespace vopat {
 
@@ -28,6 +28,8 @@ namespace vopat {
   { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
 
   
+  // ==================================================================
+
   struct Ray {
     enum { HitType_None = -1 };
     enum { HitType_Volume = -2 };
@@ -56,6 +58,26 @@ namespace vopat {
     float tMax = 1e20f;
     int32_t hitType;
   };
+
+  // ==================================================================
+
+  struct Intersection {
+    enum Type { NONE=0, VOLUME, ISO, /*TODO:*/Mesh };
+
+    /*! surface type that we intersected with */
+    Type type = NONE;
+
+    /*! t of ray/surface intersection; FLT_MAX: inval */
+    float t;
+
+    union {
+      struct { int primID; } surf;
+    };
+    
+  };
+
+
+  // ==================================================================
 
   inline __device__ bool checkOrigin(float x)
   {

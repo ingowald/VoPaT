@@ -22,7 +22,7 @@
 
 namespace vopat {
 
-  struct VopatNodeRenderer;
+  struct VopatRenderer;
   
   struct NextDomainKernel {
     enum { RETRY = 1<<30 };
@@ -50,17 +50,32 @@ namespace vopat {
       Proxy                 *proxies;
     };
     
-    void create(VopatNodeRenderer *vopat);
+    void create(VopatRenderer *);
     
     void addLPVars(std::vector<OWLVarDecl> &lpVars);
     void setLPVars(OWLLaunchParams lp);
+
+    /*! exhanges shards across all range, build *all* ranks' proxies
+        and value ranges, and upload to the proxiesBuffer and
+        valueRangesBuffer */
+    void createProxies(VopatRenderer *vopat);
+
+    /*! total number of proxies gathered across all ranks - NOT only the active ones */
+    int numProxies = -1;
     
-    std::vector<Proxy> proxies;
-    OWLBuffer proxiesBuffer;
+    /*! for each logical shard created across all ranks, this stores
+        the corresponding proxy */
+    OWLBuffer   proxiesBuffer;
+    
+    /*! for each logical shard created across all ranks, this stores
+        the (pre-transfer functoin) value range for this shard (so the
+        proxy's majorant can be recomputed if the xf changes) */
+    OWLBuffer   valueRangesBuffer;
+    
     OWLGeomType gt;
-    OWLGeom    geom;
-    OWLGroup   blas, tlas;
-    int        myRank;
+    OWLGeom     geom;
+    OWLGroup    blas, tlas;
+    int         myRank;
   };
 
 } // ::vopat

@@ -17,7 +17,7 @@
 #pragma once
 
 #include "vopat/volume/Volume.h"
-#include "model/UMeshVolume.h"
+#include "model/UMeshModel.h"
 
 namespace vopat {
   
@@ -33,18 +33,19 @@ namespace vopat {
       inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
       /*! look up the given 3D (*local* world-space) point in the volume, and return the gradient */
       inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
-
+      
       OptixTraversableHandle sampleAccel;
       box3f  domain;
       vec3f *vertices;
       float *scalars;
       umesh::UMesh::Tet *tets;
     };
+    
+    DD        globals;
 
     void build(OWLContext owl) override;
-    void setDD(OWLLaunchParms lp) override;
+    void setDD(OWLLaunchParams lp) override;
     
-    DD globals;
     UMesh::SP umesh;
   };
 
@@ -53,7 +54,7 @@ namespace vopat {
   inline __device__
   bool UMeshVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
-    UMeshSamplePRD prd;
+    SamplePRD prd;
     const float INVALID_VALUE = 1e20f;
     prd.sampledValue = INVALID_VALUE;
     owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);

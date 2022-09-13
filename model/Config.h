@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "common/mpi/MPIRenderer.h"
+#include "model/Model.h"
 
 namespace vopat {
 
@@ -75,7 +75,7 @@ namespace vopat {
     // ==================================================================
     struct {
       float ambient = .03f;
-      std::vector<MPIRenderer::DirectionalLight> directional;
+      std::vector<DirectionalLight> directional;
     } lights;
 
     void save(const std::string &fileName);

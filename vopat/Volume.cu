@@ -18,6 +18,8 @@
 #include "Volume.h"
 #include "LaunchParams.h"
 
+XXXX
+
 namespace std {
   
   inline bool operator<(const owl::common::vec3i &a,
@@ -198,8 +200,6 @@ namespace vopat {
     if (islandRank < 0)
       return;
 
-    owl = owlContextCreate(&gpuID,1);
-    owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
     CUDA_SYNC_CHECK();
 #if VOPAT_UMESH
     OWLVarDecl args[] = {

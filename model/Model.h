@@ -20,6 +20,11 @@
 
 namespace vopat {
 
+  struct DirectionalLight {
+    vec3f dir;
+    vec3f pow;
+  };
+  
   /*! a model made up of multiple bricks; usually one per rank */
   struct Model {
     Model(const std::string &type) : type(type) {}

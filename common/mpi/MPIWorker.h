@@ -21,38 +21,5 @@
 
 namespace vopat {
   
-  /*! mpi rendering interface for the *receivers* on the workers;
-      these recive the broadcasts from the MPIMaster, and execute them
-      on their (virutal) renderer. */
-  struct MPIWorker : public MPICommon
-  {
-    MPIWorker(CommBackend *comms, MPIRenderer *renderer);
-
-    // int myRank() const { return mpi.myRank(); }
-    int islandRank() const { return mpi.islandRank(); }
-    
-    /*! the 'main loop' that receives and executes cmmands sent by the master */
-    void run();
-
-    /*! @{ command handlers - each corresponds to exactly one command
-        sent my the master */
-    void cmd_terminate();
-    void cmd_renderFrame();
-    void cmd_resizeFrameBuffer();
-    void cmd_resetAccumulation();
-    void cmd_setCamera();
-    void cmd_setTransferFunction();
-    void cmd_setISO();
-    void cmd_setShadeMode();
-    void cmd_setNodeSelection();
-    void cmd_screenShot();
-    void cmd_setLights();
-    void cmd_script();
-    /* @} */
-    
-    MPIRenderer *renderer = nullptr;
-    CommBackend *comms;
-  };
-  
 
 } // ::vopat

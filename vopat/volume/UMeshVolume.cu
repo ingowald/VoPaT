@@ -14,8 +14,6 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
 #include "vopat/volume/UMeshVolume.h"
 
 namespace vopat {

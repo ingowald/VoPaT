@@ -18,23 +18,24 @@ add_library(vopat_render
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
   
-  Renderer.cpp
+#  Renderer.cpp
 #  ModelConfig.cpp
   
   NextDomainKernel.h
   NextDomainKernel.cu
   MacroCell.h
   MacroCell.cu
-  Volume.cu
+#  Volume.cu
   
-  DistributedRendererBase.h
-  DistributedRendererBase.cu
-  AddWorkersRenderer.h
-  AddWorkersRenderer.cu
-  RayForwardingRenderer.h
-  RayForwardingRenderer.cu
-  NodeRenderer.h
-  NodeRenderer.cu
+#  DistributedRendererBase.h
+#  DistributedRendererBase.cu
+  AddLocalFBsLayer.h
+  AddLocalFBsLayer.cu
+  ForwardingLayer.h
+  ForwardingLayer.cu
+  
+  VopatRenderer.h
+  VopatRenderer.cu
   
   Woodcock.h
   Woodcock.cu

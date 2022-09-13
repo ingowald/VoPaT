@@ -17,14 +17,29 @@
 #pragma once
 
 #include "common/vopat.h"
+#include <owl/owl.h>
+#include "model/Brick.h"
 
 namespace vopat {
 
   struct Volume {
+    typedef std::shared_ptr<Volume> SP;
+
+    Volume(Brick::SP brick) : brick(brick) {}
+    
+    struct DD {
+      cudaTextureObject_t xfTexture;
+    };
     
     virtual void build(OWLContext owl) = 0;
-    virtual void setDD(OWLLaunchParms lp) = 0;
+    virtual void setDD(OWLLaunchParams lp) = 0;
+    virtual void addLPVars(std::vector<OWLVarDecl> &lpVars) = 0;
+
+    void setTransferFunction(const std::vector<vec4f> &cm,
+                             const interval<float> &range,
+                             const float density);
     
+    Brick::SP brick;
   };
   
 }

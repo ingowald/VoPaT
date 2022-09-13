@@ -23,4 +23,6 @@
 
 namespace vopat {
 
+  XXX
+  
 }

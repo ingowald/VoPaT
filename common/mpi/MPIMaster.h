@@ -21,37 +21,37 @@
 
 namespace vopat {
 
-  /*! mpi rendering interface for the master rank that runs the
-      app/viewer. basically this will take the 'rendering' commands,
-      broadcast them to all ranks, and on each rank (including the
-      master) excute them to the virtual renderer */
-  struct MPIMaster : public MPICommon {
-    MPIMaster(MPIBackend &mpi, MPIRenderer *renderer);
+  // /*! mpi rendering interface for the master rank that runs the
+  //     app/viewer. basically this will take the 'rendering' commands,
+  //     broadcast them to all ranks, and on each rank (including the
+  //     master) excute them to the virtual renderer */
+  // struct MPIMaster : public MPICommon {
+  //   MPIMaster(MPIBackend &mpi, MPIRenderer *renderer);
 
-    void screenShot();
-    void resetAccumulation();
-    void terminate();
-    void renderFrame(uint32_t *fbPointer);
-    void resizeFrameBuffer(const vec2i &newSize);
-    void setCamera(const vec3f &from,
-                   const vec3f &at,
-                   const vec3f &up,
-                   float fovy);
-    void setTransferFunction(const std::vector<vec4f> &cm,
-                             const interval<float> &range,
-                             const float density);
-    void setISO(int numActive,
-                const std::vector<int> &active,
-                const std::vector<float> &values,
-                const std::vector<vec3f> &colors);
+  //   void screenShot();
+  //   void resetAccumulation();
+  //   void terminate();
+  //   void renderFrame(uint32_t *fbPointer);
+  //   void resizeFrameBuffer(const vec2i &newSize);
+  //   void setCamera(const vec3f &from,
+  //                  const vec3f &at,
+  //                  const vec3f &up,
+  //                  float fovy);
+  //   void setTransferFunction(const std::vector<vec4f> &cm,
+  //                            const interval<float> &range,
+  //                            const float density);
+  //   void setISO(int numActive,
+  //               const std::vector<int> &active,
+  //               const std::vector<float> &values,
+  //               const std::vector<vec3f> &colors);
 
-    void backdoor(const std::string &command);
-    void setShadeMode(int mode);
-    void setLights(float ambient,
-                   const std::vector<MPIRenderer::DirectionalLight> &dirLights);
+  //   void backdoor(const std::string &command);
+  //   void setShadeMode(int mode);
+  //   void setLights(float ambient,
+  //                  const std::vector<MPIRenderer::DirectionalLight> &dirLights);
     
-    MPIRenderer *renderer = nullptr;
-    MPIBackend  &mpi;
-  };
+  //   MPIRenderer *renderer = nullptr;
+  //   MPIBackend  &mpi;
+  // };
   
 } // ::vopat

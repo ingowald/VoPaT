@@ -21,8 +21,8 @@ add_library(vopat_common
   vopat.h
   
   mpi/MPIBackend.cpp
-  mpi/MPIWorker.cpp
-  mpi/MPIMaster.cpp
+#  mpi/MPIWorker.cpp
+#  mpi/MPIMaster.cpp
   )
 
 target_link_libraries(vopat_common

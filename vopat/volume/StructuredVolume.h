@@ -17,6 +17,7 @@
 #pragma once
 
 #include "vopat/volume/Volume.h"
+#include "model/StructuredModel.h"
 
 namespace vopat {
   
@@ -33,7 +34,7 @@ namespace vopat {
     };
 
     void build(OWLContext owl) override;
-    void setDD(OWLLaunchParms lp) override;
+    void setDD(OWLLaunchParams lp) override;
     
     DD globals;
   };

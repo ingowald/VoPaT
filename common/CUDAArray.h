@@ -17,6 +17,7 @@
 #pragma once
 
 #include "common/vopat.h"
+#include "common/Prof.h"
 
 namespace vopat {
   

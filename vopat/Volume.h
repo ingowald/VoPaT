@@ -14,7 +14,10 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+
 #pragma once
+
+#if 0
 
 // #include "owl/owl_device.h"
 #include "model/Model.h"
@@ -29,7 +32,7 @@
 
 namespace vopat {
 
-  struct VolumeRenderer {
+  struct Volume {
 
     struct Globals {
       /*! put a scalar field throught he transfer function, and reutnr
@@ -72,7 +75,7 @@ namespace vopat {
       // box3f  myRegion;
     };
 
-    VolumeRenderer(Model::SP model,
+    Volume(Model::SP model,
                    const std::string &baseFileName,
                    int islandRank,
                    /*! local rank's linear GPU ID on which to create the owl device */
@@ -82,17 +85,17 @@ namespace vopat {
                              const interval<float> &xfDomain,
                              const float density);
     
-    void setLights(float ambient,
-                   const std::vector<MPIRenderer::DirectionalLight> &dirLights)
-    {
-      globals.lights.ambientTerm = ambient;
-      // globals.lights.ambientEnvLight = ambient;
-      globals.lights.numDirectional = dirLights.size();
-      for (int i=0;i<min((int)dirLights.size(),(int)MAX_DIR_LIGHTS);i++) {
-        globals.lights.directional[i].dir = normalize(dirLights[i].dir);
-        globals.lights.directional[i].rad = dirLights[i].rad;
-      }
-    }
+    // void setLights(float ambient,
+    //                const std::vector<DirectionalLight> &dirLights)
+    // {
+    //   globals.lights.ambientTerm = ambient;
+    //   // globals.lights.ambientEnvLight = ambient;
+    //   globals.lights.numDirectional = dirLights.size();
+    //   for (int i=0;i<min((int)dirLights.size(),(int)MAX_DIR_LIGHTS);i++) {
+    //     globals.lights.directional[i].dir = normalize(dirLights[i].dir);
+    //     globals.lights.directional[i].rad = dirLights[i].rad;
+    //   }
+    // }
 
 
     Globals              globals;
@@ -199,3 +202,4 @@ namespace vopat {
   
 } // :vopat
 
+#endif

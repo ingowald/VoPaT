@@ -14,8 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "common/mpi/MPIMaster.h"
-#include "common/mpi/MPIWorker.h"
+#include "viewer/AppInterface.h"
 #include "vopat/Renderer.h"
 #include "model/Config.h"
 #include <math.h>

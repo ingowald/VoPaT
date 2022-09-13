@@ -17,6 +17,8 @@
 #include "Renderer.h"
 
 namespace vopat {
+
+  XXX
   
 }
 

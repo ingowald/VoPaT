@@ -14,21 +14,10 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/DistributedRendererBase.h"
+#pragma once
 
-XXXX
-
-// #define MEASURE_PERF
+#include <cfloat>
 
 namespace vopat {
-  
-  std::string Renderer::screenShotFileName = "vopat";
-  
-  Renderer::Renderer(CommBackend *comm)
-    : comm(comm)
-  {
-    cudaFree(0);
-  }
-
 
 }

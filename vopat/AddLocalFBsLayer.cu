@@ -14,11 +14,32 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "AddWorkersRenderer.h"
+#include "AddLocalFBsLayer.h"
 #include <owl/owl_device.h>
+#include "3rdParty/stb_image//stb/stb_image_write.h"
+#include "3rdParty/stb_image//stb/stb_image.h"
 
 namespace vopat {
 
+  std::string AddLocalFBsLayer::screenShotFileName = "vopat";
+  
+  __global__ void encodeAccumBufferForSending(vec2i fbSize,
+                                              small_vec3f *localFB,
+                                              vec3f *accumBuffer,
+                                              int numAccumFrames)
+  {
+    int ix = threadIdx.x + blockIdx.x*blockDim.x;
+    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    if (ix >= fbSize.x) return;
+    if (iy >= fbSize.y) return;
+
+    int i = ix + iy * fbSize.x;
+    
+    localFB[i] = to_half(accumBuffer[i] * (1.f/(numAccumFrames)));
+  }
+    
+  
+  
   /*! the CUDA "parallel_for" variant */
   __global__ void cudaComposeRegion(const small_vec3f *compInputs,
                                     const vec2i ourRegionSize,
@@ -50,7 +71,7 @@ namespace vopat {
   }
   
   
-  void AddWorkersRenderer::composeRegion(uint32_t *results,
+  void AddLocalFBsLayer::composeRegion(uint32_t *results,
                                          const vec2i &ourRegionSize,
                                          const small_vec3f *inputs,
                                          int islandSize)
@@ -67,15 +88,15 @@ namespace vopat {
     CUDA_SYNC_CHECK();
   }
   
-  void AddWorkersRenderer::resizeFrameBuffer(const vec2i &newSize)
+  void AddLocalFBsLayer::resize(const vec2i &newSize)
   {
-    Renderer::resizeFrameBuffer(newSize);
-    // this->worldFbSize = newSize;
+    // Renderer::resizeFrameBuffer(newSize);
+    this->fullFbSize = newSize;
     
     if (comm->isMaster) {
-      masterFB.resize(worldFbSize.x*worldFbSize.y);
+      masterFB.resize(fullFbSize.x*fullFbSize.y);
     } else {
-      // ==================================================================
+    // ==================================================================
       // this upper part should be per node, shared among all threads
       // ==================================================================
       const int numIslands = comm->islandCount();//worker.numIslands;
@@ -89,17 +110,15 @@ namespace vopat {
       // buffer, as well as compositing buffer sizes
       // ------------------------------------------------------------------
       
-      // iw - parent computes thisnow : fullFbSize = newSize;
-
       // ------------------------------------------------------------------
       // compute size of our island's frame buffer sub-set, and allocate
       // local accum buffer of that size
       // ------------------------------------------------------------------
     
-      // islandFbSize.x = fullFbSize.x;
-      // islandFbSize.y
-      //   = (fullFbSize.y / numIslands)
-      //   + (islandIdx < (fullFbSize.y % numIslands));
+      islandFbSize.x = fullFbSize.x;
+      islandFbSize.y
+         = (fullFbSize.y / numIslands)
+         + (islandIdx < (fullFbSize.y % numIslands));
 
       // // ... and resize the local accum buffer
       // // if (localAccumBuffer)
@@ -107,8 +126,9 @@ namespace vopat {
       // // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
       // // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
       // PING; PRINT(islandFbSize);
-      localFB.resize(islandFbSize.x*islandFbSize.y);
-    
+      // localFB.resize(islandFbSize.x*islandFbSize.y);
+      compSendMemory.resize(islandFbSize.x*islandFbSize.y);
+      
       // ------------------------------------------------------------------
       // compute mem required for compositing, and allocate
       // ------------------------------------------------------------------
@@ -140,72 +160,50 @@ namespace vopat {
     }
   }
   
-  void AddWorkersRenderer::render(uint32_t *fbPointer)
+//   void AddLocalFBsLayer::render(uint32_t *fbPointer)
+//   {
+//     static Prof renderFrame("renderFrame",comm->myRank());
+//     static Prof inheritedRender("inheritedRender",comm->myRank());
+
+// // #if 1
+// //     // if (comm->worker.withinIsland)
+// //     {
+// //       // comm->worker.withinIsland->barrier();
+// //       comm->barrierAll();
+// //       if (comm->myRank() == 0) {
+// //         printf("======================\n");
+// //         printf("NEW FRAME!\n");
+// //         printf("======================\n");
+// //         fflush(0);
+// //       }
+// //       comm->barrierAll();
+// //       // comm->worker.withinIsland->barrier();
+// //     }
+// // #endif
+    
+//     renderFrame.enter();
+
+//     inheritedRender.enter();
+//     renderLocal();//Renderer::render(fbPointer);
+//     inheritedRender.leave();
+
+  
+  void AddLocalFBsLayer::addLocalFBs(uint32_t *fbPointer)
   {
-    static Prof renderFrame("renderFrame",comm->myRank());
-    static Prof inheritedRender("inheritedRender",comm->myRank());
-
-// #if 1
-//     // if (comm->worker.withinIsland)
-//     {
-//       // comm->worker.withinIsland->barrier();
-//       comm->barrierAll();
-//       if (comm->myRank() == 0) {
-//         printf("======================\n");
-//         printf("NEW FRAME!\n");
-//         printf("======================\n");
-//         fflush(0);
-//       }
-//       comm->barrierAll();
-//       // comm->worker.withinIsland->barrier();
-//     }
-// #endif
-    
-    renderFrame.enter();
-
-    inheritedRender.enter();
-    Renderer::render(fbPointer);
-    inheritedRender.leave();
-
-
-    
+    numAccumulatedFrames++;
     
     if (isMaster()) {
       /* nothing to do on master yet, wait for workers to render... */
       assert(fbPointer);
-      assert(worldFbSize.x > 0);
-      assert(worldFbSize.y > 0);
+      assert(fullFbSize.x > 0);
+      assert(fullFbSize.y > 0);
       comm->master.toWorkers->indexedGather
         (masterFB.get(),
-         worldFbSize.x*sizeof(uint32_t),
-         worldFbSize.y);
-      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),worldFbSize.x*worldFbSize.y*sizeof(*masterFB),
+         fullFbSize.x*sizeof(uint32_t),
+         fullFbSize.y);
+      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fullFbSize.x*fullFbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
-      // CUDA_SYNC_CHECK();
     } else {
-      // ------------------------------------------------------------------
-      // step 0: clients render into their owl local frame buffers
-      // ------------------------------------------------------------------
-#ifdef MEASURE_PERF
-      double t1 = getCurrentTime();
-#endif
-      static Prof prof_renderLocal("renderLocal",comm->myRank());
-      prof_renderLocal.enter();
-      renderLocal();
-      prof_renderLocal.leave();
-
-      static Prof finalAdd("finalAdd",comm->myRank());
-      finalAdd.enter();
-      
-#ifdef MEASURE_PERF
-      double t2 = getCurrentTime();
-#endif
-
-#ifdef MEASURE_PERF
-      comm->worker.withinIsland->barrier();
-      double t3 = getCurrentTime();
-#endif
-
       const int numIslands = comm->worker.numIslands;
       const int islandIdx  = comm->worker.islandIdx;
       const int islandRank = comm->worker.withinIsland->rank;
@@ -216,6 +214,19 @@ namespace vopat {
       const int ourLineEnd
         = (islandFbSize.y * (islandRank+1)) / islandSize;
       const int ourLineCount = ourLineEnd-ourLineBegin;
+
+      // ------------------------------------------------------------------
+      // step 0: encode our local frame buffer in lower precision, so
+      // whatever we send out needs less bandwidth
+      // ------------------------------------------------------------------
+      vec2i blockSize(16);
+      vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
+      encodeAccumBufferForSending<<<numBlocks,blockSize>>>
+        (islandFbSize,
+         compSendMemory.get(),
+         localAccumBuffer.get(),
+         numAccumulatedFrames);
+      
       // ------------------------------------------------------------------
       // step 1: exchage accum buffer regions w/ island peers
       // ------------------------------------------------------------------
@@ -224,7 +235,7 @@ namespace vopat {
       std::vector<int> recvCounts(islandSize);
       std::vector<int> recvOffsets(islandSize);
       for (int i=0;i<islandSize;i++) {
-        const size_t sizeOfLine = islandFbSize.x*sizeof(*localFB);
+        const size_t sizeOfLine = islandFbSize.x*sizeof(*compInputsMemory.get());
         
         // in:
         recvCounts[i] = ourLineCount*sizeOfLine;
@@ -241,7 +252,7 @@ namespace vopat {
       }
 
       comm->worker.withinIsland->allToAll
-        (localFB.get(), //const void *sendBuf,
+        (compSendMemory.get(), //const void *sendBuf,
          sendCounts.data(),//const int *sendCounts,
          sendOffsets.data(),//const int *sendOffsets,
          compInputsMemory.get(),//void *recvBuf,
@@ -276,16 +287,50 @@ namespace vopat {
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
-#ifdef MEASURE_PERF
-      double t4 = getCurrentTime();
-      // "rank,render,wait,compositing' times, as csv
-      printf("%i,%f,%f,%f\n",
-             myRank(),t2-t1,t3-t2,t4-t3);
-#endif
-      finalAdd.leave();
     }
-    renderFrame.leave();
   }
+
+
+  void AddLocalFBsLayer::screenShot()
+  {
+    std::string fileName = screenShotFileName;
+    std::vector<uint32_t> pixels;
+    vec2i fbSize;
+    if (isMaster()) {
+      fileName = fileName + "_master.png";
+      pixels = masterFB.download();
+      for (int iy=0;iy<fullFbSize.y/2;iy++) {
+        uint32_t *top = pixels.data() + iy * fullFbSize.x;
+        uint32_t *bot = pixels.data() + (fullFbSize.y-1-iy) * fullFbSize.x;
+        for (int ix=0;ix<fullFbSize.x;ix++)
+          std::swap(top[ix],bot[ix]);
+      }
+      fbSize = fullFbSize;
+    } else {
+      char suff[100];
+      sprintf(suff,"_island%03i_rank%05i.png",
+              comm->worker.islandIdx,comm->worker.withinIsland->rank);
+      fileName = fileName + suff;
+        
+      std::vector<small_vec3f> hostFB;
+      hostFB = compSendMemory.download();
+      for (int y=0;y<islandFbSize.y;y++) {
+        const small_vec3f *line = hostFB.data() + (islandFbSize.y-1-y)*islandFbSize.x;
+        for (int x=0;x<islandFbSize.x;x++) {
+          vec3f col = from_half(line[x]);
+          pixels.push_back(make_rgba(col) | (0xffu << 24));
+        }
+      }
+      fbSize = islandFbSize;
+    }
+    
+    stbi_write_png(fileName.c_str(),fbSize.x,fbSize.y,4,
+                   pixels.data(),fbSize.x*sizeof(uint32_t));
+    std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
+
+  }
+
+  
 
 }
 

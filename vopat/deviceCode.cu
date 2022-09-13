@@ -16,8 +16,8 @@
 
 // #include "deviceCode.h"
 #include "LaunchParams.h"
-#include "vopat/NodeRenderer.h"
-#include "vopat/NextDomainKernel.h"
+// #include "vopat/NodeRenderer.h"
+// #include "vopat/NextDomainKernel.h"
 #include <cuda.h>
 
 using namespace vopat;
@@ -25,7 +25,8 @@ using namespace vopat;
 extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 
 namespace vopat {
-  
+
+#if 0
   inline __device__ const LaunchParams &LaunchParams::get()
   { return (const LaunchParams &)optixLaunchParams[0]; }
 
@@ -318,5 +319,5 @@ namespace vopat {
                        lp.surfaceGlobals);
   }
 
-  
+#endif  
 }

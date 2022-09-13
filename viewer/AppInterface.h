@@ -16,46 +16,45 @@
 
 #pragma once
 
-#include "common/vopat.h"
-#include "vopat/ForwardingLayer.h"
-#include "vopat/AddLocalFBsLayer.h"
-// #include "vopat/volume/StructuredVolume.h"
-// #include "vopat/volume/UMeshVolume.h"
-// #include "vopat/SurfaceIntersector.h"
-#include "vopat/NextDomainKernel.h"
-
-#include "vopat/volume/UMeshVolume.h"
-#include "vopat/volume/StructuredVolume.h"
+#include "common/mpi/MPIBackend.h"
 
 namespace vopat {
 
-  using namespace owl;
-  using namespace owl::common;
-  using Random = owl::common::LCG<8>;
+  struct AppInterface {
+    
+    static void runWorker(int ac, char **av);
+    
+    AppInterface(int ac, char **av);
 
-  using ForwardGlobals = typename ForwardingLayer::DD;
-  // using VolumeGlobals  = typename VolumeRenderer::Globals;
-  // using SurfaceGlobals = typename SurfaceIntersector::Globals;
+    void screenShot();
+    void resetAccumulation();
+    void terminate();
+    void renderFrame(uint32_t *fbPointer);
+    void resizeFrameBuffer(const vec2i &newSize);
+    void setCamera(const vec3f &from,
+                   const vec3f &at,
+                   const vec3f &up,
+                   float fovy);
+    void setTransferFunction(const std::vector<vec4f> &cm,
+                             const interval<float> &range,
+                             const float density);
+    void setISO(int numActive,
+                const std::vector<int> &active,
+                const std::vector<float> &values,
+                const std::vector<vec3f> &colors);
+
+    void setLights(float ambient,
+                   const std::vector<vec3f> &dirs,
+                   const std::vector<vec3f> &pows);
     
-  /*! "triangle mesh" geometry type for shared-faces method */
-  struct UMeshGeom {
-    vec4i *tets;
-    vec3f *vertices;
-    float *scalars;
-    vec2i *tetsOnFace;
-  };
-  
-  struct LaunchParams {
-    static inline __device__ const LaunchParams &get();
+  private:
+    template<typename T>
+    void toWorkers(const std::vector<T> &t);
     
-    ForwardGlobals           forwardGlobals;
-    // VolumeGlobals            volumeGlobals;
-    // SurfaceGlobals           surfaceGlobals;
-    NextDomainKernel::LPData nextDomainKernel;
-    union {
-      UMeshVolume::DD      umesh;
-      StructuredVolume::DD structured;
-    } volumeSampler;
+    template<typename T>
+    void toWorkers(const T &t);
+    
+    MPIBackend mpi;
   };
-  
+
 }

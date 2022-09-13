@@ -21,6 +21,8 @@
 
 namespace vopat {
 
+  using umesh::UMesh;
+  
   /*! this is for a spatially patitioned umesh, so each brick has a
     domain that doesn't overlap other bricks */
   struct UMeshBrick : public Brick {

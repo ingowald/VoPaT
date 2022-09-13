@@ -16,13 +16,14 @@
 
 #pragma once
 
-#include "vopat/RayForwardingRenderer.h"
-#include "vopat/VolumeRendererBase.h"
-#include "vopat/SurfaceIntersector.h"
+// #include "vopat/RayForwardingRenderer.h"
+// #include "vopat/VolumeRendererBase.h"
+// #include "vopat/SurfaceIntersector.h"
 #include "DDA.h"
 
 namespace vopat {
 
+#if 0
   using ForwardGlobals = typename RayForwardingRenderer::Globals;
   using VolumeGlobals  = typename VolumeRenderer::Globals;
   using SurfaceGlobals = typename SurfaceIntersector::Globals;
@@ -579,6 +580,7 @@ namespace vopat {
   //   // if (ray.dbg) printf("(%i) INITIAL rank is %i\n",vopat.myRank,closest);
   //   return closest;
   // }
+#endif
   
 }
 
