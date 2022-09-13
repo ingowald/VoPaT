@@ -72,6 +72,8 @@ namespace vopat {
     typedef std::shared_ptr<StructuredModel> SP;
       
     StructuredModel() : Model("StructuredModel<float>") {}
+
+    Brick::SP createBrick(int ID) override { return StructuredBrick::create(ID); }
     
     static StructuredModel::SP create() { return std::make_shared<StructuredModel>(); }
   };

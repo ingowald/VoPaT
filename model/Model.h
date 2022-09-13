@@ -26,7 +26,7 @@ namespace vopat {
   };
   
   /*! a model made up of multiple bricks; usually one per rank */
-  struct Model : public std::enable_shared_from_this<Model> {
+  struct Model {
     Model(const std::string &type) : type(type) {}
     
     typedef std::shared_ptr<Model> SP;
@@ -56,10 +56,8 @@ namespace vopat {
     virtual std::string toString() const
     { return "Model<"+type+">"; }
 
-    template<typename T>
-    std::shared_ptr<T> as() 
-    { return std::dynamic_pointer_cast<T>(shared_from_this()); }
-                                                                        
+    virtual Brick::SP createBrick(int brickID) = 0;
+    
     std::string            type;
     int                    numBricks = 0;
     int                    numTimeSteps = 0;

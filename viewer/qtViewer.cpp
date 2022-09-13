@@ -393,7 +393,17 @@ namespace vopat {
 //       }
 // #endif
 
-      Volume::SP volume = Volume::createFrom(model);
+      Brick::SP brick
+        = isMaster
+        ? Brick::SP()
+        : model->createBrick(myRank);
+      if (brick) {
+        brick->loadConstantData(Model::canonicalBrickFileName(inFileBase,brick->ID));
+        brick->loadTimeStep(Model::canonicalTimeStepFileName(inFileBase,brick->ID,
+                                                             "unknown",0));
+      }
+      
+      Volume::SP volume = Volume::createFrom(brick);
         
       VopatRenderer::SP renderer
         = VopatRenderer::create(&mpiBackend,volume);

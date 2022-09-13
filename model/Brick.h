@@ -32,10 +32,14 @@ namespace vopat {
       model. this can be a umesh that's part of a larger umesh, or a
       set of structured-volume voxels that are a region of the model
       (possibly includign ghost layers), etc */
-  struct Brick {
+  struct Brick : public std::enable_shared_from_this<Brick> {
     typedef std::shared_ptr<Brick> SP;
 
     Brick(int ID) : ID(ID) {};
+
+    template<typename T>
+    std::shared_ptr<T> as() 
+    { return std::dynamic_pointer_cast<T>(shared_from_this()); }
 
     virtual std::string toString() const = 0;
     

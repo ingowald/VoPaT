@@ -17,4 +17,13 @@
 #include "vopat/volume/UMeshVolume.h"
 
 namespace vopat {
+
+  void UMeshVolume::build(OWLContext owl)
+  { NOTIMPLEMENTED; }
+  
+  void UMeshVolume::setDD(OWLLaunchParams lp) 
+  { NOTIMPLEMENTED; }
+  
+  void UMeshVolume::addLPVars(std::vector<OWLVarDecl> &lpVars) 
+  { NOTIMPLEMENTED; }
 }

@@ -24,9 +24,12 @@ namespace vopat {
   struct StructuredVolume : public Volume {
     typedef std::shared_ptr<StructuredVolume> SP;
 
-    static SP create(StructuredModel::SP model);
+    static SP create(StructuredBrick::SP brick)
+    { return std::make_shared<StructuredVolume>(brick); }
     
-    StructuredVolume(StructuredBrick::SP brick);
+    StructuredVolume(StructuredBrick::SP brick)
+      : Volume(brick)
+    {}
 
     struct DD {
       inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
@@ -39,6 +42,7 @@ namespace vopat {
 
     void build(OWLContext owl) override;
     void setDD(OWLLaunchParams lp) override;
+    void addLPVars(std::vector<OWLVarDecl> &lpVars) override;
     
     DD globals;
   };

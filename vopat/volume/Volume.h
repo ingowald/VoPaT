@@ -28,10 +28,16 @@ namespace vopat {
 
     Volume(Brick::SP brick) : brick(brick) {}
 
-    static Volume::SP createFrom(Model::SP model);
+    static Volume::SP createFrom(Brick::SP brick);
     
     struct DD {
-      cudaTextureObject_t xfTexture;
+      //      cudaTextureObject_t xfTexture;
+      struct {
+        vec4f          *values;
+        int             numValues;
+        interval<float> domain;
+        float           density;
+      } xf;
     };
     
     virtual void build(OWLContext owl) = 0;
@@ -39,8 +45,14 @@ namespace vopat {
     virtual void addLPVars(std::vector<OWLVarDecl> &lpVars) = 0;
 
     void setTransferFunction(const std::vector<vec4f> &cm,
-                             const interval<float> &range,
+                             const interval<float> &domain,
                              const float density);
+
+    struct {
+      CUDAArray<vec4f> colorMap;
+      interval<float> domain;
+      float density;
+    } xf;
     
     Brick::SP brick;
   };

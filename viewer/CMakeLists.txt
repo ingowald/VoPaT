@@ -15,13 +15,13 @@
 # ======================================================================== #
 
 # ==================================================================
-add_executable(vopatViewer
-  viewer.cpp
-  )
-target_link_libraries(vopatViewer
-  PUBLIC
-  vopat_render
-  )
+# add_executable(vopatViewer
+#   viewer.cpp
+#   )
+# target_link_libraries(vopatViewer
+#   PUBLIC
+#   vopat_render
+#   )
 #set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 
 

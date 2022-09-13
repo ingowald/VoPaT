@@ -25,6 +25,7 @@
 namespace vopat {
 
   struct ToMasterComm {
+    virtual void bc_recv(void *data, size_t size) = 0;
     // void allGatherSend(const void *data, size_t size) = 0;
     virtual void indexedGatherSend(int numBlocks,
                                    size_t blockSize,

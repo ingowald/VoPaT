@@ -68,8 +68,7 @@ namespace vopat {
 
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
-                             const float density)
-    { volume->setTransferFunction(cm,range,density); }
+                             const float density);
 
     // void setISO(int numActive,
     //             const std::vector<int> &active,
@@ -86,7 +85,10 @@ namespace vopat {
     void setCamera(const vec3f &from,
                    const vec3f &at,
                    const vec3f &up,
-                   const float fovy);
+                   const float fovy)
+    {
+      PING;
+    }
     void createNextDomainKernel();
     /*! render frame to given frame buffer pointer. fbPointer will be
         null on the workers, and on the master has to be preallocated

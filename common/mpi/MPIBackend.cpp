@@ -235,7 +235,13 @@ namespace vopat {
   
   void MPIToWorkersComm::broadcast(const void *data, size_t size)
   {
+    MPI_CALL(Bcast((void *)data,size,MPI_BYTE,0,comm));
   }
-  
+
+  void MPIToMasterComm::bc_recv(void *data, size_t size)
+  {
+    MPI_CALL(Bcast(data,size,MPI_BYTE,0,comm));
+  }
+
 
 }

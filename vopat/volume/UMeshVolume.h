@@ -24,9 +24,12 @@ namespace vopat {
   struct UMeshVolume : public Volume {
     typedef std::shared_ptr<UMeshVolume> SP;
 
-    static SP create(UMeshModel::SP model);
+    static SP create(UMeshBrick::SP brick)
+    { return std::make_shared<UMeshVolume>(brick); }
     
-    UMeshVolume(UMeshBrick::SP brick);
+    UMeshVolume(UMeshBrick::SP brick)
+      : Volume(brick), umesh(brick->umesh)
+    {}
     
     struct SamplePRD {
       float sampledValue;
@@ -49,6 +52,7 @@ namespace vopat {
 
     void build(OWLContext owl) override;
     void setDD(OWLLaunchParams lp) override;
+    void addLPVars(std::vector<OWLVarDecl> &lpVars) override;
     
     UMesh::SP umesh;
   };

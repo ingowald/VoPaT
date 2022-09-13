@@ -232,4 +232,21 @@ namespace vopat {
     }
   }
 
+
+  void VopatRenderer::setTransferFunction(const std::vector<vec4f> &cm,
+                                          const interval<float> &range,
+                                          const float density)
+  {
+    volume->setTransferFunction(cm,range,density);
+    printf("todo - update macro cells; todo - update shards/proxies\n"); 
+  }
+  
+
+  void VopatRenderer::renderFrame(uint32_t *fbPointer)
+  {
+    PING;
+    resetAccumulation();
+    addLocalFBsLayer.addLocalFBs(fbPointer);
+  }
+
 } // ::vopat

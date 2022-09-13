@@ -19,15 +19,42 @@
 
 namespace vopat {
   
-  Volume::SP Volume::createFrom(Model::SP model)
+  Volume::SP Volume::createFrom(Brick::SP brick)
   {
-    if (StructuredModel::SP sm = model->as<StructuredModel>())
-      return StructuredVolume::create(sm);
-    else if (UMeshModel::SP sm = model->as<UMeshModel>())
-      return UMeshVolume::create(sm);
+    if (!brick)
+      // this is OK - we're probably on master, which doesn't have a brick
+      return {};
+    
+    if (StructuredBrick::SP typedBrick = brick->as<StructuredBrick>())
+      return StructuredVolume::create(typedBrick);
+    else if (UMeshBrick::SP typedBrick = brick->as<UMeshBrick>())
+      return UMeshVolume::create(typedBrick);
     else
       throw std::runtime_error("un-recognized model type !?");
   }
+
+  void Volume::setTransferFunction(const std::vector<vec4f> &cm,
+                                           const interval<float> &xfDomain,
+                                   const float density)
+  {
+    if (!brick)
+      // master ...
+      return;
+    
+    xf.colorMap.upload(cm);
+    // globals.xf.values = colorMap.get();
+    // xf.numValues = cm.size();
+    xf.domain = xfDomain;
+    xf.density = density;
+#if 0
+    mapMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
+      (mcData.get(),globals.mc.dims,
+       globals.xf.values,
+       globals.xf.numValues,
+       globals.xf.domain);
+#endif
+  }
+    
 
 } // ::vopat
 

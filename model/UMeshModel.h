@@ -63,6 +63,8 @@ namespace vopat {
 
     UMeshModel() : Model("UMeshModel/Spatial") {}
     
+    Brick::SP createBrick(int ID) override { return UMeshBrick::create(ID); }
+    
     static UMeshModel::SP create() { return std::make_shared<UMeshModel>(); }
   };
   

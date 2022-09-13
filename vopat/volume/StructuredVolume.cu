@@ -17,4 +17,14 @@
 #include "vopat/volume/StructuredVolume.h"
 
 namespace vopat {
+
+  void StructuredVolume::build(OWLContext owl) 
+  { NOTIMPLEMENTED; }
+  
+  void StructuredVolume::setDD(OWLLaunchParams lp) 
+  { NOTIMPLEMENTED; }
+  
+  void StructuredVolume::addLPVars(std::vector<OWLVarDecl> &lpVars) 
+  { NOTIMPLEMENTED; }
+    
 }

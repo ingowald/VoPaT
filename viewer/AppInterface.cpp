@@ -31,6 +31,36 @@ namespace vopat {
      RESET_ACCUMULATION
     } CommandTag;
 
+  template<typename T>
+  void AppInterface::fromMaster(T &t)
+  {
+    comm->worker.toMaster->bc_recv(&t,sizeof(T));
+  }
+  
+  template<typename T>
+  void AppInterface::fromMaster(std::vector<T> &t)
+  {
+    size_t s;
+    fromMaster(s);
+    t.resize(s);
+    comm->worker.toMaster->bc_recv(t.data(),s*sizeof(T));
+  }
+  
+  template<typename T>
+  void AppInterface::sendToWorkers(const std::vector<T> &t)
+  {
+    size_t s = t.size();
+    sendToWorkers(s);
+    comm->master.toWorkers->broadcast(t.data(),s*sizeof(T));
+  }
+  
+  template<typename T>
+  void AppInterface::sendToWorkers(const T &t)
+  {
+    comm->master.toWorkers->broadcast(&t,sizeof(T));
+  }
+    
+    
 
   AppInterface::AppInterface(CommBackend *comm,
                              VopatRenderer::SP renderer)

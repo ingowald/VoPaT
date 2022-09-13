@@ -26,6 +26,7 @@ namespace vopat {
                            size_t blockSize,
                            const int *blockTags,
                            const void **blockPtrs) override;
+    void bc_recv(void *data, size_t size) override;
     
     MPI_Comm comm;
   };
