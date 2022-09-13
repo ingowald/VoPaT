@@ -40,7 +40,8 @@ namespace vopat {
       } xf;
     };
     
-    virtual void build(OWLContext owl) = 0;
+    virtual void build(OWLContext owl,
+                          OWLModule owlDevCode) = 0;
     virtual void setDD(OWLLaunchParams lp) = 0;
     virtual void addLPVars(std::vector<OWLVarDecl> &lpVars) = 0;
 

@@ -62,7 +62,7 @@ namespace vopat {
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
                            lpVars.data(),lpVars.size());
 
-      volume->build(owl);
+      volume->build(owl,owlDevCode);
       volume->setDD(lp);
       
       nextDomainKernel.setLPVars(lp);
@@ -211,9 +211,9 @@ namespace vopat {
     //   ndk.proxies.push_back(proxy);
     // }
 
-    PING; CUDA_SYNC_CHECK();
+    CUDA_SYNC_CHECK();
     nextDomainKernel.create(this);
-    PING; CUDA_SYNC_CHECK();
+    CUDA_SYNC_CHECK();
   }
 
 

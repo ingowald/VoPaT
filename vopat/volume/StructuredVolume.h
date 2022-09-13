@@ -40,7 +40,8 @@ namespace vopat {
       vec3i dims;
     };
 
-    void build(OWLContext owl) override;
+    void build(OWLContext owl,
+                          OWLModule owlDevCode) override;
     void setDD(OWLLaunchParams lp) override;
     void addLPVars(std::vector<OWLVarDecl> &lpVars) override;
     

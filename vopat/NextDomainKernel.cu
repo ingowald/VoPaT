@@ -28,11 +28,8 @@ namespace vopat {
   {
     auto comm = vopat->comm;
     
-    PING;fflush(0);
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
-    PING;fflush(0);
-    PRINT(myShards.size());
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
@@ -49,7 +46,6 @@ namespace vopat {
     // ------------------------------------------------------------------
     int allNumShards = 0;
     for (auto sor : shardsOnRank) allNumShards += sor;
-    PRINT(allNumShards);
     std::vector<Shard> allShards(allNumShards);
     
     
@@ -86,51 +82,39 @@ namespace vopat {
 
   void NextDomainKernel::create(VopatRenderer *vopat)
   {
-    PING;
     auto &owl = vopat->owl;
     if (!owl) return;
     
     auto &owlDevCode = vopat->owlDevCode;
-    PRINT(owlDevCode);
 
     OWLVarDecl vars[]
       = {
          { "proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::Geom,proxies) },
          { nullptr }
     };
-    PING; fflush(0);
     gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(Geom),vars,-1);
     owlGeomTypeSetBoundsProg(gt,owlDevCode,"proxyBounds");
     owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"proxyIsec");
 
-    PING;fflush(0);
     createProxies(vopat);
-    PING;fflush(0);
 
     geom = owlGeomCreate(owl,gt);
     owlGeomSetPrimCount(geom,numProxies);
-    PING;
-    PRINT(proxiesBuffer);
-    fflush(0);
     owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
 
     CUDA_SYNC_CHECK();
     owlBuildPrograms(owl);
     CUDA_SYNC_CHECK();
 
-    PING; fflush(0);
-    
     blas = owlUserGeomGroupCreate(owl,1,&geom,OPTIX_BUILD_FLAG_ALLOW_UPDATE);
     owlGroupBuildAccel(blas);
     CUDA_SYNC_CHECK();
     
-    PING; fflush(0);
     tlas = owlInstanceGroupCreate(owl,1,&blas,0,0,
                                   OWL_MATRIX_FORMAT_OWL,
                                   OPTIX_BUILD_FLAG_ALLOW_UPDATE);
     owlGroupBuildAccel(tlas);
     CUDA_SYNC_CHECK();
-
   }
 
   void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars)
@@ -142,8 +126,6 @@ namespace vopat {
   
   void NextDomainKernel::setLPVars(OWLLaunchParams lp)
   {
-    PING;
-    PRINT(proxiesBuffer);
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
     owlParamsSet1i(lp,"myRank",myRank);

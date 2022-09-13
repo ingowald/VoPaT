@@ -28,13 +28,21 @@ namespace vopat {
     { return std::make_shared<UMeshVolume>(brick); }
     
     UMeshVolume(UMeshBrick::SP brick)
-      : Volume(brick), umesh(brick->umesh)
+      : Volume(brick), myBrick(brick), umesh(brick->umesh)
     {}
     
     struct SamplePRD {
       float sampledValue;
     };
 
+    struct Geom {
+      box3f  domain;
+      vec3f *vertices;
+      float *scalars;
+      umesh::UMesh::Tet *tets;
+      int2              *tetsOnFace;
+    };
+    
     struct DD {
       inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
       inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
@@ -42,19 +50,25 @@ namespace vopat {
       inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
       
       OptixTraversableHandle sampleAccel;
-      box3f  domain;
-      vec3f *vertices;
-      float *scalars;
-      umesh::UMesh::Tet *tets;
     };
     
     DD        globals;
 
-    void build(OWLContext owl) override;
+    void build(OWLContext owl,
+               OWLModule owlDevCode) override;
     void setDD(OWLLaunchParams lp) override;
     void addLPVars(std::vector<OWLVarDecl> &lpVars) override;
+
+    UMeshBrick::SP myBrick;
+    UMesh::SP      umesh;
     
-    UMesh::SP umesh;
+    OWLGeomType gt;
+    OWLGeom     geom;
+    OWLGroup    blas;
+    OWLGroup    tlas;
+    OWLBuffer   sharedFaceIndicesBuffer;
+    OWLBuffer   sharedFaceNeighborsBuffer;
+    OWLBuffer   scalarsBuffer, tetsBuffer, verticesBuffer;
   };
 
   // ------------------------------------------------------------------

@@ -153,40 +153,6 @@ namespace vopat {
     rasterBox(mcData,mcDims,domain,primBounds4);
   }
   
-  void sortIndices(int &A, int &B, int &orientation)
-  {
-    if (A > B) {
-      std::swap(A,B);
-      orientation = 1-orientation;
-    }
-  }
-  
-  void sortIndices(vec3i &face, int &orientation)
-  {
-    sortIndices(face.y,face.z,orientation);
-    sortIndices(face.x,face.y,orientation);
-    sortIndices(face.y,face.z,orientation);
-  };
-  
-  template<typename Lambda>
-  void iterateFaces(umesh::Tet tet, Lambda lambda)
-  {
-    int A = tet.x;
-    int B = tet.y;
-    int C = tet.z;
-    int D = tet.w;
-    std::vector<vec3i> faces = {
-                                vec3i{ A, C, B },
-                                vec3i{ A, D, C },
-                                vec3i{ A, B, D },
-                                vec3i{ B, C, D }
-    };
-    for (auto face : faces) {
-      int orientation = 0;
-      sortIndices(face,orientation);
-      lambda(face,orientation);
-    }
-  }
 #endif
   
   VolumeRenderer::VolumeRenderer(Model::SP model,

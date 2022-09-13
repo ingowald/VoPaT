@@ -18,7 +18,8 @@
 
 namespace vopat {
 
-  void StructuredVolume::build(OWLContext owl) 
+  void StructuredVolume::build(OWLContext owl,
+                          OWLModule owlDevCode) 
   { NOTIMPLEMENTED; }
   
   void StructuredVolume::setDD(OWLLaunchParams lp) 
