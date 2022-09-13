@@ -14,8 +14,6 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
 #include "AppInterface.h"
 
 namespace vopat {
@@ -34,49 +32,9 @@ namespace vopat {
     } CommandTag;
 
 
-  /*! mpi rendering interface for the *receivers* on the workers;
-      these recive the broadcasts from the MPIMaster, and execute them
-      on their (virutal) renderer. */
-  struct Worker
-  {
-    Worker(CommBackend *comms);
-    
-    /*! the 'main loop' that receives and executes cmmands sent by the master */
-    void run();
-
-    /*! @{ command handlers - each corresponds to exactly one command
-        sent my the master */
-    void cmd_terminate();
-    void cmd_renderFrame();
-    void cmd_resizeFrameBuffer();
-    void cmd_resetAccumulation();
-    void cmd_setCamera();
-    void cmd_setTransferFunction();
-    void cmd_setISO();
-    void cmd_setShadeMode();
-    void cmd_setNodeSelection();
-    void cmd_screenShot();
-    void cmd_setLights();
-    /* @} */
-
-    template<typename T>
-    void fromMaster(std::vector<T> &t);
-    template<typename T>
-    void fromMaster(T &t);
-    
-    Renderer *renderer = nullptr;
-    CommBackend *comms;
-  };
-
-
-  AppInterface::AppInterface(MPIBackend &mpi,
-                       MPIRenderer *renderer)
-    : mpi(mpi),
-      renderer(renderer)
-  {}
-
-  MPIWorker::MPIWorker(MPIBackend &mpi, MPIRenderer *renderer)
-    : mpi(mpi),
+  AppInterface::AppInterface(CommBackend *comm,
+                             VopatRenderer::SP renderer)
+    : comm(comm),
       renderer(renderer)
   {}
 
@@ -96,7 +54,7 @@ namespace vopat {
     renderer->screenShot();
   }
 
-  void MPIWorker::cmd_screenShot()
+  void AppInterface::cmd_screenShot()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -125,7 +83,7 @@ namespace vopat {
     renderer->resetAccumulation();
   }
 
-  void MPIWorker::cmd_resetAccumulation()
+  void AppInterface::cmd_resetAccumulation()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -150,11 +108,12 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    MPI_Finalize();
+    // MPI_Finalize();
+    comm->finalize();
     exit(0);
   }
     
-  void MPIWorker::cmd_terminate()
+  void AppInterface::cmd_terminate()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -163,7 +122,8 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    MPI_Finalize();
+    // MPI_Finalize();
+    comm->finalize();
     exit(0);
   }
 
@@ -182,10 +142,10 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    renderer->render(fbPointer);
+    renderer->renderFrame(fbPointer);
   }
 
-  void MPIWorker::cmd_renderFrame()
+  void AppInterface::cmd_renderFrame()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -194,7 +154,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->render(0);
+    renderer->renderFrame(0);
 
     // throw std::runtime_error("HARD EXIT FOR DEBUG");
   }
@@ -215,30 +175,30 @@ namespace vopat {
     // ------------------------------------------------------------------
     renderer->resizeFrameBuffer(newSize);
 
-    mpi.barrierAll();
+    comm->barrierAll();
   }
 
-  void MPIWorker::cmd_resizeFrameBuffer()
+  void AppInterface::cmd_resizeFrameBuffer()
   {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
     vec2i newSize;
-    MPI_Bcast((void*)&newSize,sizeof(newSize),MPI_BYTE,0,MPI_COMM_WORLD);
+    fromMaster(newSize);
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
     renderer->resizeFrameBuffer(newSize);
 
-    mpi.barrierAll();
+    comm->barrierAll();
   }
 
   // ==================================================================
 
   void AppInterface::setCamera(const vec3f &from,
-                            const vec3f &at,
-                            const vec3f &up,
-                            const float fovy)
+                               const vec3f &at,
+                               const vec3f &up,
+                               const float fovy)
   {
     // ------------------------------------------------------------------
     // send request....
@@ -255,17 +215,17 @@ namespace vopat {
     renderer->setCamera(from,at,up,fovy);
   }
 
-  void MPIWorker::cmd_setCamera()
+  void AppInterface::cmd_setCamera()
   {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
     vec3f from, at, up;
     float fovy;
-    MPI_Bcast(&from,sizeof(from),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast(&at,sizeof(at),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast(&up,sizeof(up),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast(&fovy,sizeof(fovy),MPI_BYTE,0,MPI_COMM_WORLD);
+    fromMaster(from);
+    fromMaster(at);
+    fromMaster(up);
+    fromMaster(fovy);
 
     // ------------------------------------------------------------------
     // and execute
@@ -293,7 +253,7 @@ namespace vopat {
     renderer->setTransferFunction(cm,range,density);
   }
 
-  void MPIWorker::cmd_setTransferFunction()
+  void AppInterface::cmd_setTransferFunction()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -302,11 +262,9 @@ namespace vopat {
     std::vector<vec4f> cm;
     interval<float> range;
     float density;
-    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
-    cm.resize(count);
-    MPI_Bcast((void*)cm.data(),count*sizeof(*cm.data()),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)&range,sizeof(range),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)&density,sizeof(density),MPI_BYTE,0,MPI_COMM_WORLD);
+    fromMaster(cm);
+    fromMaster(range);
+    fromMaster(density);
 
     // ------------------------------------------------------------------
     // and execute
@@ -317,9 +275,9 @@ namespace vopat {
   // ==================================================================
 
   void AppInterface::setISO(int numActive,
-                         const std::vector<int> &active,
-                         const std::vector<float> &values,
-                         const std::vector<vec3f> &colors)
+                            const std::vector<int> &active,
+                            const std::vector<float> &values,
+                            const std::vector<vec3f> &colors)
   {
     // ------------------------------------------------------------------
     // send request....
@@ -332,10 +290,11 @@ namespace vopat {
     // ------------------------------------------------------------------
     // and do our own....
     // ------------------------------------------------------------------
-    renderer->setISO(numActive,active,values,colors);
+    std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
+    // renderer->setISO(numActive,active,values,colors);
   }
 
-  void MPIWorker::cmd_setISO()
+  void AppInterface::cmd_setISO()
   {
     // ------------------------------------------------------------------
     // get args....
@@ -345,34 +304,28 @@ namespace vopat {
     std::vector<int> active;
     std::vector<float> values;
     std::vector<vec3f> colors;
-    MPI_Bcast((void*)&count,sizeof(count),MPI_BYTE,0,MPI_COMM_WORLD);
-    active.resize(count);
-    values.resize(count);
-    colors.resize(count);
-    MPI_Bcast((void*)&numActive,sizeof(numActive),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)active.data(),count*sizeof(*active.data()),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)values.data(),count*sizeof(*values.data()),MPI_BYTE,0,MPI_COMM_WORLD);
-    MPI_Bcast((void*)colors.data(),count*sizeof(*colors.data()),MPI_BYTE,0,MPI_COMM_WORLD);
+    fromMaster(active);
+    fromMaster(values);
+    fromMaster(colors);
 
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->setISO(numActive,active,values,colors);
+    std::cout << "skipping iso for now; not yet implemented in renderer ... " << std::endl;
+    // renderer->setISO(numActive,active,values,colors);
   }
 
   // ==================================================================
 
   void AppInterface::setLights(float ambient,
-                               const std::vector<vec3f> &dirs,
-                               const std::vector<vec3f> &pows)
+                               const std::vector<DirectionalLight> &dirLights)
   {
     // ------------------------------------------------------------------
     // send request....
     // ------------------------------------------------------------------
     int cmd = SET_LIGHTS;
     sendToWorkers(cmd);
-    sendToWorkers(dirs);
-    sendToWorkers(pows);
+    sendToWorkers(dirLights);
     
     // ------------------------------------------------------------------
     // and do our own....
@@ -380,30 +333,29 @@ namespace vopat {
     renderer->setLights(ambient,dirLights);
   }
 
-  void MPIWorker::cmd_setLights()
+  void AppInterface::cmd_setLights()
   {
     // ------------------------------------------------------------------
     // get args....
     // ------------------------------------------------------------------
     float ambient;
     fromMaster(ambient);
-    std::vector<vec3f> dirs,pows;
-    fromMaster(dirs);
-    fromMaster(pows);
+    std::vector<DirectionalLight> dirLights;
+    fromMaster(dirLights);
     
     // ------------------------------------------------------------------
     // and execute
     // ------------------------------------------------------------------
-    renderer->setLights(ambient,dirs,pows);
+    renderer->setLights(ambient,dirLights);
   }
 
   // ==================================================================
 
-  void MPIWorker::run()
+  void AppInterface::runWorker()
   {
     while (1) {
       int cmd;
-      MPI_Bcast(&cmd,1,MPI_INT,0,MPI_COMM_WORLD);
+      fromMaster(cmd);
       switch(cmd) {
       case SET_CAMERA:
         cmd_setCamera();

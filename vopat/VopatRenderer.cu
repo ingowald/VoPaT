@@ -217,5 +217,19 @@ namespace vopat {
     nextDomainKernel.create(this);
     PING; CUDA_SYNC_CHECK();
   }
-  
+
+
+  void VopatRenderer::resizeFrameBuffer(const vec2i &newSize)
+  {
+    addLocalFBsLayer.resize(newSize);
+
+    if (isMaster()) {
+      islandFbSize = -1;
+    } else {
+      islandFbSize = addLocalFBsLayer.islandFbSize;
+      int maxRaysPerPixel = 1+2*VOPAT_MAX_BOUNCES;
+      forwardingLayer.resizeQueues(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
+    }
+  }
+
 } // ::vopat

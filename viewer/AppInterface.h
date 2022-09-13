@@ -16,16 +16,22 @@
 
 #pragma once
 
-#include "common/mpi/MPIBackend.h"
+#include "common/mpi/Comms.h"
+#include "vopat/VopatRenderer.h"
 
 namespace vopat {
 
   struct AppInterface {
     
-    static void runWorker(int ac, char **av);
-    
-    AppInterface(int ac, char **av);
+    AppInterface(CommBackend *comm,
+                 VopatRenderer::SP renderer);
 
+    /*! the 'main loop' that receives and executes cmmands sent by the master */
+    void runWorker();
+
+    // ------------------------------------------------------------------
+    // interface of how app talks to this rank-parallel renderer
+    // ------------------------------------------------------------------
     void screenShot();
     void resetAccumulation();
     void terminate();
@@ -44,17 +50,37 @@ namespace vopat {
                 const std::vector<vec3f> &colors);
 
     void setLights(float ambient,
-                   const std::vector<vec3f> &dirs,
-                   const std::vector<vec3f> &pows);
+                   const std::vector<DirectionalLight> &dirLights);
     
   private:
     template<typename T>
-    void toWorkers(const std::vector<T> &t);
+    void sendToWorkers(const std::vector<T> &t);
     
     template<typename T>
-    void toWorkers(const T &t);
+    void sendToWorkers(const T &t);
     
-    MPIBackend mpi;
+    /*! @{ command handlers - each corresponds to exactly one command
+        sent my the master */
+    void cmd_terminate();
+    void cmd_renderFrame();
+    void cmd_resizeFrameBuffer();
+    void cmd_resetAccumulation();
+    void cmd_setCamera();
+    void cmd_setTransferFunction();
+    void cmd_setISO();
+    void cmd_setShadeMode();
+    void cmd_setNodeSelection();
+    void cmd_screenShot();
+    void cmd_setLights();
+    /* @} */
+
+    template<typename T>
+    void fromMaster(std::vector<T> &t);
+    template<typename T>
+    void fromMaster(T &t);
+    
+    CommBackend *comm;
+    VopatRenderer::SP renderer;
   };
 
 }

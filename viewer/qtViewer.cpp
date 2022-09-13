@@ -20,9 +20,9 @@
 #ifndef HEADLESS
 #include "viewer/isoDialog.h"
 #endif
-#include "common/mpi/MPIMaster.h"
-#include "common/mpi/MPIWorker.h"
-#include "vopat/Renderer.h"
+// #include "common/mpi/MPIMaster.h"
+// #include "common/mpi/MPIWorker.h"
+#include "viewer/AppInterface.h"
 #include "model/Config.h"
 #include <math.h>
 #include <cuda_runtime_api.h>
@@ -30,6 +30,8 @@
 
 #include "submodules/cuteeOWL/qtOWL/OWLViewer.h"
 #include "submodules/cuteeOWL/qtOWL/XFEditor.h"
+#include "common/mpi/MPIBackend.h"
+
 //#include "samples/common/owlViewer/OWLViewer.h"
 
 namespace vopat {
@@ -37,12 +39,6 @@ namespace vopat {
   std::string rendererName = "wc";
     
   using qtOWL::range1f;
-  
-  Renderer *createTrivialNodeRenderer(CommBackend *comm, Model::SP model);
-  Renderer *createSimpleNodeRenderer(CommBackend *comm,
-                                     Model::SP model,
-                                     const std::string &fileNameBase,
-                                     int rank);
   
   struct {
     int spp = 1; //4;
@@ -69,9 +65,9 @@ namespace vopat {
     typedef qtOWL::OWLViewer inherited;
 #endif
 
-    MPIMaster &master;
+    AppInterface &master;
     Model::SP model;
-    VoPaTViewer(MPIMaster &master,
+    VoPaTViewer(AppInterface &master,
                 Model::SP model,
                 ModelConfig::SP _modelConfig,
                 qtOWL::XFEditor *xfEditor)
@@ -363,7 +359,7 @@ namespace vopat {
           cmdline.windowSize.y = std::atoi(argv[++i]);
         }
         else if (arg == "-o") {
-          Renderer::screenShotFileName = argv[++i];
+          AddLocalFBsLayer::screenShotFileName = argv[++i];
         }
         else if (arg == "-spp") {
           cmdline.spp = std::stoi(argv[++i]);
@@ -381,7 +377,7 @@ namespace vopat {
       // load model, and check that it meets our mpi config
       // ******************************************************************
       Model::SP model = Model::load(Model::canonicalMasterFileName(inFileBase));
-      if (model->bricks.size() != mpiBackend.numRanksPerIsland)//workersSize)
+      if (model->numBricks != mpiBackend.numRanksPerIsland)//workersSize)
         throw std::runtime_error("incompatible number of bricks and workers");
 
       // ******************************************************************
@@ -389,30 +385,28 @@ namespace vopat {
       // ******************************************************************
       const bool isMaster = mpiBackend.isMaster;
       int myRank = mpiBackend.islandRank();
-#if VOPAT_UMESH
-      if (isMaster) {
-        std::cout << "got the following brick domains: " << std::endl;
-        for (auto brick : model->bricks)
-          std:: cout << "  - " << brick->domain << std::endl;
-      }
-#endif
-      if (!isMaster)
-        CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
-      PING; PRINT((int)isMaster);
-      CUDA_SYNC_CHECK();
-      Renderer *renderer
-        = createRenderer(rendererName,
-                         &mpiBackend,model,
-                         inFileBase,myRank,cmdline.spp);
-      CUDA_SYNC_CHECK();
-      PING;
+// #if VOPAT_UMESH
+//       if (isMaster) {
+//         std::cout << "got the following brick domains: " << std::endl;
+//         for (auto brick : model->bricks)
+//           std:: cout << "  - " << brick->domain << std::endl;
+//       }
+// #endif
+
+      Volume::SP volume = Volume::createFrom(model);
+        
+      VopatRenderer::SP renderer
+        = VopatRenderer::create(&mpiBackend,volume);
+
+      
+      AppInterface appInterface(&mpiBackend,renderer);
       if (!isMaster) {
-        /* this is a worker - run the worker mpi backend, which will
-           not return */
-        MPIWorker worker(mpiBackend,renderer);
-        worker.run();
+        CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
+        appInterface.runWorker();
         exit(0);
       }
+      PING; PRINT((int)isMaster);
+      CUDA_SYNC_CHECK();
 
       // ******************************************************************
       // initialize all not-yet-set values in our model config from model
@@ -433,7 +427,6 @@ namespace vopat {
       }
 
       QApplication app(argc,argv);
-      MPIMaster master(mpiBackend,renderer);
       
 #ifndef HEADLESS
       // ******************************************************************
@@ -445,7 +438,7 @@ namespace vopat {
       // -------------------------------------------------------
       // set up the main viewer class
       // -------------------------------------------------------
-      VoPaTViewer viewer(master,model,modelConfig,xfEditor);
+      VoPaTViewer viewer(appInterface,model,modelConfig,xfEditor);
       viewer.enableFlyMode();
       viewer.enableInspectMode();
       viewer.setCameraOrientation(modelConfig->camera.from,
@@ -512,7 +505,7 @@ namespace vopat {
       return app.exec();
 #else
       // Headless viewer
-      VoPaTViewer viewer(master,model,modelConfig,NULL);
+      VoPaTViewer viewer(appInterface,model,modelConfig,NULL);
       viewer.setCameraOrientation(modelConfig->camera.from,
                                   modelConfig->camera.at,
                                   modelConfig->camera.up,
@@ -525,14 +518,14 @@ namespace vopat {
 
       // Emulate what slots do initially, when xfeditor is initialized..
       {
-        master.setTransferFunction(modelConfig->xf.colorMap,
+        appInterface.setTransferFunction(modelConfig->xf.colorMap,
                                    modelConfig->xf.getRange(),
                                    modelConfig->xf.getDensity());
 
         int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
                                            modelConfig->iso.active.end(),
                                            [](int i) { return i!=0; });
-        master.setISO(numActive,
+        appInterface.setISO(numActive,
                       modelConfig->iso.active,
                       modelConfig->iso.values,
                       modelConfig->iso.colors);

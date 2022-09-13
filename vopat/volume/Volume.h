@@ -19,6 +19,7 @@
 #include "common/vopat.h"
 #include <owl/owl.h>
 #include "model/Brick.h"
+#include "model/Model.h"
 
 namespace vopat {
 
@@ -26,6 +27,8 @@ namespace vopat {
     typedef std::shared_ptr<Volume> SP;
 
     Volume(Brick::SP brick) : brick(brick) {}
+
+    static Volume::SP createFrom(Model::SP model);
     
     struct DD {
       cudaTextureObject_t xfTexture;
@@ -42,4 +45,5 @@ namespace vopat {
     Brick::SP brick;
   };
   
-}
+} // ::vopat
+

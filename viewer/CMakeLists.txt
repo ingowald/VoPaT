@@ -33,6 +33,8 @@ find_package(Qt5Widgets)
 qt5_wrap_cpp(WRAPPED_HEADERS isoDialog.h)
 qt5_wrap_ui(WRAPPED_UI isoDialog.ui)
 add_executable(vopatQTViewer
+  AppInterface.cpp
+  AppInterface.h
   qtViewer.cpp
   isoDialog.cpp
   ${WRAPPED_UI}
@@ -53,6 +55,8 @@ set_property(TARGET vopatQTViewer PROPERTY POSITION_INDEPENDENT_CODE ON)
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
 add_executable(vopatHeadlessViewer
   qtViewer.cpp
+  AppInterface.cpp
+  AppInterface.h
   headless.cpp
   )
 target_link_libraries(vopatHeadlessViewer

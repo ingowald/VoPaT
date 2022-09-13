@@ -20,20 +20,39 @@
 #include "volume/Volume.h"
 #include "model/Model.h"
 
+#ifndef VOPAT_MAX_BOUNCES
+/*! bounces==0 means primary rays only, no shadow ray; bouncs==1 means
+  primray ray, one shadow ray, and one bounce ray, etc */
+
+# define VOPAT_MAX_BOUNCES 1
+#endif
+
 namespace vopat {
 
   typedef ForwardingLayer::DD ForwardGlobals;
   
   struct VopatRenderer
   {
+    typedef std::shared_ptr<VopatRenderer> SP;
+
+    static SP create(CommBackend *comm,
+                     Volume::SP volume)
+    { return std::make_shared<VopatRenderer>(comm,volume); }
+    
     VopatRenderer(CommBackend *comm,
                   Volume::SP volume//,
                   // Model::SP model,
                   // const std::string &baseFileName
                   );
+
+    bool isMaster() const { return comm->isMaster; }
     
     void generatePrimaryWave();
     void traceLocally();
+    void resizeFrameBuffer(const vec2i &newSize);
+    
+    void screenShot() { addLocalFBsLayer.screenShot(); }
+    void resetAccumulation() { addLocalFBsLayer.resetAccumulation(); }
     // void generatePrimaryWave(const ForwardGlobals &forward);
     // void traceLocally(const ForwardGlobals &forward, bool fishy);
     
@@ -64,8 +83,17 @@ namespace vopat {
       PING;
     }
 
+    void setCamera(const vec3f &from,
+                   const vec3f &at,
+                   const vec3f &up,
+                   const float fovy);
     void createNextDomainKernel();
-
+    /*! render frame to given frame buffer pointer. fbPointer will be
+        null on the workers, and on the master has to be preallocated
+        to hold all pixels that this renderer has last been resized
+        to */
+    void renderFrame(uint32_t *fbPointer);
+    
     CommBackend *comm;
     Volume::SP volume;
     // SurfaceIntersector surface;
@@ -82,6 +110,7 @@ namespace vopat {
     
     ForwardingLayer  forwardingLayer;
     AddLocalFBsLayer addLocalFBsLayer;
+    vec2i islandFbSize;
   };
 
   

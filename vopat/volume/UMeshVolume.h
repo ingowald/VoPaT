@@ -22,6 +22,10 @@
 namespace vopat {
   
   struct UMeshVolume : public Volume {
+    typedef std::shared_ptr<UMeshVolume> SP;
+
+    static SP create(UMeshModel::SP model);
+    
     UMeshVolume(UMeshBrick::SP brick);
     
     struct SamplePRD {
@@ -51,6 +55,7 @@ namespace vopat {
 
   // ------------------------------------------------------------------
   
+#ifdef __CUDA_ARCH__
   inline __device__
   bool UMeshVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
@@ -79,7 +84,8 @@ namespace vopat {
     g = vec3f(right-left,top-bottom,front-back);
     return valid;
   }
-
+#endif
+  
 }
 
 

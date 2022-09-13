@@ -150,7 +150,8 @@ namespace vopat {
   //   atomicAdd(&tgt->y,addtl.y);
   //   atomicAdd(&tgt->z,addtl.z);
   // }
-
+  
+#ifdef __CUDA_ARCH__
   inline __device__
   void AddLocalFBsLayer::DD::addPixelContribution(vec2i pixelID, vec3f fragment) const
   {
@@ -171,7 +172,7 @@ namespace vopat {
     atomicAdd(&tgt->y,fragment.y);
     atomicAdd(&tgt->z,fragment.z);
   }
-
+#endif
 
   
 }

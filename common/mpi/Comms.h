@@ -89,6 +89,8 @@ namespace vopat {
     { return worker.numIslands; }
     int islandIndex() const
     { return worker.islandIdx; }
+
+    virtual void finalize() = 0;
     
     int worldRank = -1;
     int worldSize = -1;

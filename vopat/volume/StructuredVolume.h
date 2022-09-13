@@ -22,6 +22,10 @@
 namespace vopat {
   
   struct StructuredVolume : public Volume {
+    typedef std::shared_ptr<StructuredVolume> SP;
+
+    static SP create(StructuredModel::SP model);
+    
     StructuredVolume(StructuredBrick::SP brick);
 
     struct DD {
@@ -39,6 +43,8 @@ namespace vopat {
     DD globals;
   };
 
+
+#ifdef __CUDA_ARCH__
   inline __device__
   bool StructuredVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
@@ -60,6 +66,7 @@ namespace vopat {
     g = vec3f(right-left,top-bottom,front-back);
     return true;
   }
+#endif
   
 }
 

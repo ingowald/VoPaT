@@ -14,11 +14,20 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "Renderer.h"
+#include "vopat/volume/StructuredVolume.h"
+#include "vopat/volume/UMeshVolume.h"
 
 namespace vopat {
-
-  XXX
   
-}
+  Volume::SP Volume::createFrom(Model::SP model)
+  {
+    if (StructuredModel::SP sm = model->as<StructuredModel>())
+      return StructuredVolume::create(sm);
+    else if (UMeshModel::SP sm = model->as<UMeshModel>())
+      return UMeshVolume::create(sm);
+    else
+      throw std::runtime_error("un-recognized model type !?");
+  }
+
+} // ::vopat
 

@@ -20,7 +20,9 @@
 
 namespace vopat {
 
-  struct VopatMPIRenderer : public MPIRenderer
+XXX
+
+struct VopatMPIRenderer : public MPIRenderer
   {
     static std::string screenShotFileName;
 

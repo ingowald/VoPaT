@@ -17,6 +17,7 @@
 add_library(vopat_render
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
+  volume/Volume.cpp
   
 #  Renderer.cpp
 #  ModelConfig.cpp

@@ -69,7 +69,7 @@ namespace vopat {
                int numRanksPerIsland=-1);
     
     void barrierAll() override;
-    void finalize();
+    void finalize() override;
 
     std::string hostName;
     

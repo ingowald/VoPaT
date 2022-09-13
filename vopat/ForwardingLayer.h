@@ -21,10 +21,6 @@
 #include "vopat/Ray.h"
 #include <sstream>
 
-#ifndef VOPAT_MAX_BOUNCES
-# define VOPAT_MAX_BOUNCES 1
-#endif
-
 namespace vopat {
 
   struct ForwardingLayer {
@@ -110,7 +106,7 @@ namespace vopat {
   };
   
 
-
+#ifdef __CUDA_ARCH__
   inline __device__
   void ForwardingLayer::DD::forwardRay
   (const Ray &ray, int nextRankForThisRay)
@@ -121,5 +117,6 @@ namespace vopat {
     rayQueueOut[outID] = ray;
     rayNextRank[outID] = nextRankForThisRay;
   }
-
+#endif
+  
 }
