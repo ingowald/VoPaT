@@ -30,21 +30,17 @@ namespace vopat {
       forwardingLayer(comm),
       addLocalFBsLayer(comm)
   {
-    // PING;
     CUDA_SYNC_CHECK();
     printf("#vopat(%i.%i): initializing OWL\n",
            comm->islandIndex(),comm->islandRank());
     
-    // PING;
     if (comm->islandRank() >= 0) {
       owl = owlContextCreate(&comm->worker.gpuID,1);
       owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
 
-      // PING;
       createNextDomainKernel();
       
       CUDA_SYNC_CHECK();
-      // PING;
       traceLocallyRG = owlRayGenCreate(owl,owlDevCode,"traceLocallyRG",0,0,0);
       generatePrimaryWaveRG = owlRayGenCreate(owl,owlDevCode,"generatePrimaryWaveRG",0,0,0);
       
@@ -65,7 +61,6 @@ namespace vopat {
       volume->build(owl,owlDevCode);
       volume->setDD(lp);
 
-      PING;
       nextDomainKernel.setLPVars(lp);
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
@@ -74,7 +69,6 @@ namespace vopat {
       CUDA_SYNC_CHECK();
       owlBuildSBT(owl);
       CUDA_SYNC_CHECK();
-      PING;
     }
                            
     // volume = std::make_shared<Volume>(model,baseFileName,islandRank,gpuID);
@@ -251,27 +245,8 @@ namespace vopat {
 
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
-    printf("(%i.%i) renderframe stage %i\n",
-           comm->islandIndex(),
-           comm->islandRank(),
-           0);
-    CUDA_SYNC_CHECK();
-    // resetAccumulation();
-    printf("(%i.%i) renderframe stage %i\n",
-           comm->islandIndex(),
-           comm->islandRank(),
-           1);
-    CUDA_SYNC_CHECK();
+    resetAccumulation();
     addLocalFBsLayer.addLocalFBs(fbPointer);
-    printf("(%i.%i) renderframe stage %i\n",
-           comm->islandIndex(),
-           comm->islandRank(),
-           2);
-    CUDA_SYNC_CHECK();
-    printf("(%i.%i) renderframe stage %i\n",
-           comm->islandIndex(),
-           comm->islandRank(),
-           3);
   }
 
 } // ::vopat

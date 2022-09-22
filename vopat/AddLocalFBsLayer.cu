@@ -91,9 +91,6 @@ namespace vopat {
   
   void AddLocalFBsLayer::resize(const vec2i &newSize)
   {
-    PING; PRINT(newSize);
-    
-    // Renderer::resizeFrameBuffer(newSize);
     this->fullFbSize = newSize;
     
     if (comm->isMaster) {
@@ -124,12 +121,6 @@ namespace vopat {
          + (islandIdx < (fullFbSize.y % numIslands));
 
       // // ... and resize the local accum buffer
-      // // if (localAccumBuffer)
-      // //   CUDA_CALL(FreeMPI(localAccumBuffer));
-      // // CUDA_CALL(MallocMPI(&localAccumBuffer,1+area(islandFbSize)*sizeof(*localAccumBuffer)));
-      // // CUDA_CALL(Memset(localAccumBuffer,0,area(islandFbSize)*sizeof(*localAccumBuffer)));
-      // PING; PRINT(islandFbSize);
-      // localFB.resize(islandFbSize.x*islandFbSize.y);
       localAccumBuffer.resize(islandFbSize.x*islandFbSize.y);
       compSendMemory.resize(islandFbSize.x*islandFbSize.y);
       
@@ -147,20 +138,12 @@ namespace vopat {
       // ------------------------------------------------------------------
       const int ourCompLineCount = ourCompLineEnd-ourCompLineBegin;
       compResultMemory.resize(ourCompLineCount*islandFbSize.x);
-      // if (compResultMemory)
-      //   CUDA_CALL(FreeMPI(compResultMemory));
-      // CUDA_CALL(MallocMPI(&compResultMemory,
-      //                     1+ourCompLineCount*islandFbSize.x*sizeof(uint32_t)));
     
       // ------------------------------------------------------------------
       // how many lines we'll *receive* for compositing, and mem for it
       // ------------------------------------------------------------------
       const int numCompInputs = ourCompLineCount * islandSize;
       compInputsMemory.resize(numCompInputs*islandFbSize.x);
-      // if (compInputsMemory)
-      //   CUDA_CALL(FreeMPI(compInputsMemory));
-      // CUDA_CALL(MallocMPI(&compInputsMemory,
-      //                     1+numCompInputs*islandFbSize.x*sizeof(*compInputsMemory)));
     }
   }
   
@@ -202,31 +185,22 @@ namespace vopat {
       assert(fullFbSize.x > 0);
       assert(fullFbSize.y > 0);
       CUDA_SYNC_CHECK();
-      printf("(-1,-1) addFBs gather %lx (%i %i)\n",
-             (size_t)masterFB.get(),fullFbSize.x,fullFbSize.y);
 
       comm->master.toWorkers->indexedGather
         (masterFB.get(),
          fullFbSize.x*sizeof(uint32_t),
          fullFbSize.y);
       CUDA_SYNC_CHECK();
-      printf("(-1,-1) addFBs done gather\n");
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fullFbSize.x*fullFbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
       CUDA_SYNC_CHECK();
-      printf("(-1,-1) addFBs DONE\n");
     } else {
-      PING; PRINT(comm);
       
       const int numIslands = comm->worker.numIslands;
       const int islandIdx  = comm->worker.islandIdx;
       const int islandRank = comm->worker.withinIsland->rank;
       const int islandSize = comm->worker.withinIsland->size;
 
-      PRINT(islandRank);
-      PRINT(islandSize);
-      fflush(0);
-      
       const int ourLineBegin
         = (islandFbSize.y * (islandRank+0)) / islandSize;
       const int ourLineEnd
@@ -239,21 +213,13 @@ namespace vopat {
       // ------------------------------------------------------------------
       vec2i blockSize(16);
       vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
-      PRINT(numBlocks);
-      PRINT(blockSize);
-      PRINT(compSendMemory.get());
-      PRINT(localAccumBuffer.get());
-      PRINT(islandFbSize);
       encodeAccumBufferForSending<<<numBlocks,blockSize>>>
         (islandFbSize,
          compSendMemory.get(),
          localAccumBuffer.get(),
          numAccumulatedFrames);
-
       CUDA_SYNC_CHECK();
 
-      PING;
-      
       // ------------------------------------------------------------------
       // step 1: exchage accum buffer regions w/ island peers
       // ------------------------------------------------------------------
@@ -278,22 +244,19 @@ namespace vopat {
         sendOffsets[i] = hisLineBegin*sizeOfLine;
       }
 
-      PING; PRINT(islandSize);
-      
-      for (int i=0;i<islandSize;i++) {
-        printf("(%i.%i) send[%i] = ofs %i cnt %i - sz %li; recv[%i] = ofs %i cnt %i - sz %li\n",
-               comm->islandIndex(),
-               comm->islandRank(),
-               i,
-               sendOffsets[i],
-               sendCounts[i],
-               compSendMemory.numBytes(),
-               i,
-               recvOffsets[i],
-               recvCounts[i],
-               compInputsMemory.numBytes());
-      }
-      PING;
+      // for (int i=0;i<islandSize;i++) {
+      //   printf("(%i.%i) send[%i] = ofs %i cnt %i - sz %li; recv[%i] = ofs %i cnt %i - sz %li\n",
+      //          comm->islandIndex(),
+      //          comm->islandRank(),
+      //          i,
+      //          sendOffsets[i],
+      //          sendCounts[i],
+      //          compSendMemory.numBytes(),
+      //          i,
+      //          recvOffsets[i],
+      //          recvCounts[i],
+      //          compInputsMemory.numBytes());
+      // }
       comm->worker.withinIsland->allToAll
         (compSendMemory.get(), //const void *sendBuf,
          sendCounts.data(),//const int *sendCounts,
@@ -302,7 +265,6 @@ namespace vopat {
          recvCounts.data(),//const int *recvCounts,
          recvOffsets.data()//const int *recvOffsets) 
          );
-      PING;
       // ------------------------------------------------------------------
       // step 2: compose locally (optix backend uses cuda)
       // ------------------------------------------------------------------
