@@ -246,6 +246,7 @@ namespace vopat {
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
     resetAccumulation();
+    generatePrimaryWave();
     addLocalFBsLayer.addLocalFBs(fbPointer);
   }
 

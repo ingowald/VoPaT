@@ -161,24 +161,6 @@ namespace vopat {
   }
 
   inline __device__
-  Ray generateRay(const ForwardGlobals &globals,
-                  vec2i pixelID,
-                  vec2f pixelPos)
-  {
-    Ray ray;
-    ray.pixelID  = pixelID.x + globals.worldFbSize.x*pixelID.y;
-    ray.isShadow = false;
-    ray.origin = globals.camera.lens_00;
-    vec3f dir
-      = globals.camera.dir_00
-      + globals.camera.dir_du * (pixelID.x+pixelPos.x)
-      + globals.camera.dir_dv * (pixelID.y+pixelPos.y);
-    ray.setDirection(dir);
-    ray.throughput = to_half(vec3f(1.f));
-    return ray;
-  }
-
-  inline __device__
   vec3f backgroundColor(const Ray &ray,
                         const ForwardGlobals &globals)
   {
@@ -333,14 +315,38 @@ namespace vopat {
     //                    lp.surfaceGlobals);
   }
 
+  inline __device__
+  Ray generateRay(vec2i pixelID,
+                  vec2f pixelPos)
+  {
+    auto &lp = LaunchParams::get();
+    Ray ray;
+    ray.pixelID  = pixelID.x + lp.fbLayer.fullFbSize.x*pixelID.y;
+    ray.isShadow = false;
+    ray.origin = globals.camera.lens_00;
+    vec3f dir
+      = globals.camera.dir_00
+      + globals.camera.dir_du * (pixelID.x+pixelPos.x)
+      + globals.camera.dir_dv * (pixelID.y+pixelPos.y);
+    ray.setDirection(dir);
+    ray.throughput = to_half(vec3f(1.f));
+    return ray;
+  }
+
   OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
   {
     auto &lp = LaunchParams::get();
-    const vec2i launchIdx = owl::getLaunchIndex();
+    const vec2i pixelID = owl::getLaunchIndex();
+
+    vec2f pixelPos = .5f;
+    Ray ray = generateRay(pixelID,pixelPos);
+
+    adfdsaf;
+    lp.fbLayer.addPixelContribution(pixelID,abs(ray.direction));
     // generatePrimaryWaveKernel
     //   (launchIdx,
     //    lp.forwardGlobals,
     //    lp.volumeGlobals);
   }
-
+  
 }

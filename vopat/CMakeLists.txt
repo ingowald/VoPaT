@@ -14,7 +14,20 @@
 # limitations under the License.                                           #
 # ======================================================================== #
 
-add_library(vopat_render
+embed_ptx(
+  OUTPUT_TARGET
+  deviceCode-ptx
+  
+  PTX_LINK_LIBRARIES
+  owl::owl
+  umesh
+  
+  SOURCES
+  deviceCode.cu
+)
+
+
+add_library(vopat_render SHARED
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
   volume/Volume.cpp
@@ -44,19 +57,6 @@ add_library(vopat_render
 #  CellMarchRenderer.cu
   )
 
-embed_ptx(
-  OUTPUT_TARGET
-  deviceCode-ptx
-  
-  PTX_LINK_LIBRARIES
-  owl::owl
-  umesh
-  
-  SOURCES
-  deviceCode.cu
-)
-
-
 
 target_include_directories(deviceCode-ptx PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(deviceCode-ptx_ptx PUBLIC ${PROJECT_SOURCE_DIR})
@@ -66,15 +66,15 @@ target_link_libraries(vopat_render
   vopat_common
   vopat_model
   owl_viewer
-  deviceCode-ptx
+  deviceCode-ptx_ptx
   )
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "80")
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
 
-target_compile_options(vopat_render PUBLIC
-                        $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_75,code=sm_75>
+#target_compile_options(vopat_render PUBLIC
+#                        $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_75,code=sm_75>
 #                        $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_80,code=sm_80>
-                        )
+#                        )
 
 if(VOPAT_VOXELS_AS_TEXTURE)
   target_compile_definitions(vopat_render PUBLIC VOPAT_VOXELS_AS_TEXTURE=1)

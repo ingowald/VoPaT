@@ -47,7 +47,8 @@ namespace vopat {
   
   struct LaunchParams {
     static inline __device__ const LaunchParams &get();
-    
+
+    AddLocalFBsLayer::DD     fbLayer;
     ForwardGlobals           forwardGlobals;
     // VolumeGlobals            volumeGlobals;
     // SurfaceGlobals           surfaceGlobals;
