@@ -123,29 +123,6 @@ namespace vopat {
     return result;
   }
 
-  // StructuredBrick::StructuredBrick(int ID,
-  //                                  const std::string &constDataFileName)
-  //   : Brick(ID)
-  // {
-  //   std::ifstream in(constDataFileName,std::ios::binary);
-    
-  //   read(in,cellRange);
-  //   read(in,voxelRange);
-  //   read(in,spaceRange);
-  //   read(in,numVoxels);
-  //   read(in,numCells);
-  //   read(in,numVoxelsParent);
-  //   read(in,scalars);
-  //   // this->cellRange = desiredCellRange;
-  //   // this->voxelRange = {desiredCellRange.lower,desiredCellRange.upper+vec3i(1)};
-  //   // this->spaceRange.lower = vec3f(this->voxelRange.lower);
-  //   // this->spaceRange.upper = vec3f(this->voxelRange.upper-1);
-    
-  //   // this->numVoxels = this->voxelRange.size();
-  //   // this->numCells  = this->voxelRange.size() - vec3i(1);
-  //   // this->numVoxelsParent = numVoxelsTotal;
-  // }
-
   void StructuredBrick::writeUnvaryingData(const std::string &fileName) const
   {
     std::ofstream out(fileName,std::ios::binary);
