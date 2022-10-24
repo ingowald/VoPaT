@@ -145,40 +145,12 @@ namespace vopat {
       const int numCompInputs = ourCompLineCount * islandSize;
       compInputsMemory.resize(numCompInputs*islandFbSize.x);
       
-      this->dd.fbSize = fullFbSize;
+      this->dd.fullFbSize = fullFbSize;
       this->dd.islandScale = numIslands;
       this->dd.islandBias  = islandIdx;
       this->dd.accumBuffer = localAccumBuffer.get();//(vec3f*)owlBufferGetPointer(localAccumBuffer,0);
     }
   }
-  
-//   void AddLocalFBsLayer::render(uint32_t *fbPointer)
-//   {
-//     static Prof renderFrame("renderFrame",comm->myRank());
-//     static Prof inheritedRender("inheritedRender",comm->myRank());
-
-// // #if 1
-// //     // if (comm->worker.withinIsland)
-// //     {
-// //       // comm->worker.withinIsland->barrier();
-// //       comm->barrierAll();
-// //       if (comm->myRank() == 0) {
-// //         printf("======================\n");
-// //         printf("NEW FRAME!\n");
-// //         printf("======================\n");
-// //         fflush(0);
-// //       }
-// //       comm->barrierAll();
-// //       // comm->worker.withinIsland->barrier();
-// //     }
-// // #endif
-    
-//     renderFrame.enter();
-
-//     inheritedRender.enter();
-//     renderLocal();//Renderer::render(fbPointer);
-//     inheritedRender.leave();
-
   
   void AddLocalFBsLayer::addLocalFBs(uint32_t *fbPointer)
   {
@@ -339,8 +311,6 @@ namespace vopat {
     std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
 
   }
-
-  
 
 }
 

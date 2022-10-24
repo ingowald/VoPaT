@@ -31,10 +31,10 @@ namespace vopat {
     
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
-    std::stringstream ss;
-    for (int i=0;i<myShards.size();i++) {
-      ss << " rank " << vopat->myRank() << " intl shard " << i << ": " << myShards[i].domain << std::endl;
-    }
+    // std::stringstream ss;
+    // for (int i=0;i<myShards.size();i++) {
+    //   ss << " rank " << vopat->myRank() << " intl shard " << i << ": " << myShards[i].domain << std::endl;
+    // }
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
@@ -54,16 +54,13 @@ namespace vopat {
     int allNumShards = 0;
     for (auto sor : shardsOnRank) allNumShards += sor;
     std::vector<Shard> allShards(allNumShards);
-    for (int i=0;i<shardsOnRank.size();i++)
-      ss << "  shards from rank " << i << " : " << shardsOnRank[i] << std::endl;
-    ss << "Sum all shards: " << allNumShards << std::endl;
+    // for (int i=0;i<shardsOnRank.size();i++)
+    //   ss << "  shards from rank " << i << " : " << shardsOnRank[i] << std::endl;
+    // ss << "Sum all shards: " << allNumShards << std::endl;
     // ------------------------------------------------------------------
     // *exchange all* shards across all ranks
     // ------------------------------------------------------------------
     island->allGather(allShards,myShards);
-    // PING;
-    // for (auto shard: allShards)
-    //   PRINT(shard.domain);
 
     // ------------------------------------------------------------------
     // compute proxies and value ranges
@@ -89,7 +86,7 @@ namespace vopat {
     //   PRINT(proxy.domain);
     //   PRINT(proxy.majorant);
     // }
-    std::cout << ss.str();
+    // std::cout << ss.str();
     
     proxiesBuffer = owlDeviceBufferCreate
       (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());
@@ -117,7 +114,6 @@ namespace vopat {
 
     geom = owlGeomCreate(owl,gt);
     owlGeomSetPrimCount(geom,numProxies);
-    PRINT(numProxies);
     owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
 
     CUDA_SYNC_CHECK();
@@ -146,7 +142,6 @@ namespace vopat {
   {
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
-    PING; PRINT(lp); PRINT(tlas);
     owlParamsSet1i(lp,"myRank",myRank);
   }
 
@@ -195,8 +190,6 @@ namespace vopat {
                                int xfSize,
                                range1f xfDomain)
   {
-    PING; PRINT(numProxies);
-    
     int bs = 128;
     int nb = divRoundUp(numProxies,bs);
     updateProxies<<<nb,bs>>>(xfValues,xfSize,xfDomain,

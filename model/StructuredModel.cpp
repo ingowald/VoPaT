@@ -142,7 +142,6 @@ namespace vopat {
 
   void StructuredBrick::loadUnvaryingData(const std::string &fileName)
   {
-    PING; PRINT(fileName);
     std::ifstream in(fileName,std::ios::binary);
     read(in,cellRange);
     read(in,voxelRange);

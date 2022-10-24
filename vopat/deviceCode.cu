@@ -134,6 +134,17 @@ namespace vopat {
       + fD * geom.scalars[tet.w];
   }
 
+  inline __device__
+  vec3f backgroundColor(const Ray &ray)
+  {
+    auto &lp = LaunchParams::get();
+    int iy = lp.fbLayer.indexToGlobal(ray.pixelID).y;
+    float t = iy / float(lp.fbLayer.fullFbSize.y);
+    const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+    return c;
+  }
+  
+
 
   // ##################################################################
   // UNSORTED
@@ -172,17 +183,6 @@ namespace vopat {
       printf("closest rank %i\n",prd.closestRank);
     return prd.closestRank;
   }
-
-  inline __device__
-  vec3f backgroundColor(const Ray &ray,
-                        const ForwardGlobals &globals)
-  {
-    int iy = ray.pixelID / globals.worldFbSize.x;
-    float t = iy / float(globals.worldFbSize.y);
-    const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
-    return c;
-  }
-  
 
   inline __device__
   void generatePrimaryWaveKernel(const vec2i launchIdx,
@@ -369,30 +369,32 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
     const vec2i pixelID = lp.fbLayer.localToGlobal(owl::getLaunchIndex());//owl::getLaunchIndex();
-    if (pixelID.x >= lp.fbLayer.fbSize.x ||
-        pixelID.y >= lp.fbLayer.fbSize.y)
+    if (pixelID.x >= lp.fbLayer.fullFbSize.x ||
+        pixelID.y >= lp.fbLayer.fullFbSize.y)
       return;
         
     vec2f pixelSample = .5f;
 
     Ray path = generateRay(pixelID,pixelSample);
-    auto &fbSize = lp.fbLayer.fbSize;
-    path.dbg = (pixelID == fbSize/2);
+    auto &fullFbSize = lp.fbLayer.fullFbSize;
+    path.dbg = (pixelID == fullFbSize/2);
 
     int pixelOwner = lp.nextDomainKernel.computeNextRank(path,false);
+#define VISUALIZE_PROXIES 0
+#if VISUALIZE_PROXIES
     vec3f color
       = (pixelOwner == -1)
       ? abs(normalize(path.getDirection()))
       : randomColor(pixelOwner);
-    // if (dbg)
-    //   printf("pixel (%i %i) fb (%i %i) accum %lx\n",
-    //          pixelID.x,
-    //          pixelID.y,
-    //          fbSize.x,
-    //          fbSize.y,
-    //          lp.fbLayer.accumBuffer);
-    if (lp.rank == 0)
+    if (lp.rank == 0) 
       lp.fbLayer.addPixelContribution(path.pixelID,color);
+    return;
+#endif
+    if (pixelOwner == -1 && lp.rank == 0) {
+      // pixel not owned by anybody; let's do background on rank 0
+      lp.fbLayer.addPixelContribution(path.pixelID,backgroundColor(path));
+      return;
+    }
     // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel
     //   (launchIdx,

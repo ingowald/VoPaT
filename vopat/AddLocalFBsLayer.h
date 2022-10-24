@@ -35,10 +35,10 @@ namespace vopat {
     struct DD {
       /*! (atomically) add the given contribution to the specified pixel */
       inline __device__ void addPixelContribution(vec2i globalPixelID, vec3f value) const;
-
+      
       /*! (atomically) add the given contribution to the specified pixel */
       inline __device__ void addPixelContribution(uint32_t linearIdx, vec3f value) const;
-
+      
       /*! transforms a "global" pixel ID into local island-frame buffer coordinates */
       inline __device__ vec2i globalToLocal(vec2i globalPixelID) const
       { return vec2i{globalPixelID.x,
@@ -49,25 +49,25 @@ namespace vopat {
       
       /*! transforms a "global" pixel ID into linear index that we use w/ a ray */
       inline __device__ uint32_t globalToIndex(vec2i globalPixelID) const
-      { return globalPixelID.x+fbSize.x*globalPixelID.y; }
+      { return globalPixelID.x+fullFbSize.x*globalPixelID.y; }
 
       /*! transforms a "global" pixel ID into linear index that we use w/ a ray */
       inline __device__ vec2i indexToGlobal(uint32_t index) const
       {
-        int iy = index / fbSize.x;
-        int ix = index - iy * fbSize.x;
+        int iy = index / fullFbSize.x;
+        int ix = index - iy * fullFbSize.x;
         return { ix,iy };
       }
 
       /*! transforms from a given *local* (smaller) frame buffer
-          within an island into global image coordinates */
+        within an island into global image coordinates */
       inline __device__ vec2i localToGlobal(vec2i localPixelID) const
       { return vec2i{localPixelID.x,localPixelID.y*islandScale+islandBias}; }
       
       /*! device-size address to this rank's local frame buffer */
       vec3f       *accumBuffer;
       /*! size of this local frame buffer */
-      vec2i        fbSize;
+      vec2i        fullFbSize;
       
       int          islandBias;
       int          islandScale;
@@ -192,7 +192,7 @@ namespace vopat {
     // int local_ix  = global_ix;
     // int local_iy  = (global_iy - islandIndex) / islandCount;
 
-    vec3f *tgt = accumBuffer+(pixelID.y*fbSize.x+pixelID.x);
+    vec3f *tgt = accumBuffer+(pixelID.y*fullFbSize.x+pixelID.x);
 
     atomicAdd(&tgt->x,fragment.x);
     atomicAdd(&tgt->y,fragment.y);
