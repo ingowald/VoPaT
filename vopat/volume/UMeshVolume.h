@@ -43,6 +43,8 @@ namespace vopat {
       int2              *tetsOnFace;
     };
     
+    void buildMCs(MCGrid &mcGrid) override;
+    
     struct DD {
       inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
       inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;

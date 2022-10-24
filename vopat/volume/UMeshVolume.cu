@@ -149,4 +149,159 @@ namespace vopat {
     lpVars.push_back({"volumeSampler.umesh",OWL_USER_TYPE(DD),
                       OWL_OFFSETOF(LaunchParams,volumeSampler.umesh)});
   }
+  
+
+
+
+
+
+
+  inline __device__
+  float fatomicMin(float *addr, float value)
+  {
+    float old = *addr, assumed;
+    if(old <= value) return old;
+    do {
+      assumed = old;
+      old = atomicCAS((unsigned int*)addr, __float_as_int(assumed), __float_as_int(value));
+        
+    } while(old!=assumed);
+    return old;
+  }
+
+  inline __device__
+  float fatomicMax(float *addr, float value)
+  {
+    float old = *addr, assumed;
+    if(old >= value) return old;
+    do {
+      assumed = old;
+      old = atomicCAS((unsigned int*)addr, __float_as_int(assumed), __float_as_int(value));
+        
+    } while(old!=assumed);
+    return old;
+  }
+  
+  inline __device__
+  int project(float f,
+              const interval<float> range,
+              int dim)
+  {
+    return max(0,min(dim-1,int(dim*(f-range.lower)/(range.upper-range.lower))));
+  }
+
+  inline __device__
+  vec3i project(const vec3f &pos,
+                const box3f &bounds,
+                const vec3i &dims)
+  {
+    return vec3i(project(pos.x,{bounds.lower.x,bounds.upper.x},dims.x),
+                 project(pos.y,{bounds.lower.y,bounds.upper.y},dims.y),
+                 project(pos.z,{bounds.lower.z,bounds.upper.z},dims.z));
+  }
+
+  inline __device__
+  void rasterBox(MacroCell *d_mcGrid,
+                 const vec3i dims,
+                 const box3f worldBounds,
+                 const box4f primBounds4,
+                 bool dbg=false)
+  {
+    box3f pb = box3f(vec3f(primBounds4.lower),
+                     vec3f(primBounds4.upper));
+    if (pb.lower.x >= pb.upper.x) return;
+    if (pb.lower.y >= pb.upper.y) return;
+    if (pb.lower.z >= pb.upper.z) return;
+
+    vec3i lo = project(pb.lower,worldBounds,dims);
+    vec3i hi = project(pb.upper,worldBounds,dims);
+
+    for (int iz=lo.z;iz<=hi.z;iz++)
+      for (int iy=lo.y;iy<=hi.y;iy++)
+        for (int ix=lo.x;ix<=hi.x;ix++) {
+          const int cellID
+            = ix
+            + iy * dims.x
+            + iz * dims.x * dims.y;
+          auto &cell = d_mcGrid[cellID].inputRange;
+          fatomicMin(&cell.lower,primBounds4.lower.w);
+          fatomicMax(&cell.upper,primBounds4.upper.w);
+        }
+  }
+  
+  constexpr int MAX_GRID_SIZE = 1024;
+  
+  __global__ void clearMCs(MacroCell *mcData,
+                           vec3i dims)
+  {
+    int ix = threadIdx.x+blockIdx.x*blockDim.x; if (ix >= dims.x) return;
+    int iy = threadIdx.y+blockIdx.y*blockDim.y; if (iy >= dims.y) return;
+    int iz = threadIdx.z+blockIdx.z*blockDim.z; if (iz >= dims.z) return;
+
+    int ii = ix + dims.x*(iy + dims.y*(iz));
+    mcData[ii].inputRange.lower = +FLT_MAX;
+    mcData[ii].inputRange.upper = -FLT_MAX;
+  }
+  
+  __global__ void rasterTets(MacroCell *mcData,
+                             vec3i mcDims,
+                             box3f domain,
+                             vec3f *vertices,
+                             float *scalars,
+                             umesh::UMesh::Tet *tets,
+                             int numTets)
+  {
+    const int blockID
+      = blockIdx.x
+      + blockIdx.y * MAX_GRID_SIZE
+      ;
+    const int primIdx = blockID*blockDim.x + threadIdx.x;
+    if (primIdx >= numTets) return;    
+
+    umesh::UMesh::Tet tet = tets[primIdx];
+    const box4f primBounds4 = box4f()
+      .including(vec4f(vertices[tet.x],scalars[tet.x]))
+      .including(vec4f(vertices[tet.y],scalars[tet.y]))
+      .including(vec4f(vertices[tet.z],scalars[tet.z]))
+      .including(vec4f(vertices[tet.w],scalars[tet.w]));
+
+    rasterBox(mcData,mcDims,domain,primBounds4);
+  }
+  
+  void UMeshVolume::buildMCs(MCGrid &mcGrid) 
+  {
+    std::cout << OWL_TERMINAL_BLUE
+              << "#vopat.umesh: building macro cells .."
+              << OWL_TERMINAL_DEFAULT
+              << std::endl;
+    mcGrid.dd.dims = 256;
+    mcGrid.cells.resize(volume(mcGrid.dd.dims));
+    CUDA_SYNC_CHECK();// PING;
+    // CUDA_CALL(Memset(mcGrid.cells.get(),0,mcGrid.cells.numBytes()));
+    clearMCs<<<(dim3)divRoundUp(mcGrid.dd.dims,vec3i(4)),(dim3)vec3i(4)>>>
+      (mcGrid.cells.get(),mcGrid.dd.dims);
+    CUDA_SYNC_CHECK(); //PING;
+    mcGrid.dd.cells  = mcGrid.cells.get();
+
+    if (myBrick->umesh->tets.empty())
+      throw std::runtime_error("no tets!?");
+    const unsigned int blockSize = 128;
+    unsigned int numTets = (int)myBrick->umesh->tets.size();
+    const unsigned int numBlocks = divRoundUp(numTets,blockSize*1024u);
+    dim3 _nb{1024u,numBlocks,1u};
+    dim3 _bs{blockSize,1u,1u};
+    rasterTets<<<_nb,_bs>>>
+      (mcGrid.dd.cells,
+       mcGrid.dd.dims,
+       myBrick->domain,
+       (vec3f*)owlBufferGetPointer(verticesBuffer,0),
+       (float*)owlBufferGetPointer(scalarsBuffer,0),
+       (umesh::UMesh::Tet*)owlBufferGetPointer(tetsBuffer,0),
+       myBrick->umesh->tets.size());
+    CUDA_SYNC_CHECK();
+    std::cout << OWL_TERMINAL_GREEN
+              << "#vopat.umesh: done building macro cells .."
+              << OWL_TERMINAL_DEFAULT
+              << std::endl;
+  }
 }

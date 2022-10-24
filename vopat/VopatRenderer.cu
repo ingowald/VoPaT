@@ -69,6 +69,8 @@ namespace vopat {
       volume->build(owl,owlDevCode);
       volume->setDD(lp);
 
+      volume->buildMCs(mcGrid);
+      
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
       CUDA_SYNC_CHECK();
@@ -187,6 +189,7 @@ namespace vopat {
 
     // std::cout << "##################################################################" << std::endl;
     // fflush(0);
+    forwardingLayer.clearQueue();
     owlLaunch2D(generatePrimaryWaveRG,
                 fbSize.x,
                 fbSize.y,

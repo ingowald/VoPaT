@@ -14,10 +14,11 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/MacroCell.h"
+#include "vopat/volume/MCGrid.h"
 
 namespace vopat {
 
+#if 0
 #if VOPAT_UMESH
   // this gets done in VolumeRendererBase.cu:rasterTets
 #else
@@ -58,6 +59,7 @@ namespace vopat {
     mc.inputRange = valueRange;
     mc.maxOpacity = 1.f;
   }
+#endif
 #endif
   
   /*! assuming the min/max of the raw data values are already set in a

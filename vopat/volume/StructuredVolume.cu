@@ -19,6 +19,71 @@
 
 namespace vopat {
 
+  int StructuredVolume::mcWidth = 8;
+
+  __global__ void buildMCs(MacroCell *mcData,
+                           vec3i      mcDims,
+                           int        mcWidth,
+                           StructuredVolume::DD volume)
+  {
+    vec3i mcID(threadIdx.x+blockIdx.x*blockDim.x,
+               threadIdx.y+blockIdx.y*blockDim.y,
+               threadIdx.z+blockIdx.z*blockDim.z);
+    
+    if (mcID.x >= mcDims.x) return;
+    if (mcID.y >= mcDims.y) return;
+    if (mcID.z >= mcDims.z) return;
+    
+    int mcIdx = mcID.x + mcDims.x*(mcID.y + mcDims.y*mcID.z);
+    auto &mc = mcData[mcIdx];
+
+    /* compute begin/end of VOXELS for this macro-cell */
+    vec3i begin = mcID*mcWidth;
+    vec3i end = min(begin + mcWidth + /* plus one for tri-lerp!*/1,
+                    volume.dims);
+    interval<float> valueRange;
+    for (int iz=begin.z;iz<end.z;iz++)
+      for (int iy=begin.y;iy<end.y;iy++)
+        for (int ix=begin.x;ix<end.x;ix++) {
+          float f;
+          tex3D(&f,volume.texObjNN,ix,iy,iz);
+          valueRange.extend(f);
+// #else
+//           valueRange.extend(volume.voxels[ix+volume.dims.x*(iy+volume.dims.y*size_t(iz))]);
+// #endif
+        }
+    mc.inputRange = valueRange;
+    mc.maxOpacity = 1.f;
+  }
+
+  void StructuredVolume::buildMCs(MCGrid &mcGrid) 
+  {
+    std::cout << OWL_TERMINAL_BLUE
+              << "#vopat.structured: building macro cells .."
+              << OWL_TERMINAL_DEFAULT
+              << std::endl;
+    PRINT(globals.dims);
+    mcGrid.dd.dims = divRoundUp(globals.dims,vec3i(mcWidth));
+    vec3ui bs = 4;
+    vec3ui nb = divRoundUp(vec3ui(mcGrid.dd.dims),bs);
+    PRINT(nb);
+    PRINT(bs);
+    
+    mcGrid.cells.resize(owl::common::volume(mcGrid.dd.dims));
+    dim3 _nb{nb.x,nb.y,nb.z};
+    dim3 _bs{bs.x,bs.y,bs.z};
+    vopat::buildMCs<<<_nb,_bs>>>
+      (mcGrid.cells.get(),
+       mcGrid.dd.dims,
+       mcWidth,
+       globals);
+    CUDA_SYNC_CHECK();
+    std::cout << OWL_TERMINAL_GREEN
+              << "#vopat.structured: done building macro cells .."
+              << OWL_TERMINAL_DEFAULT
+              << std::endl;
+  }
+    
   void StructuredVolume::build(OWLContext owl,
                                OWLModule owlDevCode) 
   {
@@ -59,9 +124,10 @@ namespace vopat {
 
     CUDA_CALL(CreateTextureObject(&globals.texObj,&resourceDesc,&textureDesc,0));
 
-    // // 2nd texture object for nearest filtering
-    // textureDesc.filterMode       = cudaFilterModePoint;
-    // CUDA_CALL(CreateTextureObject(&globals.texObjNN,&resourceDesc,&textureDesc,0));
+    // 2nd texture object for nearest filtering in macro cell generation
+    textureDesc.filterMode       = cudaFilterModePoint;
+    CUDA_CALL(CreateTextureObject(&globals.texObjNN,&resourceDesc,&textureDesc,0));
+    globals.dims = myBrick->numVoxels;
   }
   
   void StructuredVolume::setDD(OWLLaunchParams lp) 

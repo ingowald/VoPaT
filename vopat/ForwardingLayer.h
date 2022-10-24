@@ -40,37 +40,41 @@ namespace vopat {
 
       /*! for compaction - where in the output queue to write rays for
           a given target rank */
-      int         *perRankSendOffsets;
+      int         *perRankSendOffsets = 0;
       
       /*! for compaction - how many rays will go to a given rank */
-      int         *perRankSendCounts;
+      int         *perRankSendCounts = 0;
 
       /*! sum of ALL send counts, so we know where to append ray to the queue */
-      int         *pNumRaysOut;
+      int         *pNumRaysOut = 0;
       
       /*! list of node IDs where each of the corresponding rays in
           rayQueueIn are supposed to be sent to (a nextnode of '-1'
           means the ray will die and not get sent anywhere) */
-      int         *rayNextRank;
+      int         *rayNextRank = 0;
 
       /*! queue of rays received during ray exchange, and to be
           traced/shaded on this node */
-      Ray         *rayQueueIn;
+      Ray         *rayQueueIn = 0;
       
       /*! ray queue used for sending rays; generarting by
           sorting/compacting the input queue after ti has been traced
           locally */
-      Ray         *rayQueueOut;
+      Ray         *rayQueueOut = 0;
       
       /*! number of rays in the input queue */
-      int         numRaysIn;
+      int         numRaysIn = 0;
       /*! number of ranks in this island */
-      int islandSize;
+      int islandSize = 0;
     };
 
     ForwardingLayer(CommBackend *comm);
 
-
+    void clearQueue()
+    {
+      perRankSendCounts.bzero();
+      allSendCounts.bzero();
+    }
     void resizeQueues(int maxRaysPerQueue);
     
     // void traceRaysLocally();

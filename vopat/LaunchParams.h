@@ -59,6 +59,8 @@ namespace vopat {
       UMeshVolume::DD      umesh;
       StructuredVolume::DD structured;
     } volumeSampler;
+
+    MCGrid::DD mcGrid;
     int rank;
   };
   

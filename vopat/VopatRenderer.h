@@ -124,6 +124,7 @@ namespace vopat {
     } camera;
     ForwardingLayer  forwardingLayer;
     AddLocalFBsLayer fbLayer;
+    MCGrid           mcGrid;
     vec2i islandFbSize;
   };
 

@@ -14,52 +14,9 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include "common/vopat.h"
-#include <owl/owl.h>
-#include "model/Brick.h"
-#include "model/Model.h"
-#include "vopat/volume/MCGrid.h"
+#include "vopat/Marcher.h"
 
 namespace vopat {
 
-  struct Volume {
-    typedef std::shared_ptr<Volume> SP;
-
-    Volume(Brick::SP brick) : brick(brick) {}
-
-    static Volume::SP createFrom(Brick::SP brick);
-    
-    struct DD {
-      //      cudaTextureObject_t xfTexture;
-      struct {
-        vec4f          *values;
-        int             numValues;
-        interval<float> domain;
-        float           density;
-      } xf;
-    };
-    
-    virtual void build(OWLContext owl,
-                          OWLModule owlDevCode) = 0;
-    virtual void setDD(OWLLaunchParams lp) = 0;
-    virtual void addLPVars(std::vector<OWLVarDecl> &lpVars) = 0;
-    
-    virtual void buildMCs(MCGrid &mcGrid) = 0;
-    
-    void setTransferFunction(const std::vector<vec4f> &cm,
-                             const interval<float> &domain,
-                             const float density);
-
-    struct {
-      CUDAArray<vec4f> colorMap;
-      interval<float> domain;
-      float density;
-    } xf;
-    
-    Brick::SP brick;
-  };
+}
   
-} // ::vopat
-

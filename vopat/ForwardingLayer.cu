@@ -46,6 +46,7 @@ namespace vopat {
 
   void ForwardingLayer::createSendQueue()
   {
+    PING;
     int numRaysOut;
     CUDA_CALL(Memcpy(&numRaysOut,dd.pNumRaysOut,sizeof(int),cudaMemcpyDefault));
     computeCompactionOffsets<<<1,1>>>
@@ -61,6 +62,7 @@ namespace vopat {
 
   int  ForwardingLayer::exchangeRays()
   {
+    PING;
     host_sendCounts = perRankSendCounts.download();
     // const int numWorkers = dd.islandSize;//dd.numWorkers;
     // const int myRank = dd.islandRank;//this->myRank();
@@ -243,7 +245,8 @@ namespace vopat {
       dd.islandSize  = comm->islandSize();
       // dd.islandIndex = comm->islandIndex();
       // dd.islandCount = comm->islandCount();
-
+      PING; PRINT(dd.islandSize);
+      
       allSendCounts.resize(1);
       perRankSendCounts.resize(dd.islandSize);
       perRankSendOffsets.resize(dd.islandSize);
@@ -256,6 +259,7 @@ namespace vopat {
 
   void ForwardingLayer::resizeQueues(int maxRaysPerQueue)
   {
+    PING; PRINT(maxRaysPerQueue);
     if (isMaster()) {
     } else {
       // PRINT(newSize);

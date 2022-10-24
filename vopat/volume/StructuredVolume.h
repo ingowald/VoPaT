@@ -36,9 +36,11 @@ namespace vopat {
       inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
       
       cudaTextureObject_t texObj;
-      // cudaTextureObject_t texObjNN;
+      cudaTextureObject_t texObjNN;
       vec3i dims;
     };
+    
+    void buildMCs(MCGrid &mcGrid) override;
     
     void build(OWLContext owl,
                OWLModule owlDevCode) override;
@@ -47,6 +49,9 @@ namespace vopat {
 
     StructuredBrick::SP myBrick;
     DD globals;
+    
+    /*! number of cells per macro cell */
+    static int mcWidth;
   };
 
 

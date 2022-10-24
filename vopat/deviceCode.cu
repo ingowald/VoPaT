@@ -58,7 +58,7 @@ namespace vopat {
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
 
-    if (prd.dbg)
+    if (0 && prd.dbg)
       printf("isec proxy %i (%f %f %f)(%f %f %f):%i\n",
              primID,
              proxy.domain.lower.x,
@@ -87,7 +87,7 @@ namespace vopat {
     prd.closestDist = t0;
     prd.closestRank = proxy.rankID;
     float reported_t = nextafterf(t0,CUDART_INF);
-    if (prd.dbg)
+    if (0 && prd.dbg)
       printf(" proxy HIT %f/%f\n",t0,reported_t);
     optixReportIntersection(reported_t,0);
   }
@@ -334,6 +334,32 @@ namespace vopat {
     owl::traceRay(proxyBVH,ray,prd);
     return prd.closestRank;
   }
+
+  inline __device__
+  void traceAgainstLocalGeometry(Ray &path)
+  {
+    auto &lp = LaunchParams::get();
+  }
+    
+  inline __device__
+  void traceThroughLocalVolumeData(Ray &path)
+  {
+    auto &lp = LaunchParams::get();
+  }
+    
+  inline __device__
+  void traceRayLocally(Ray &path)
+  {
+    auto &lp = LaunchParams::get();
+    
+    traceAgainstLocalGeometry(path);
+    
+    traceThroughLocalVolumeData(path);
+    
+    int nextRankToSendTo = -1;
+    if (nextRankToSendTo >= 0)
+      lp.forwardGlobals.forwardRay(path,nextRankToSendTo);
+  }
   
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
@@ -343,7 +369,7 @@ namespace vopat {
     //                    lp.forwardGlobals,
     //                    lp.volumeGlobals,
     //                    lp.surfaceGlobals);
-  }
+  } 
 
   inline __device__
   Ray generateRay(vec2i pixelID,
@@ -395,6 +421,17 @@ namespace vopat {
       lp.fbLayer.addPixelContribution(path.pixelID,backgroundColor(path));
       return;
     }
+
+    if (pixelOwner != lp.rank)
+      // we don't own the closest proxy - let somebody else deal with it ...
+      return;
+
+#if 1
+    // for ray generation we "forward" all rays to ourselves:
+    lp.forwardGlobals.forwardRay(path,lp.rank);
+#else
+    traceRayLocally(path);
+#endif
     // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel
     //   (launchIdx,

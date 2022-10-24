@@ -27,7 +27,9 @@ embed_ptx(
 )
 
 
-add_library(vopat_render 
+add_library(vopat_render
+  volume/MCGrid.h
+  volume/MCGrid.cu
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
   volume/Volume.cpp
@@ -37,8 +39,7 @@ add_library(vopat_render
   
   NextDomainKernel.h
   NextDomainKernel.cu
-  MacroCell.h
-  MacroCell.cu
+  
 #  Volume.cu
   
 #  DistributedRendererBase.h

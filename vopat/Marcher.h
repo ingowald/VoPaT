@@ -16,35 +16,26 @@
 
 #pragma once
 
-#include "VoxelData.h"
+#include "common/CUDAArray.h"
+#include "vopat/MacroCell.h"
+#include "vopat/Ray.h"
 
 namespace vopat {
+#if 0
+  struct Marcher {
+    struct DD {
+      MacroCell *mcData;
+      vec3i      mcDims;
+      affine3f   worldToCellSpace;
 
-  struct MacroCell {
-    /*! input values _before_ transfer function */
-    interval<float> inputRange;
-    /*! max opacity value _after_ transfer function */
-    float maxOpacity;
+      template<typename Lambda>
+      inline __device__ void march(Ray &ray, const Lambda &lambda);
+    };
+    CUDAArray<MacroCell> mcData;
+    vec3i                mcDims;
+    
+    DD globals;
   };
-
-#if VOPAT_UMESH
-#else
-  /*! computes initial *input* range of the macrocells; ie, min/max of
-    raw data values *excluding* any transfer fucntion */
-  __global__ void initMacroCell(MacroCell *mcData,
-                                vec3i mcDims,
-                                int mcWidth,
-                                VoxelData volume);
 #endif
-  
-  /*! assuming the min/max of the raw data values are already set in a
-    macrocell, this updates the *mapped* min/amx values from a given
-    transfer function */
-  __global__ void mapMacroCell(MacroCell *mcData,
-                               vec3i mcDims,
-                               vec4f *xfValues,
-                               int numXfValues,
-                               interval<float> xfDomain);
-
 }
   
