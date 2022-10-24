@@ -27,7 +27,7 @@ embed_ptx(
 )
 
 
-add_library(vopat_render SHARED
+add_library(vopat_render 
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
   volume/Volume.cpp
@@ -66,7 +66,7 @@ target_link_libraries(vopat_render
   vopat_common
   vopat_model
   owl_viewer
-  deviceCode-ptx_ptx
+  deviceCode-ptx
   )
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "80")
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "70;75;80;86")

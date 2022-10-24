@@ -144,6 +144,11 @@ namespace vopat {
       // ------------------------------------------------------------------
       const int numCompInputs = ourCompLineCount * islandSize;
       compInputsMemory.resize(numCompInputs*islandFbSize.x);
+      
+      this->dd.fbSize = fullFbSize;
+      this->dd.islandScale = numIslands;
+      this->dd.islandBias  = islandIdx;
+      this->dd.accumBuffer = localAccumBuffer.get();//(vec3f*)owlBufferGetPointer(localAccumBuffer,0);
     }
   }
   

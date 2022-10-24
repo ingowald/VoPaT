@@ -36,9 +36,33 @@ namespace vopat {
       /*! (atomically) add the given contribution to the specified pixel */
       inline __device__ void addPixelContribution(vec2i globalPixelID, vec3f value) const;
 
+      /*! (atomically) add the given contribution to the specified pixel */
+      inline __device__ void addPixelContribution(uint32_t linearIdx, vec3f value) const;
+
       /*! transforms a "global" pixel ID into local island-frame buffer coordinates */
-      inline __device__ vec2i islandToLocal(vec2i globalPixelID) const
-      { return vec2i{globalPixelID.x,(globalPixelID.y-islandBias)/islandScale}; }
+      inline __device__ vec2i globalToLocal(vec2i globalPixelID) const
+      { return vec2i{globalPixelID.x,
+                       (islandScale == 1)
+                       ?((globalPixelID.y-islandBias)/islandScale)
+                       :globalPixelID.y};
+      }
+      
+      /*! transforms a "global" pixel ID into linear index that we use w/ a ray */
+      inline __device__ uint32_t globalToIndex(vec2i globalPixelID) const
+      { return globalPixelID.x+fbSize.x*globalPixelID.y; }
+
+      /*! transforms a "global" pixel ID into linear index that we use w/ a ray */
+      inline __device__ vec2i indexToGlobal(uint32_t index) const
+      {
+        int iy = index / fbSize.x;
+        int ix = index - iy * fbSize.x;
+        return { ix,iy };
+      }
+
+      /*! transforms from a given *local* (smaller) frame buffer
+          within an island into global image coordinates */
+      inline __device__ vec2i localToGlobal(vec2i localPixelID) const
+      { return vec2i{localPixelID.x,localPixelID.y*islandScale+islandBias}; }
       
       /*! device-size address to this rank's local frame buffer */
       vec3f       *accumBuffer;
@@ -108,6 +132,8 @@ namespace vopat {
     
     int numAccumulatedFrames = 0;
     
+    DD dd;
+    
     CommBackend *comm;
   };
 
@@ -159,7 +185,7 @@ namespace vopat {
     if (fm == 0.f)
       return;
 
-    pixelID = islandToLocal(pixelID);
+    pixelID = globalToLocal(pixelID);
     // pixelID.y = 
     // int global_iy = globalLinearPixelID / islandFbSize.x;
     // int global_ix = globalLinearPixelID - global_iy * islandFbSize.x;
@@ -171,6 +197,12 @@ namespace vopat {
     atomicAdd(&tgt->x,fragment.x);
     atomicAdd(&tgt->y,fragment.y);
     atomicAdd(&tgt->z,fragment.z);
+  }
+  
+  inline __device__
+  void AddLocalFBsLayer::DD::addPixelContribution(uint32_t linearIdx, vec3f value) const
+  {
+    addPixelContribution(indexToGlobal(linearIdx),value);
   }
 #endif
 

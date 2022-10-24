@@ -51,8 +51,8 @@ namespace vopat {
     void traceLocally();
     void resizeFrameBuffer(const vec2i &newSize);
     
-    void screenShot() { addLocalFBsLayer.screenShot(); }
-    void resetAccumulation() { addLocalFBsLayer.resetAccumulation(); }
+    void screenShot() { fbLayer.screenShot(); }
+    void resetAccumulation() { fbLayer.resetAccumulation(); }
     // void generatePrimaryWave(const ForwardGlobals &forward);
     // void traceLocally(const ForwardGlobals &forward, bool fishy);
     
@@ -87,6 +87,11 @@ namespace vopat {
                    const vec3f &up,
                    const float fovy)
     {
+      camera.from = from;
+      camera.at = at;
+      camera.up = up;
+      camera.fovy = fovy;
+      camera.dd = Camera(fbLayer.fullFbSize,from,at,up,fovy);
       // PING;
     }
     void createNextDomainKernel();
@@ -95,7 +100,7 @@ namespace vopat {
         to hold all pixels that this renderer has last been resized
         to */
     void renderFrame(uint32_t *fbPointer);
-    
+
     CommBackend *comm;
     Volume::SP volume;
     // SurfaceIntersector surface;
@@ -109,9 +114,14 @@ namespace vopat {
 
     //    OWLGroup  nextDomainGroup;
     NextDomainKernel nextDomainKernel;
-    
+
+    struct {
+      vec3f from{0.f,0.f,0.f}, at{0.f,0.f,1.f}, up{0.f,1.f,0.f};
+      float fovy = 30.f;
+      Camera dd;
+    } camera;
     ForwardingLayer  forwardingLayer;
-    AddLocalFBsLayer addLocalFBsLayer;
+    AddLocalFBsLayer fbLayer;
     vec2i islandFbSize;
   };
 

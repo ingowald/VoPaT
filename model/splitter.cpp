@@ -107,7 +107,7 @@ int main(int ac, char **av)
 
   int timeStep = 0;
   std::string variable = "unknown";
-  
+
   for (int brickID=0;brickID<numBricks;brickID++) {
     std::cout << "extracting var '" << variable << "', time step " << timeStep << ", brick " << brickID << std::endl;
 

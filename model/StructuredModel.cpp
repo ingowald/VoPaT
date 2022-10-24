@@ -45,6 +45,7 @@ namespace vopat {
     std::vector<float> voxels(volume(numVoxels));
     std::vector<T> line(numVoxels.x);
     const box3i voxelRange = { cellRange.lower, cellRange.upper+vec3i(1) };
+    // range1f valueRange;
     for (int iz=0;iz<numVoxels.z;iz++)
       for (int iy=0;iy<numVoxels.y;iy++) {
         size_t idxOfs
@@ -56,11 +57,15 @@ namespace vopat {
                 numVoxels.x * sizeof(T));
         if (!in || in.bad()) throw std::runtime_error("error reading from '"+rawFileName+"'");
         // PING; PRINT(idxOfs); PRINT(line[0]);
-        for (int ix=0;ix<numVoxels.x;ix++)
-          voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = voxelToFloat(line[ix]);
+        for (int ix=0;ix<numVoxels.x;ix++) {
+          float v = voxelToFloat(line[ix]);
+          voxels[ix+numVoxels.x*(iy+numVoxels.y*size_t(iz))] = v;
+          // valueRange.extend(v);
+        }
       }
 
     StructuredBrick::SP brick = StructuredBrick::create(ID);
+    brick->scalars = voxels;
     brick->cellRange = cellRange;
     brick->voxelRange = voxelRange;
     brick->spaceRange = { vec3f(voxelRange.lower), vec3f(voxelRange.upper) };

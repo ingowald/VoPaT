@@ -26,6 +26,7 @@
 
 #include "vopat/volume/UMeshVolume.h"
 #include "vopat/volume/StructuredVolume.h"
+#include "vopat/Camera.h"
 
 namespace vopat {
 
@@ -53,6 +54,7 @@ namespace vopat {
     // VolumeGlobals            volumeGlobals;
     // SurfaceGlobals           surfaceGlobals;
     NextDomainKernel::LPData nextDomainKernel;
+    Camera                   camera;
     union {
       UMeshVolume::DD      umesh;
       StructuredVolume::DD structured;

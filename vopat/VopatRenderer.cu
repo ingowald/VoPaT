@@ -28,7 +28,7 @@ namespace vopat {
     : comm(comm),
       volume(volume),
       forwardingLayer(comm),
-      addLocalFBsLayer(comm)
+      fbLayer(comm)
   {
     CUDA_SYNC_CHECK();
     printf("#vopat(%i.%i): initializing OWL\n",
@@ -46,14 +46,19 @@ namespace vopat {
       
       std::vector<OWLVarDecl> lpVars;
 
-      nextDomainKernel.addLPVars(lpVars);
+      nextDomainKernel.addLPVars(lpVars,OWL_OFFSETOF(LaunchParams,nextDomainKernel));
       volume->addLPVars(lpVars);
-      // lpVars.push_back
-      //   ({"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)});
+      lpVars.push_back
+        ({"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)});
+      lpVars.push_back
+        ({"fbLayer",OWL_USER_TYPE(AddLocalFBsLayer::DD),OWL_OFFSETOF(LaunchParams,fbLayer)});
+      lpVars.push_back
+        ({"camera",OWL_USER_TYPE(Camera),OWL_OFFSETOF(LaunchParams,camera)});
       // lpVars.push_back
       //   ({"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)});
       // lpVars.push_back
       //   ({"surfaceGlobals",OWL_USER_TYPE(SurfaceGlobals),OWL_OFFSETOF(LaunchParams,surfaceGlobals)});
+
       
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
                            lpVars.data(),lpVars.size());
@@ -61,7 +66,6 @@ namespace vopat {
       volume->build(owl,owlDevCode);
       volume->setDD(lp);
 
-      nextDomainKernel.setLPVars(lp);
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
       CUDA_SYNC_CHECK();
@@ -69,6 +73,8 @@ namespace vopat {
       CUDA_SYNC_CHECK();
       owlBuildSBT(owl);
       CUDA_SYNC_CHECK();
+      
+      nextDomainKernel.setLPVars(lp);
     }
                            
     // volume = std::make_shared<Volume>(model,baseFileName,islandRank,gpuID);
@@ -160,12 +166,15 @@ namespace vopat {
     // PRINT(forwardGlobals.islandFbSize);
     
 // #if VOPAT_UMESH_OPTIX
-    auto &fbSize = addLocalFBsLayer.islandFbSize;
+    auto &fbSize = fbLayer.islandFbSize;
     if (fbSize.y <= 0)
       return;
     
     auto &forward = forwardingLayer.dd;
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
+    AddLocalFBsLayer::DD &fbLayerDD = fbLayer.dd;
+    owlParamsSetRaw(lp,"fbLayer",&fbLayerDD);
+    owlParamsSetRaw(lp,"camera",&camera.dd);
 
     volume->setDD(lp);
     // auto volumeGlobals = volume.globals;
@@ -215,12 +224,17 @@ namespace vopat {
            comm->islandIndex(),comm->islandRank(),
            newSize.x,newSize.y);
     
-    addLocalFBsLayer.resize(newSize);
+    fbLayer.resize(newSize);
+    camera.dd = Camera(fbLayer.fullFbSize,
+                       camera.from,
+                       camera.at,
+                       camera.up,
+                       camera.fovy);
 
     if (isMaster()) {
       islandFbSize = -1;
     } else {
-      islandFbSize = addLocalFBsLayer.islandFbSize;
+      islandFbSize = fbLayer.islandFbSize;
       int maxRaysPerPixel = 1+2*VOPAT_MAX_BOUNCES;
       forwardingLayer.resizeQueues(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
     }
@@ -239,6 +253,9 @@ namespace vopat {
     if (isMaster()) return;
     
     volume->setTransferFunction(cm,range,density);
+    nextDomainKernel.mapXF(volume->xf.colorMap.get(),volume->xf.colorMap.N,
+                           volume->xf.domain);
+    nextDomainKernel.setLPVars(lp);
     // printf("todo - update macro cells; todo - update shards/proxies\n"); 
   }
   
@@ -247,7 +264,7 @@ namespace vopat {
   {
     resetAccumulation();
     generatePrimaryWave();
-    addLocalFBsLayer.addLocalFBs(fbPointer);
+    fbLayer.addLocalFBs(fbPointer);
   }
 
 } // ::vopat

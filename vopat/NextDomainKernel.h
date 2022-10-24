@@ -23,6 +23,9 @@
 namespace vopat {
 
   struct VopatRenderer;
+
+  using range1f = interval<float>;
+  
   
   struct NextDomainKernel {
     enum { RETRY = 1<<30 };
@@ -41,6 +44,8 @@ namespace vopat {
     };
     
     struct LPData {
+      inline __device__ int computeNextRank(Ray &path, bool skipCurrentRank=true) const;
+      
       int                    myRank;
       Proxy                 *proxies;
       OptixTraversableHandle proxyBVH;
@@ -52,7 +57,9 @@ namespace vopat {
     
     void create(VopatRenderer *);
     
-    void addLPVars(std::vector<OWLVarDecl> &lpVars);
+    void addLPVars(std::vector<OWLVarDecl> &lpVars,
+                   // offset of this kernel's vars within LP
+                   uint32_t kernelOffset);
     void setLPVars(OWLLaunchParams lp);
 
     /*! exhanges shards across all range, build *all* ranks' proxies
@@ -60,6 +67,10 @@ namespace vopat {
         valueRangesBuffer */
     void createProxies(VopatRenderer *vopat);
 
+    void mapXF(const vec4f *xfValues,
+               int xfSize,
+               range1f xfDomain);
+    
     /*! total number of proxies gathered across all ranks - NOT only the active ones */
     int numProxies = -1;
     
@@ -68,7 +79,7 @@ namespace vopat {
     OWLBuffer   proxiesBuffer;
     
     /*! for each logical shard created across all ranks, this stores
-        the (pre-transfer functoin) value range for this shard (so the
+        the (pre-transfer function) value range for this shard (so the
         proxy's majorant can be recomputed if the xf changes) */
     OWLBuffer   valueRangesBuffer;
     

@@ -30,6 +30,9 @@ namespace vopat {
     
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
+    // PING;
+    // for (auto shard: myShards)
+    //   PRINT(shard.domain);
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
@@ -40,39 +43,47 @@ namespace vopat {
     std::vector<int>   shardsOnRank(islandSize);
     const int myNumShards = (int)myShards.size();
     island->allGather(shardsOnRank,myNumShards);
-
+    // PING;
+    // for (auto sor : shardsOnRank)
+    //   PRINT(sor);
     // ------------------------------------------------------------------
     // compute *total* number of shards, and allocate
     // ------------------------------------------------------------------
     int allNumShards = 0;
     for (auto sor : shardsOnRank) allNumShards += sor;
     std::vector<Shard> allShards(allNumShards);
-    
-    
     // ------------------------------------------------------------------
     // *exchange all* shards across all ranks
     // ------------------------------------------------------------------
     island->allGather(allShards,myShards);
-    
+    // PING;
+    // for (auto shard: allShards)
+    //   PRINT(shard.domain);
+
     // ------------------------------------------------------------------
     // compute proxies and value ranges
     // ------------------------------------------------------------------
-    std::vector<Proxy>   allProxies(allNumShards);
-    std::vector<range1f> allValueRanges(allNumShards);
+    std::vector<Proxy>   allProxies;
+    std::vector<range1f> allValueRanges;
     int numShardsDone = 0;
-    for (int rank=0;rank<islandSize;rank++) {
-      int shardID = numShardsDone++;
-      auto shard = allShards[shardID];
-      Proxy proxy;
-      proxy.domain = shard.domain;
-      proxy.rankID = rank;
-      // majorant will be set later, once we have XF - just cannot be
-      // 0.f or bounds prog will axe this
-      proxy.majorant = -1.f;
-      allProxies.push_back(proxy);
-      allValueRanges.push_back(shard.valueRange);
-    }
+    for (int rank=0;rank<islandSize;rank++)
+      for (int _i=0;_i<shardsOnRank[rank];_i++) {
+        int shardID = numShardsDone++;
+        auto shard = allShards[shardID];
+        Proxy proxy;
+        proxy.domain = shard.domain;
+        proxy.rankID = rank;
+        // majorant will be set later, once we have XF - just cannot be
+        // 0.f or bounds prog will axe this
+        proxy.majorant = -1.f;
+        allProxies.push_back(proxy);
+        allValueRanges.push_back(shard.valueRange);
+      }
     this->numProxies = allProxies.size();
+    // for (auto &proxy : allProxies) {
+    //   PRINT(proxy.domain);
+    //   PRINT(proxy.majorant);
+    // }
     
     proxiesBuffer = owlDeviceBufferCreate
       (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());
@@ -100,6 +111,7 @@ namespace vopat {
 
     geom = owlGeomCreate(owl,gt);
     owlGeomSetPrimCount(geom,numProxies);
+    PRINT(numProxies);
     owlGeomSetBuffer(geom,"proxies",proxiesBuffer);
 
     CUDA_SYNC_CHECK();
@@ -117,18 +129,77 @@ namespace vopat {
     CUDA_SYNC_CHECK();
   }
 
-  void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars)
+  void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars, uint32_t kernelOffset)
   {
-    lpVars.push_back({"proxies",OWL_BUFPTR,OWL_OFFSETOF(NextDomainKernel::LPData,proxies)});
-    lpVars.push_back({"proxyBVH",OWL_GROUP,OWL_OFFSETOF(NextDomainKernel::LPData,proxyBVH)});
-    lpVars.push_back({"myRank",OWL_INT,OWL_OFFSETOF(NextDomainKernel::LPData,myRank)});
+    lpVars.push_back({"proxies",OWL_BUFPTR,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxies)});
+    lpVars.push_back({"proxyBVH",OWL_GROUP,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxyBVH)});
+    lpVars.push_back({"myRank",OWL_INT,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,myRank)});
   }
   
   void NextDomainKernel::setLPVars(OWLLaunchParams lp)
   {
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
+    PING; PRINT(lp); PRINT(tlas);
     owlParamsSet1i(lp,"myRank",myRank);
+  }
+
+
+  inline __device__
+  float remap(const float f, const range1f &range)
+  {
+    return (f - range.lower) / (range.upper - range.lower);
+  }
+
+  __global__ void updateProxies(const vec4f *xfValues,
+                                int xfSize,
+                                range1f xfDomain,
+                                NextDomainKernel::Proxy *proxies,
+                                range1f *valueRanges,
+                                int numProxies)
+  {
+    int tid = threadIdx.x+blockIdx.x*blockDim.x;
+    if (tid >= numProxies) return;
+
+    range1f valueRange = valueRanges[tid];
+    float majorant = 0.f;
+    if (xfDomain.lower != xfDomain.upper) {
+    
+      valueRange.lower = remap(valueRange.lower,xfDomain);
+      valueRange.upper = remap(valueRange.upper,xfDomain);
+
+      if (valueRange.upper >= 0.f && valueRange.lower <= 1.f) {
+        int numCMIntervals = xfSize-1;
+        int idx_lo = clamp(int(valueRange.lower*numCMIntervals),0,numCMIntervals);
+        int idx_hi = clamp(int(valueRange.upper*numCMIntervals),0,numCMIntervals);
+        
+        for (int i=idx_lo;i<=idx_hi;i++) {
+          majorant = max(majorant,xfValues[i].w);
+        }
+      }
+    }
+    
+    proxies[tid].majorant = majorant;
+  }
+
+
+
+  
+  void NextDomainKernel::mapXF(const vec4f *xfValues,
+                               int xfSize,
+                               range1f xfDomain)
+  {
+    PING; PRINT(numProxies);
+    
+    int bs = 128;
+    int nb = divRoundUp(numProxies,bs);
+    updateProxies<<<nb,bs>>>(xfValues,xfSize,xfDomain,
+                             (Proxy*)owlBufferGetPointer(proxiesBuffer,0),
+                             (range1f*)owlBufferGetPointer(valueRangesBuffer,0),
+                             numProxies);
+    CUDA_SYNC_CHECK();
+    owlGroupRefitAccel(blas);
+    owlGroupRefitAccel(tlas);
   }
     
   

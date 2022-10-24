@@ -57,7 +57,18 @@ namespace vopat {
     auto proxy = geom.proxies[primID];
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
-    if (prd.skipCurrentRank && proxy.rankID == lp.nextDomainKernel.myRank) return;
+
+    if (prd.dbg)
+      printf("isec proxy %i (%f %f %f)(%f %f %f):%i\n",
+             primID,
+             proxy.domain.lower.x,
+             proxy.domain.lower.y,
+             proxy.domain.lower.z,
+             proxy.domain.upper.x,
+             proxy.domain.upper.y,
+             proxy.domain.upper.z,
+             proxy.rankID);
+    if (prd.skipCurrentRank && (proxy.rankID == lp.nextDomainKernel.myRank)) return;
   
     vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
@@ -76,6 +87,8 @@ namespace vopat {
     prd.closestDist = t0;
     prd.closestRank = proxy.rankID;
     float reported_t = nextafterf(t0,CUDART_INF);
+    if (prd.dbg)
+      printf(" proxy HIT %f/%f\n",t0,reported_t);
     optixReportIntersection(reported_t,0);
   }
 
@@ -188,7 +201,7 @@ namespace vopat {
 
     bool dbg = (vec2i(ix,iy) == vopat.islandFbSize/2);
     // if (dbg) printf("=======================================================\ngeneratePrimaryWaveKernel %i %i\n
-// ",ix,iy);
+    // ",ix,iy);
     
     int myRank = vopat.islandRank;//myRank;
     int world_iy
@@ -196,12 +209,12 @@ namespace vopat {
       + iy * vopat.islandCount;
     Ray ray    = generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
     ray.dbg = dbg;
-// #if 0
-//     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
-//     if (ray.dbg) printf("----------- NEW RAY -----------\n");
-// #else
-//     ray.dbg    = false;
-// #endif
+    // #if 0
+    //     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
+    //     if (ray.dbg) printf("----------- NEW RAY -----------\n");
+    // #else
+    //     ray.dbg    = false;
+    // #endif
 
     ray.numBounces = 0;
 #if DEBUG_FORWARDS
@@ -305,6 +318,23 @@ namespace vopat {
 
 #endif  
 
+  inline __device__
+  int NextDomainKernel::LPData::computeNextRank(Ray &path, bool skipCurrentRank) const
+  {
+    auto &lp = LaunchParams::get();
+    
+    owl::Ray ray(path.origin,
+                 path.getDirection(),
+                 0.f,path.tMax);
+    NextDomainKernel::PRD prd;
+    prd.closestRank = -1;
+    prd.closestDist = path.tMax;
+    prd.skipCurrentRank = skipCurrentRank;
+    prd.dbg = path.dbg;
+    owl::traceRay(proxyBVH,ray,prd);
+    return prd.closestRank;
+  }
+  
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
     auto &lp = LaunchParams::get();
@@ -321,13 +351,15 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
     Ray ray;
-    ray.pixelID  = pixelID.x + lp.fbLayer.fullFbSize.x*pixelID.y;
+    ray.pixelID  = lp.fbLayer.globalToIndex(pixelID);
     ray.isShadow = false;
-    ray.origin = globals.camera.lens_00;
+
+    auto &camera = lp.camera;
+    ray.origin = camera.lens_00;
     vec3f dir
-      = globals.camera.dir_00
-      + globals.camera.dir_du * (pixelID.x+pixelPos.x)
-      + globals.camera.dir_dv * (pixelID.y+pixelPos.y);
+      = camera.dir_00
+      + camera.dir_du * (pixelID.x+pixelPos.x)
+      + camera.dir_dv * (pixelID.y+pixelPos.y);
     ray.setDirection(dir);
     ray.throughput = to_half(vec3f(1.f));
     return ray;
@@ -336,13 +368,31 @@ namespace vopat {
   OPTIX_RAYGEN_PROGRAM(generatePrimaryWaveRG)()
   {
     auto &lp = LaunchParams::get();
-    const vec2i pixelID = owl::getLaunchIndex();
+    const vec2i pixelID = lp.fbLayer.localToGlobal(owl::getLaunchIndex());//owl::getLaunchIndex();
+    if (pixelID.x >= lp.fbLayer.fbSize.x ||
+        pixelID.y >= lp.fbLayer.fbSize.y)
+      return;
+        
+    vec2f pixelSample = .5f;
 
-    vec2f pixelPos = .5f;
-    Ray ray = generateRay(pixelID,pixelPos);
+    Ray path = generateRay(pixelID,pixelSample);
+    auto &fbSize = lp.fbLayer.fbSize;
+    path.dbg = (pixelID == fbSize/2);
 
-    adfdsaf;
-    lp.fbLayer.addPixelContribution(pixelID,abs(ray.direction));
+    int pixelOwner = lp.nextDomainKernel.computeNextRank(path,false);
+    vec3f color
+      = (pixelOwner == -1)
+      ? abs(path.getDirection())
+      : randomColor(pixelOwner);
+    // if (dbg)
+    //   printf("pixel (%i %i) fb (%i %i) accum %lx\n",
+    //          pixelID.x,
+    //          pixelID.y,
+    //          fbSize.x,
+    //          fbSize.y,
+    //          lp.fbLayer.accumBuffer);
+    lp.fbLayer.addPixelContribution(path.pixelID,color);
+    // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel
     //   (launchIdx,
     //    lp.forwardGlobals,
