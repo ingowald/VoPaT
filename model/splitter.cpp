@@ -131,7 +131,7 @@ int main(int ac, char **av)
 
     std::cout << "- created brick #" << brickID << " range " << brick->spaceRange << " values " << valueRange << std::endl;
 
-    brick->writeConstantData(Model::canonicalBrickFileName(outFileBase,brick->ID));
+    brick->writeUnvaryingData(Model::canonicalBrickFileName(outFileBase,brick->ID));
     brick->writeTimeStep(Model::canonicalTimeStepFileName(outFileBase,brick->ID,
                                                        "unknown",0));
   }

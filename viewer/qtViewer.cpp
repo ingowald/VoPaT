@@ -400,7 +400,7 @@ namespace vopat {
         ? Brick::SP()
         : model->createBrick(myRank);
       if (brick) {
-        brick->loadConstantData(Model::canonicalBrickFileName(inFileBase,brick->ID));
+        brick->loadUnvaryingData(Model::canonicalBrickFileName(inFileBase,brick->ID));
         brick->loadTimeStep(Model::canonicalTimeStepFileName(inFileBase,brick->ID,
                                                              "unknown",0));
       }

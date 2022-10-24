@@ -82,6 +82,8 @@ namespace vopat {
       // PING;
     }
 
+    int myRank() const { return comm->islandRank(); }
+    
     void setCamera(const vec3f &from,
                    const vec3f &at,
                    const vec3f &up,

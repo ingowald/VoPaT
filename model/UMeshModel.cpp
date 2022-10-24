@@ -152,9 +152,9 @@ namespace vopat {
     return result;
   }
   
-  void UMeshBrick::writeConstantData(const std::string &fileName) const
+  void UMeshBrick::writeUnvaryingData(const std::string &fileName) const
   {
-    std::cout << " .... writing brick meta to " << (fileName) << std::endl;
+    std::cout << " .... writing un-varying brick data to " << (fileName) << std::endl;
     std::ofstream out(fileName,std::ios::binary);
     write(out,domain);
 
@@ -171,7 +171,7 @@ namespace vopat {
   }
   
   /*! load all of the time-step and variabel independent data */
-  void UMeshBrick::loadConstantData(const std::string &fileName) 
+  void UMeshBrick::loadUnvaryingData(const std::string &fileName) 
   {
     this->umesh = umesh::UMesh::loadFrom(fileName+".umesh");
     

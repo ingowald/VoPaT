@@ -54,6 +54,8 @@ namespace vopat {
         ({"fbLayer",OWL_USER_TYPE(AddLocalFBsLayer::DD),OWL_OFFSETOF(LaunchParams,fbLayer)});
       lpVars.push_back
         ({"camera",OWL_USER_TYPE(Camera),OWL_OFFSETOF(LaunchParams,camera)});
+      lpVars.push_back
+        ({"rank",OWL_INT,OWL_OFFSETOF(LaunchParams,rank)});
       // lpVars.push_back
       //   ({"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)});
       // lpVars.push_back
@@ -62,7 +64,8 @@ namespace vopat {
       
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
                            lpVars.data(),lpVars.size());
-
+      owlParamsSet1i(lp,"rank",myRank());
+      
       volume->build(owl,owlDevCode);
       volume->setDD(lp);
 

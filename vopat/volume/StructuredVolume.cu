@@ -15,17 +15,64 @@
 // ======================================================================== //
 
 #include "vopat/volume/StructuredVolume.h"
+#include "vopat/LaunchParams.h"
 
 namespace vopat {
 
   void StructuredVolume::build(OWLContext owl,
-                          OWLModule owlDevCode) 
-  { NOTIMPLEMENTED; }
+                               OWLModule owlDevCode) 
+  {
+    std::vector<float> &hostVoxels = myBrick->scalars;
+    
+    // Copy voxels to cuda array
+    cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
+    cudaExtent extent{(unsigned)myBrick->numVoxels.x,
+                      (unsigned)myBrick->numVoxels.y,
+                      (unsigned)myBrick->numVoxels.z};
+    cudaArray_t voxelArray;
+    CUDA_CALL(Malloc3DArray(&voxelArray,&desc,extent,0));
+    cudaMemcpy3DParms copyParms;
+    memset(&copyParms,0,sizeof(copyParms));
+    copyParms.srcPtr = make_cudaPitchedPtr(hostVoxels.data(),
+                                           (size_t)myBrick->numVoxels.x*sizeof(float),
+                                           (size_t)myBrick->numVoxels.x,
+                                           (size_t)myBrick->numVoxels.y);
+    copyParms.dstArray = voxelArray;
+    copyParms.extent   = extent;
+    copyParms.kind     = cudaMemcpyHostToDevice;
+    CUDA_CALL(Memcpy3D(&copyParms));
+
+    // Create a texture object
+    cudaResourceDesc resourceDesc;
+    memset(&resourceDesc,0,sizeof(resourceDesc));
+    resourceDesc.resType         = cudaResourceTypeArray;
+    resourceDesc.res.array.array = voxelArray;
+
+    cudaTextureDesc textureDesc;
+    memset(&textureDesc,0,sizeof(textureDesc));
+    textureDesc.addressMode[0]   = cudaAddressModeClamp;
+    textureDesc.addressMode[1]   = cudaAddressModeClamp;
+    textureDesc.addressMode[2]   = cudaAddressModeClamp;
+    textureDesc.filterMode       = cudaFilterModeLinear;
+    textureDesc.readMode         = cudaReadModeElementType;
+    textureDesc.normalizedCoords = false;
+
+    CUDA_CALL(CreateTextureObject(&globals.texObj,&resourceDesc,&textureDesc,0));
+
+    // // 2nd texture object for nearest filtering
+    // textureDesc.filterMode       = cudaFilterModePoint;
+    // CUDA_CALL(CreateTextureObject(&globals.texObjNN,&resourceDesc,&textureDesc,0));
+  }
   
   void StructuredVolume::setDD(OWLLaunchParams lp) 
-  { NOTIMPLEMENTED; }
+  {
+    owlParamsSetRaw(lp,"volumeSampler.structured",&globals);
+  }
   
   void StructuredVolume::addLPVars(std::vector<OWLVarDecl> &lpVars) 
-  { NOTIMPLEMENTED; }
+  {
+    lpVars.push_back({"volumeSampler.structured",OWL_USER_TYPE(DD),
+                      OWL_OFFSETOF(LaunchParams,volumeSampler.structured)});
+  }
     
 }

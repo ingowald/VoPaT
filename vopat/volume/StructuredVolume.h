@@ -28,7 +28,7 @@ namespace vopat {
     { return std::make_shared<StructuredVolume>(brick); }
     
     StructuredVolume(StructuredBrick::SP brick)
-      : Volume(brick)
+      : Volume(brick), myBrick(brick)
     {}
 
     struct DD {
@@ -36,15 +36,16 @@ namespace vopat {
       inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
       
       cudaTextureObject_t texObj;
-      cudaTextureObject_t texObjNN;
+      // cudaTextureObject_t texObjNN;
       vec3i dims;
     };
-
+    
     void build(OWLContext owl,
-                          OWLModule owlDevCode) override;
+               OWLModule owlDevCode) override;
     void setDD(OWLLaunchParams lp) override;
     void addLPVars(std::vector<OWLVarDecl> &lpVars) override;
-    
+
+    StructuredBrick::SP myBrick;
     DD globals;
   };
 

@@ -46,7 +46,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     // interface for the BUILDER/SPLITTER 
     // ------------------------------------------------------------------
-    virtual void writeConstantData(const std::string &fileName) const = 0;
+    virtual void writeUnvaryingData(const std::string &fileName) const = 0;
     virtual void writeTimeStep(const std::string &fileName) const = 0;
 
     // ------------------------------------------------------------------
@@ -54,7 +54,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     
     /*! load all of the time-step and variabel independent data */
-    virtual void loadConstantData(const std::string &fileName) = 0;
+    virtual void loadUnvaryingData(const std::string &fileName) = 0;
     
     /*! load a given time step and variable's worth of voxels from given file name */
     virtual void loadTimeStep(const std::string &fileName) = 0;

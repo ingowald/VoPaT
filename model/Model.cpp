@@ -21,7 +21,7 @@
 
 namespace vopat {
 
-  size_t file_format_version = /*increment this for every change:*/3;
+  size_t file_format_version = /*increment this for every change:*/4;
   size_t file_format_magic = 0x33441232340888ull + file_format_version;
   
   /*! given a base file name prefix (including directory name, if
@@ -35,7 +35,9 @@ namespace vopat {
   std::string Model::canonicalBrickFileName(const std::string &baseName,
                                             int brickID)
   {
-    return baseName+"__meta.brick";
+    char bid[100];
+    sprintf(bid,"%05i",brickID);
+    return baseName+".b"+bid+".unvar.brick";
   }
 
   /*! given a base file name prefix (including directory name, if
@@ -113,7 +115,7 @@ namespace vopat {
     Model::SP model;
     if (type == "UMeshModel/Spatial")
       model = UMeshModel::create();
-    else  if (type == "Structured<float>")
+    else  if (type == "StructuredModel<float>")
       model = StructuredModel::create();
     else
       throw std::runtime_error("unknown/unsupported model type '"+type+"'");

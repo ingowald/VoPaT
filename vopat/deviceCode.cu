@@ -382,7 +382,7 @@ namespace vopat {
     int pixelOwner = lp.nextDomainKernel.computeNextRank(path,false);
     vec3f color
       = (pixelOwner == -1)
-      ? abs(path.getDirection())
+      ? abs(normalize(path.getDirection()))
       : randomColor(pixelOwner);
     // if (dbg)
     //   printf("pixel (%i %i) fb (%i %i) accum %lx\n",
@@ -391,7 +391,8 @@ namespace vopat {
     //          fbSize.x,
     //          fbSize.y,
     //          lp.fbLayer.accumBuffer);
-    lp.fbLayer.addPixelContribution(path.pixelID,color);
+    if (lp.rank == 0)
+      lp.fbLayer.addPixelContribution(path.pixelID,color);
     // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel
     //   (launchIdx,

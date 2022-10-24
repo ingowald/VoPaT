@@ -16,6 +16,7 @@
 
 #include "vopat/NextDomainKernel.h"
 #include "vopat/VopatRenderer.h"
+#include <sstream>
 
 namespace vopat {
 
@@ -30,9 +31,10 @@ namespace vopat {
     
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
-    // PING;
-    // for (auto shard: myShards)
-    //   PRINT(shard.domain);
+    std::stringstream ss;
+    for (int i=0;i<myShards.size();i++) {
+      ss << " rank " << vopat->myRank() << " intl shard " << i << ": " << myShards[i].domain << std::endl;
+    }
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
@@ -52,6 +54,9 @@ namespace vopat {
     int allNumShards = 0;
     for (auto sor : shardsOnRank) allNumShards += sor;
     std::vector<Shard> allShards(allNumShards);
+    for (int i=0;i<shardsOnRank.size();i++)
+      ss << "  shards from rank " << i << " : " << shardsOnRank[i] << std::endl;
+    ss << "Sum all shards: " << allNumShards << std::endl;
     // ------------------------------------------------------------------
     // *exchange all* shards across all ranks
     // ------------------------------------------------------------------
@@ -84,6 +89,7 @@ namespace vopat {
     //   PRINT(proxy.domain);
     //   PRINT(proxy.majorant);
     // }
+    std::cout << ss.str();
     
     proxiesBuffer = owlDeviceBufferCreate
       (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());

@@ -59,6 +59,7 @@ namespace vopat {
       UMeshVolume::DD      umesh;
       StructuredVolume::DD structured;
     } volumeSampler;
+    int rank;
   };
   
 }

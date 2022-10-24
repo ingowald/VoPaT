@@ -141,7 +141,7 @@ namespace umesh {
     (box3f&)vopatBrick->domain = brick->domain;
     vopatBrick->umesh = out;
     
-    vopatBrick->writeConstantData(vopat::Model::canonicalBrickFileName(outFileBase,brickID));
+    vopatBrick->writeUnvaryingData(vopat::Model::canonicalBrickFileName(outFileBase,brickID));
     vopatBrick->writeTimeStep(vopat::Model::canonicalTimeStepFileName(outFileBase,brickID,
                                                                "unknown",0));
   }

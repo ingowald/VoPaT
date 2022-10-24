@@ -34,14 +34,14 @@ namespace vopat {
     // ------------------------------------------------------------------
     // interface for the BUILDER/SPLITTER 
     // ------------------------------------------------------------------
-    void writeConstantData(const std::string &fileName) const override;
+    void writeUnvaryingData(const std::string &fileName) const override;
     void writeTimeStep(const std::string &fileName) const override;
     
     // ------------------------------------------------------------------
     // interface for the RENDERER
     // ------------------------------------------------------------------
     
-    void loadConstantData(const std::string &fileName) override;
+    void loadUnvaryingData(const std::string &fileName) override;
     void loadTimeStep(const std::string &fileName) override;
     
     std::vector<Shard> makeShards(int numShards) override;

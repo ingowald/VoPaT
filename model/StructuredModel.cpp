@@ -146,7 +146,7 @@ namespace vopat {
   //   // this->numVoxelsParent = numVoxelsTotal;
   // }
 
-  void StructuredBrick::writeConstantData(const std::string &fileName) const
+  void StructuredBrick::writeUnvaryingData(const std::string &fileName) const
   {
     std::ofstream out(fileName,std::ios::binary);
     write(out,cellRange);
@@ -163,8 +163,9 @@ namespace vopat {
     write(out,scalars);
   }
 
-  void StructuredBrick::loadConstantData(const std::string &fileName)
+  void StructuredBrick::loadUnvaryingData(const std::string &fileName)
   {
+    PING; PRINT(fileName);
     std::ifstream in(fileName,std::ios::binary);
     read(in,cellRange);
     read(in,voxelRange);
