@@ -109,5 +109,5 @@ namespace vopat {
              mc.inputRange.lower,mc.inputRange.upper,mc.maxOpacity
              );
   }
-
+  
 } // ::vopat

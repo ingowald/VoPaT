@@ -19,6 +19,7 @@
 // #include "vopat/NodeRenderer.h"
 // #include "vopat/NextDomainKernel.h"
 #include <cuda.h>
+#include "vopat/DDA.h"
 
 using namespace vopat;
 
@@ -30,8 +31,6 @@ namespace vopat {
   inline __device__ const LaunchParams &LaunchParams::get()
   { return optixLaunchParams; }
   // { return (const LaunchParams &)optixLaunchParams[0]; }
-
-
 
   // ##################################################################
   // NextDomainKernel accel struct programs
@@ -88,7 +87,14 @@ namespace vopat {
     prd.closestRank = proxy.rankID;
     float reported_t = nextafterf(t0,CUDART_INF);
     if (0 && prd.dbg)
-      printf(" proxy HIT %f/%f\n",t0,reported_t);
+      printf(" proxy HIT box (%f %f) -> t %f/%f org %f %f %f dir %f %f %f\n",t0,t1,t0,reported_t,
+             org.x,
+             org.y,
+             org.z,
+             dir.x,
+             dir.y,
+             dir.z
+             );
     optixReportIntersection(reported_t,0);
   }
 
@@ -209,6 +215,7 @@ namespace vopat {
       + iy * vopat.islandCount;
     Ray ray    = generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
     ray.dbg = dbg;
+    ray.crosshair = (ix == vopat.islandFbSize.x/2) || (iy == vopat.islandFbSize.y/2);
     // #if 0
     //     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
     //     if (ray.dbg) printf("----------- NEW RAY -----------\n");
@@ -342,19 +349,111 @@ namespace vopat {
   }
     
   inline __device__
-  void traceThroughLocalVolumeData(Ray &path)
+  void traceThroughLocalVolumeData(Ray &ray, Random &rng)
   {
     auto &lp = LaunchParams::get();
+    bool dbg = ray.dbg;
+
+    vec3f dda_org = xfmPoint(lp.mcGrid.worldToMcSpace,ray.getOrigin());
+    vec3f dda_dir = xfmVector(lp.mcGrid.worldToMcSpace,ray.getDirection());
+
+    vec3f ray_org = ray.getOrigin();
+    vec3f ray_dir = ray.getDirection();
+    float ray_t0=0,ray_t1=CUDART_INF;
+    float dda_t0=0,dda_t1=CUDART_INF;
+    boxTest(lp.volumeSampler.structured.dbg_domain,ray_org,ray_dir,ray_t0,ray_t1);
+    boxTest(lp.volumeSampler.structured.dbg_domain,dda_org,dda_dir,dda_t0,dda_t1);
+    if (0 && ray.dbg) {
+      printf("(%i) dbg.domain %f %f %f  %f %f %f\n",
+             lp.rank,
+             lp.volumeSampler.structured.dbg_domain.lower.x,
+             lp.volumeSampler.structured.dbg_domain.lower.y,
+             lp.volumeSampler.structured.dbg_domain.lower.z,
+             lp.volumeSampler.structured.dbg_domain.upper.x,
+             lp.volumeSampler.structured.dbg_domain.upper.y,
+             lp.volumeSampler.structured.dbg_domain.upper.z);
+      printf("(%i) tracing dda ray (%f %f %f) + t *(%f %f %f) ray %f %f...dda %f %f\n",
+             lp.rank,
+             dda_org.x,
+             dda_org.y,
+             dda_org.z,
+             dda_dir.x,
+             dda_dir.y,
+             dda_dir.z,
+             ray_t0,ray_t1,
+             dda_t0,dda_t1
+             );
+    }
+    // if (ray.dbg) {
+    // vec3f dda_p0 = dda_org + dda_t0 * dda_dir;
+    // vec3f dda_p1 = dda_org + dda_t1 * dda_dir;
+    // vec3f ray_p0 = ray_org + ray_t0 * ray_dir;
+    // vec3f ray_p1 = ray_org + ray_t1 * ray_dir;
+    // printf("dda - ray %f %f %f ...  %f %f %f\n",
+    //        ray_p0.x,
+    //        ray_p0.y,
+    //        ray_p0.z,
+    //        ray_p1.x,
+    //        ray_p1.y,
+    //        ray_p1.z);
+    // printf("dda - dda %f %f %f ...  %f %f %f\n",
+    //        dda_p0.x,
+    //        dda_p0.y,
+    //        dda_p0.z,
+    //        dda_p1.x,
+    //        dda_p1.y,
+    //        dda_p1.z);
+    // }
+    
+    vec3f color = 0.f;
+    float opacity = 0.f;
+    
+    dda::dda3(dda_org,dda_dir,ray.tMax,
+              vec3ui(lp.mcGrid.dims),
+              [&](vec3i cellID,float t0, float t1)->bool {
+                if (0 && dbg)
+                  printf("in mc cell %i %i %i range %f %f\n",cellID.x,cellID.y,cellID.z,t0,t1);
+
+                float dt = 3.f;
+                for (float t = t0+rng()*dt; true; t += dt) {
+                  vec3f P = ray.getOrigin()+t*ray.getDirection();
+                  float f = CUDART_INF;
+                  if (t >= t1) {
+                    if (0 && dbg) printf("exit cell at t %f\n",t);
+                    break;
+                  }
+                  bool valid = lp.volumeSampler.structured.sample(f,P,dbg);
+                  if (0 && dbg) printf("t %f P %f %f %f valid %i\n",t,
+                                  P.x,P.y,P.z,int(valid));
+                  
+                  if (!valid)
+                    continue;
+                  
+                  vec4f mapped
+                    = lp.volumeSampler.xf.map(f);
+                  color += (1.f-opacity) * mapped.w * vec3f(mapped.x,mapped.y,mapped.z);
+                  opacity += (1.f-opacity)*mapped.w;
+                  opacity = min(opacity,1.f);
+                    if (0 && dbg)
+                    printf("volume %f -> (%f %f %f ; %f)\n",f,mapped.x,mapped.y,mapped.z,mapped.w);
+                }
+                
+                return true;
+              },
+              dbg);
+    lp.fbLayer.addPixelContribution(ray.pixelID,opacity * color);
   }
     
   inline __device__
   void traceRayLocally(Ray &path)
   {
     auto &lp = LaunchParams::get();
+
+    Random rng(path.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
     
     traceAgainstLocalGeometry(path);
     
-    traceThroughLocalVolumeData(path);
+    traceThroughLocalVolumeData(path,rng);
     
     int nextRankToSendTo = -1;
     if (nextRankToSendTo >= 0)
@@ -369,6 +468,7 @@ namespace vopat {
     //                    lp.forwardGlobals,
     //                    lp.volumeGlobals,
     //                    lp.surfaceGlobals);
+    
   } 
 
   inline __device__
@@ -401,24 +501,27 @@ namespace vopat {
         
     vec2f pixelSample = .5f;
 
-    Ray path = generateRay(pixelID,pixelSample);
+    Ray ray = generateRay(pixelID,pixelSample);
     auto &fullFbSize = lp.fbLayer.fullFbSize;
-    path.dbg = (pixelID == fullFbSize/2);
+    ray.dbg = (pixelID == fullFbSize/2);
+    ray.crosshair = !ray.dbg && ((pixelID.x == lp.fbLayer.fullFbSize.x/2) || (pixelID.y == lp.fbLayer.fullFbSize.y/2));
 
-    int pixelOwner = lp.nextDomainKernel.computeNextRank(path,false);
+    int pixelOwner = lp.nextDomainKernel.computeNextRank(ray,false);
 #define VISUALIZE_PROXIES 0
 #if VISUALIZE_PROXIES
     vec3f color
       = (pixelOwner == -1)
-      ? abs(normalize(path.getDirection()))
+      ? abs(normalize(ray.getDirection()))
       : randomColor(pixelOwner);
     if (lp.rank == 0) 
-      lp.fbLayer.addPixelContribution(path.pixelID,color);
+      lp.fbLayer.addPixelContribution(ray.pixelID,color);
     return;
 #endif
     if (pixelOwner == -1 && lp.rank == 0) {
       // pixel not owned by anybody; let's do background on rank 0
-      lp.fbLayer.addPixelContribution(path.pixelID,backgroundColor(path));
+      vec3f frag = backgroundColor(ray);
+      if (ray.crosshair) frag = 1.f - frag;
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
       return;
     }
 
@@ -426,11 +529,11 @@ namespace vopat {
       // we don't own the closest proxy - let somebody else deal with it ...
       return;
 
-#if 1
+#if 0
     // for ray generation we "forward" all rays to ourselves:
-    lp.forwardGlobals.forwardRay(path,lp.rank);
+    lp.forwardGlobals.forwardRay(ray,lp.rank);
 #else
-    traceRayLocally(path);
+    traceRayLocally(ray);
 #endif
     // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel

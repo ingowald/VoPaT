@@ -106,6 +106,7 @@ namespace dda {
     
     float ray_t0 = max(0.f,reduce_max(t_nr));
     float ray_t1 = min(tMax,reduce_min(t_fr));
+    // if (dbg) printf("DDA t %f %f\n",ray_t0,ray_t1);
     // if (isnan(ray_t0) || isnan(ray_t1))
     //   printf("NAN in DDA!\n");
     

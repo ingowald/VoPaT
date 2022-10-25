@@ -34,7 +34,7 @@ namespace vopat {
   }
 
   void Volume::setTransferFunction(const std::vector<vec4f> &cm,
-                                           const interval<float> &xfDomain,
+                                   const interval<float> &xfDomain,
                                    const float density)
   {
     if (!brick)
@@ -46,6 +46,12 @@ namespace vopat {
     // xf.numValues = cm.size();
     xf.domain = xfDomain;
     xf.density = density;
+
+    xfGlobals.values    = this->xf.colorMap.get();
+    xfGlobals.numValues = this->xf.colorMap.N;
+    xfGlobals.domain    = this->xf.domain;
+    xfGlobals.density   = this->xf.density;
+
 #if 0
     mapMacroCell<<<(dim3)globals.mc.dims,(dim3)vec3i(4)>>>
       (mcData.get(),globals.mc.dims,

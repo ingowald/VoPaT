@@ -45,6 +45,8 @@ namespace vopat {
       uint32_t    isShadow   :  1;
     };
     vec3f       origin;
+    inline __device__ vec3f getOrigin() const { return origin; }
+    
 #if 1
     inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
     inline __device__ vec3f getDirection() const { return from_half(direction); }

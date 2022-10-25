@@ -37,7 +37,13 @@ namespace vopat {
       
       cudaTextureObject_t texObj;
       cudaTextureObject_t texObjNN;
-      vec3i dims;
+      /*! origin of the grid in world space, assuming it being
+          axis-aligned and with 1^3 sized cells */
+      vec3f    origin;
+      vec3i    numVoxels;
+      vec3i    numCells;
+
+      box3f    dbg_domain;
     };
     
     void buildMCs(MCGrid &mcGrid) override;
@@ -59,7 +65,16 @@ namespace vopat {
   inline __device__
   bool StructuredVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
-    P += vec3f(.5f); // Transform to CUDA texture cell-centric
+    // transform to grid:
+    P -= origin;
+
+    if (P.x >= numCells.x ||
+        P.y >= numCells.y ||
+        P.z >= numCells.z)
+      return false;
+
+    // transform to cuda cell centered
+    P += vec3f(.5f);
     tex3D(&f,this->texObj,P.x,P.y,P.z);
     return true;
   }
@@ -67,6 +82,11 @@ namespace vopat {
   inline __device__
   bool StructuredVolume::DD::gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const
   {
+    // P = xfmPoint(worldToTCs,P);
+    // transform to grid:
+    // P -= origin;
+    // // transform to cuda cell centered
+    // P += vec3f(.5f); 
     float right,left,top,bottom,front,back;
     sample(right, P+vec3f(delta.x,0.f,0.f),dbg);
     sample(left,  P-vec3f(delta.x,0.f,0.f),dbg);

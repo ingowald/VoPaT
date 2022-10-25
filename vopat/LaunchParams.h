@@ -49,19 +49,23 @@ namespace vopat {
   struct LaunchParams {
     static inline __device__ const LaunchParams &get();
 
+    MCGrid::DD mcGrid;
     AddLocalFBsLayer::DD     fbLayer;
     ForwardGlobals           forwardGlobals;
     // VolumeGlobals            volumeGlobals;
     // SurfaceGlobals           surfaceGlobals;
     NextDomainKernel::LPData nextDomainKernel;
     Camera                   camera;
-    union {
-      UMeshVolume::DD      umesh;
-      StructuredVolume::DD structured;
+    struct{
+      union {
+        UMeshVolume::DD      umesh;
+        StructuredVolume::DD structured;
+      };
+      Volume::DD xf;
     } volumeSampler;
 
-    MCGrid::DD mcGrid;
     int rank;
+    int sampleID;
   };
   
 }

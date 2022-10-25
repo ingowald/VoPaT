@@ -40,7 +40,7 @@ namespace vopat {
     /* compute begin/end of VOXELS for this macro-cell */
     vec3i begin = mcID*mcWidth;
     vec3i end = min(begin + mcWidth + /* plus one for tri-lerp!*/1,
-                    volume.dims);
+                    volume.numVoxels);
     interval<float> valueRange;
     for (int iz=begin.z;iz<end.z;iz++)
       for (int iy=begin.y;iy<end.y;iy++)
@@ -58,12 +58,13 @@ namespace vopat {
 
   void StructuredVolume::buildMCs(MCGrid &mcGrid) 
   {
+    box3f brickDomain = myBrick->getDomain();
+    
     std::cout << OWL_TERMINAL_BLUE
               << "#vopat.structured: building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
-    PRINT(globals.dims);
-    mcGrid.dd.dims = divRoundUp(globals.dims,vec3i(mcWidth));
+    mcGrid.dd.dims = divRoundUp(globals.numCells,vec3i(mcWidth));
     vec3ui bs = 4;
     vec3ui nb = divRoundUp(vec3ui(mcGrid.dd.dims),bs);
     PRINT(nb);
@@ -77,6 +78,28 @@ namespace vopat {
        mcGrid.dd.dims,
        mcWidth,
        globals);
+
+    // stretch == how much bigger the hypotetical 'padded' voxel grid
+    // is than the actual voxel grid
+    vec3f stretch
+      = (float(mcWidth)*vec3f(mcGrid.dd.dims))
+      // / vec3f(myBrick->cellRange.size())
+      ;
+    affine3f toMcGrid
+      = linear3f::scale(vec3f(mcGrid.dd.dims));
+    affine3f toWorldDomain
+      = { linear3f::scale(stretch), vec3f(brickDomain.lower) };
+    PRINT(myBrick->voxelRange);
+    PRINT(toWorldDomain);
+    PRINT(brickDomain);
+    PRINT(toMcGrid);
+    PRINT(stretch);
+    PRINT(mcGrid.dd.dims);
+    mcGrid.dd.worldToMcSpace
+      = toMcGrid * rcp(toWorldDomain);
+    PRINT(xfmPoint(mcGrid.dd.worldToMcSpace,brickDomain.lower));
+    PRINT(xfmPoint(mcGrid.dd.worldToMcSpace,brickDomain.upper));
+    PRINT(mcGrid.dd.worldToMcSpace);
     CUDA_SYNC_CHECK();
     std::cout << OWL_TERMINAL_GREEN
               << "#vopat.structured: done building macro cells .."
@@ -87,6 +110,8 @@ namespace vopat {
   void StructuredVolume::build(OWLContext owl,
                                OWLModule owlDevCode) 
   {
+    box3f brickDomain = myBrick->getDomain();
+    
     std::vector<float> &hostVoxels = myBrick->scalars;
     
     // Copy voxels to cuda array
@@ -120,6 +145,7 @@ namespace vopat {
     textureDesc.addressMode[2]   = cudaAddressModeClamp;
     textureDesc.filterMode       = cudaFilterModeLinear;
     textureDesc.readMode         = cudaReadModeElementType;
+    // textureDesc.normalizedCoords = true;
     textureDesc.normalizedCoords = false;
 
     CUDA_CALL(CreateTextureObject(&globals.texObj,&resourceDesc,&textureDesc,0));
@@ -127,11 +153,24 @@ namespace vopat {
     // 2nd texture object for nearest filtering in macro cell generation
     textureDesc.filterMode       = cudaFilterModePoint;
     CUDA_CALL(CreateTextureObject(&globals.texObjNN,&resourceDesc,&textureDesc,0));
-    globals.dims = myBrick->numVoxels;
+    globals.numVoxels = myBrick->numVoxels;
+    globals.numCells = myBrick->numCells;
+    affine3f toCellGrid
+      = affine3f::scale(vec3f(myBrick->numCells));
+    affine3f toDomain
+      = affine3f::translate(vec3f(brickDomain.lower))
+      * affine3f::scale(vec3f(brickDomain.size()));
+    globals.origin = vec3f(myBrick->cellRange.lower);
+    globals.dbg_domain = brickDomain;
   }
   
   void StructuredVolume::setDD(OWLLaunchParams lp) 
   {
+    // globals.xf.values    = this->xf.colorMap.get();
+    // globals.xf.numValues = this->xf.colorMap.N;
+    // globals.xf.domain    = this->xf.domain;
+    // globals.xf.density   = this->xf.density;
+        
     owlParamsSetRaw(lp,"volumeSampler.structured",&globals);
   }
   

@@ -65,12 +65,12 @@ namespace vopat {
       { return vec2i{localPixelID.x,localPixelID.y*islandScale+islandBias}; }
       
       /*! device-size address to this rank's local frame buffer */
-      vec3f       *accumBuffer;
+      vec3f       *accumBuffer { 0 };
       /*! size of this local frame buffer */
-      vec2i        fullFbSize;
+      vec2i        fullFbSize { 0,0 };
       
-      int          islandBias;
-      int          islandScale;
+      int          islandBias { 0 };
+      int          islandScale { 0 };
     };
     
     AddLocalFBsLayer(CommBackend *comm) : comm(comm) {}
@@ -119,8 +119,8 @@ namespace vopat {
       to, and from where those can then be sent on to the master */
     // uint32_t       *compResultMemory = nullptr;
     CUDAArray<uint32_t> compResultMemory;
-    vec2i           islandFbSize;
-    vec2i           fullFbSize;
+    vec2i           islandFbSize { 0,0 };
+    vec2i           fullFbSize { 0,0 };
 
     /*! only on the master: the buffer we receive final composited
         pixels in, properly assembled across all islands */

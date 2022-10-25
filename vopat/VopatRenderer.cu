@@ -56,6 +56,10 @@ namespace vopat {
         ({"camera",OWL_USER_TYPE(Camera),OWL_OFFSETOF(LaunchParams,camera)});
       lpVars.push_back
         ({"rank",OWL_INT,OWL_OFFSETOF(LaunchParams,rank)});
+      lpVars.push_back
+        ({"mcGrid",OWL_USER_TYPE(MCGrid::DD),OWL_OFFSETOF(LaunchParams,mcGrid)});
+      lpVars.push_back
+        ({"volumeSampler.xf",OWL_USER_TYPE(Volume::DD),OWL_OFFSETOF(LaunchParams,volumeSampler.xf)});
       // lpVars.push_back
       //   ({"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)});
       // lpVars.push_back
@@ -70,6 +74,7 @@ namespace vopat {
       volume->setDD(lp);
 
       volume->buildMCs(mcGrid);
+      owlParamsSetRaw(lp,"mcGrid",&mcGrid.dd);
       
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
@@ -180,7 +185,6 @@ namespace vopat {
     AddLocalFBsLayer::DD &fbLayerDD = fbLayer.dd;
     owlParamsSetRaw(lp,"fbLayer",&fbLayerDD);
     owlParamsSetRaw(lp,"camera",&camera.dd);
-
     volume->setDD(lp);
     // auto volumeGlobals = volume.globals;
     // PRINT(forwardGlobals.islandFbSize);
@@ -262,6 +266,7 @@ namespace vopat {
     nextDomainKernel.mapXF(volume->xf.colorMap.get(),volume->xf.colorMap.N,
                            volume->xf.domain);
     nextDomainKernel.setLPVars(lp);
+    owlParamsSetRaw(lp,"volumeSampler.xf",&volume->xfGlobals);
     // printf("todo - update macro cells; todo - update shards/proxies\n"); 
   }
   

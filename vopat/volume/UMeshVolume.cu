@@ -141,6 +141,11 @@ namespace vopat {
   
   void UMeshVolume::setDD(OWLLaunchParams lp) 
   {
+    // globals.xf.values    = this->xf.colorMap.get();
+    // globals.xf.numValues = this->xf.colorMap.N;
+    // globals.xf.domain    = this->xf.domain;
+    // globals.xf.density   = this->xf.density;
+        
     owlParamsSetRaw(lp,"volumeSampler.umesh",&globals);
   }
   

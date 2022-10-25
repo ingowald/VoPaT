@@ -46,11 +46,14 @@ namespace vopat {
     
     std::vector<Shard> makeShards(int numShards) override;
 
+    box3f getDomain() const
+    { return box3f{vec3f(cellRange.lower),vec3f(cellRange.upper)}; }
   private:
     /*! internal helper function for recursive subdividion when making shards */
     void recMakeShards(std::vector<Shard> &result,
                        const box3i &cellRange,
                        int numShardsForThisRange);
+
   public:
     box3i cellRange;
     box3i voxelRange;

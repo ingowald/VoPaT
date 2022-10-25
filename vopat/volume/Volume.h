@@ -33,12 +33,25 @@ namespace vopat {
     
     struct DD {
       //      cudaTextureObject_t xfTexture;
-      struct {
-        vec4f          *values;
-        int             numValues;
-        interval<float> domain;
-        float           density;
-      } xf;
+      inline __device__ vec4f map(float f) const
+      {
+        if (domain.lower >= domain.upper ||
+            f < domain.lower ||
+            f > domain.upper)
+          return vec4f(0.f);
+        f = (f-domain.lower)*(numValues-1)/(domain.upper-domain.lower);
+        int s0 = int(f);
+        float ff = f - s0;
+        int s1 = min(s0,numValues-1);
+        return (1.f-ff)*values[s0]+ff*values[s1];
+      }
+      // struct {
+
+      vec4f          *values;
+      int             numValues;
+      interval<float> domain;
+      float           density;
+      // } xf;
     };
     
     virtual void build(OWLContext owl,
@@ -52,6 +65,7 @@ namespace vopat {
                              const interval<float> &domain,
                              const float density);
 
+    DD xfGlobals;
     struct {
       CUDAArray<vec4f> colorMap;
       interval<float> domain;

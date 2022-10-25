@@ -110,7 +110,7 @@ namespace vopat {
     OWLContext owl;
     OWLModule  owlDevCode;
 
-    OWLLaunchParams lp;
+    OWLLaunchParams lp = 0;
     OWLRayGen traceLocallyRG;
     OWLRayGen generatePrimaryWaveRG;
 

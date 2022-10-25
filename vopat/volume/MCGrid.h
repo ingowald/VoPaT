@@ -31,11 +31,17 @@ namespace vopat {
     struct DD {
       MacroCell *cells;
       vec3i      dims;
-      affine3f   worldToCellSpace;
+      affine3f   worldToMcSpace;
       
       // template<typename Lambda>
       // inline __device__ void march(Ray &ray, const Lambda &lambda);
     };
+    
+    // void addLPVars(std::vector<OWLVarDecl> &lpVars,
+    //                // offset of this kernel's vars within LP
+    //                uint32_t kernelOffset);
+    // void setLPVars(OWLLaunchParams lp);
+
     CUDAArray<MacroCell> cells;
     vec3i                dims;
     
