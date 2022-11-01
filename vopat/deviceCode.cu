@@ -32,6 +32,8 @@ namespace vopat {
   { return optixLaunchParams; }
   // { return (const LaunchParams &)optixLaunchParams[0]; }
 
+
+  
   // ##################################################################
   // NextDomainKernel accel struct programs
   // ##################################################################
@@ -349,7 +351,7 @@ namespace vopat {
   }
     
   inline __device__
-  void traceThroughLocalVolumeData(Ray &ray, Random &rng)
+  bool traceThroughLocalVolumeData(vec3f &hit_color, Ray &ray, Random &rng)
   {
     auto &lp = LaunchParams::get();
     bool dbg = ray.dbg;
@@ -404,7 +406,52 @@ namespace vopat {
     //        dda_p1.y,
     //        dda_p1.z);
     // }
-    
+
+#if 1
+    vec4f mapped_volume_at_t_hit = 0.f;
+    const float DENSITY = ((lp.volumeSampler.xf.density == 0.f) ? 1.f : lp.volumeSampler.xf.density);//.03f;
+    bool had_hit = false;
+    dda::dda3(dda_org,dda_dir,ray.tMax,
+              vec3ui(lp.mcGrid.dims),
+              [&](vec3i cellID,float t0, float t1)->bool {
+                if (t0 >= ray.tMax)
+                  return false;
+                t1 = min(t1,ray.tMax);
+                float majorant = lp.mcGrid.getMajorant(cellID);
+                const float step_scale = 1.f/(majorant*DENSITY);
+                if (majorant == 0.f)
+                  return t1 < ray.tMax;
+
+                float t = t0;
+                while (true) {
+                  // Sample a distance
+                  t = t - (logf(1.f - rng()) * step_scale);
+                  if (/*we left the cell: */t >= t1) 
+                    /* leave this cell, but tell DDA to keep on going */
+                    return t1 < ray.tMax;
+
+                  vec3f P = ray.getOrigin()+t*ray.getDirection();
+                  float f = CUDART_INF;
+                  if (!lp.volumeSampler.structured.sample(f,P,dbg))
+                    continue;
+                  
+                  mapped_volume_at_t_hit = lp.volumeSampler.xf.map(f);
+                  if (rng()*DENSITY >= mapped_volume_at_t_hit.w)
+                    // reject this sample
+                    continue;
+                  
+                  // we DID sample the volume!
+                  ray.tMax = t;
+                  hit_color = { mapped_volume_at_t_hit.x,
+                                      mapped_volume_at_t_hit.y,
+                                      mapped_volume_at_t_hit.z };
+                  had_hit = true;
+                  return /* false == "we're done" !! */ false;
+                }
+              },
+              dbg);
+    return had_hit;
+#else
     vec3f color = 0.f;
     float opacity = 0.f;
     
@@ -442,6 +489,7 @@ namespace vopat {
               },
               dbg);
     lp.fbLayer.addPixelContribution(ray.pixelID,opacity * color);
+#endif
   }
     
   inline __device__
@@ -452,8 +500,9 @@ namespace vopat {
     Random rng(path.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
     
     traceAgainstLocalGeometry(path);
-    
-    traceThroughLocalVolumeData(path,rng);
+
+    vec3f volume_hit_color = 0.f;
+    traceThroughLocalVolumeData(volume_hit_color,path,rng);
     
     int nextRankToSendTo = -1;
     if (nextRankToSendTo >= 0)

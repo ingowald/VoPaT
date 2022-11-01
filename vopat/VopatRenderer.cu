@@ -245,7 +245,7 @@ namespace vopat {
       islandFbSize = -1;
     } else {
       islandFbSize = fbLayer.islandFbSize;
-      int maxRaysPerPixel = 1+2*VOPAT_MAX_BOUNCES;
+      int maxRaysPerPixel = 1+/* 2* */VOPAT_MAX_BOUNCES;
       forwardingLayer.resizeQueues(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
     }
   }

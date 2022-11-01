@@ -29,6 +29,15 @@ namespace vopat {
 
   struct MCGrid {
     struct DD {
+      inline __device__ float getMajorant(const vec3i coord) const
+      {
+        if (uint32_t(coord.x) >= uint32_t(dims.x) |
+            uint32_t(coord.y) >= uint32_t(dims.y) |
+            uint32_t(coord.z) >= uint32_t(dims.z))
+          { printf("invalid coord!\n"); return 0.f; }
+        return cells[coord.x+dims.x*(coord.y+dims.y*(coord.z))].maxOpacity;
+      }
+      
       MacroCell *cells;
       vec3i      dims;
       affine3f   worldToMcSpace;

@@ -59,6 +59,11 @@ namespace vopat {
     small_vec3f throughput;
     float tMax = 1e20f;
     int32_t hitType;
+    union {
+      struct { short_vec3f color; } hit_volume;
+      struct { short_vec3f N; float ior; } hit_surface_glass;
+      struct { short_vec3f N; short_vec3f diffuse; } hit_surface_diffuse;
+    };
   };
 
   // ==================================================================
