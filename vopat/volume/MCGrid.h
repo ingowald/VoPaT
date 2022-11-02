@@ -29,43 +29,29 @@ namespace vopat {
 
   struct MCGrid {
     struct DD {
-      inline __device__ float getMajorant(const vec3i coord) const
+      inline __device__ float getMajorant(const vec3i cellID) const
       {
-        if (uint32_t(coord.x) >= uint32_t(dims.x) |
-            uint32_t(coord.y) >= uint32_t(dims.y) |
-            uint32_t(coord.z) >= uint32_t(dims.z))
-          { printf("invalid coord!\n"); return 0.f; }
-        return cells[coord.x+dims.x*(coord.y+dims.y*(coord.z))].maxOpacity;
+        if (uint32_t(cellID.x) >= uint32_t(dims.x) ||
+            uint32_t(cellID.y) >= uint32_t(dims.y) ||
+            uint32_t(cellID.z) >= uint32_t(dims.z))
+          { printf("invalid cellID!\n"); return 0.f; }
+        const float f = cells[cellID.x+dims.x*(cellID.y+dims.y*(cellID.z))].maxOpacity;
+        return f;
       }
       
       MacroCell *cells;
       vec3i      dims;
       affine3f   worldToMcSpace;
-      
-      // template<typename Lambda>
-      // inline __device__ void march(Ray &ray, const Lambda &lambda);
     };
-    
-    // void addLPVars(std::vector<OWLVarDecl> &lpVars,
-    //                // offset of this kernel's vars within LP
-    //                uint32_t kernelOffset);
-    // void setLPVars(OWLLaunchParams lp);
+
+    MCGrid()
+    { dd.dims = vec3i(0); }
 
     CUDAArray<MacroCell> cells;
-    vec3i                dims;
+    vec3i                dims = 0;
     
     DD dd;
   };
-  
-// #if VOPAT_UMESH
-// #else
-//   /*! computes initial *input* range of the macrocells; ie, min/max of
-//     raw data values *excluding* any transfer fucntion */
-//   __global__ void initMacroCell(MacroCell *mcData,
-//                                 vec3i mcDims,
-//                                 int mcWidth,
-//                                 VoxelData volume);
-// #endif
   
   /*! assuming the min/max of the raw data values are already set in a
     macrocell, this updates the *mapped* min/amx values from a given

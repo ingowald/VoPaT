@@ -27,22 +27,25 @@ namespace vopat {
   vec3f fixDir(vec3f v)
   { return {fixDir(v.x),fixDir(v.y),fixDir(v.z)}; }
 
-  
   // ==================================================================
 
   struct Ray {
-    enum { HitType_None = -1 };
-    enum { HitType_Volume = -2 };
+    enum { HitType_None = 0,
+           HitType_Volume,
+           HitType_Surf_Glass,
+           HitType_Surf_Diffuse
+    };
 
     struct {
       /*! note this always refers to a GLOBAL pixel ID even if we
         use islands; ie, this number may be LARGER than the number
         of pixels in the local frame buffer */
-      uint32_t    pixelID    : 25;
+      uint32_t    pixelID    : 23;
       uint32_t    numBounces :  4;
       uint32_t    dbg        :  1;
       uint32_t    crosshair  :  1;
       uint32_t    isShadow   :  1;
+      uint32_t    hitType    :  2;
     };
     vec3f       origin;
     inline __device__ vec3f getOrigin() const { return origin; }
@@ -58,12 +61,11 @@ namespace vopat {
 #endif
     small_vec3f throughput;
     float tMax = 1e20f;
-    int32_t hitType;
     union {
-      struct { short_vec3f color; } hit_volume;
-      struct { short_vec3f N; float ior; } hit_surface_glass;
-      struct { short_vec3f N; short_vec3f diffuse; } hit_surface_diffuse;
-    };
+      struct { small_vec3f color; } volume;
+      struct { small_vec3f N; float ior; } surf_glass;
+      struct { small_vec3f N; small_vec3f diffuse; } surf_diffuse;
+    } hit;
   };
 
   // ==================================================================

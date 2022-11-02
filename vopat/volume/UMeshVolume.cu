@@ -281,6 +281,7 @@ namespace vopat {
               << std::endl;
     mcGrid.dd.dims = 256;
     mcGrid.cells.resize(volume(mcGrid.dd.dims));
+    mcGrid.dd.cells = mcGrid.cells.get();
     CUDA_SYNC_CHECK();// PING;
     // CUDA_CALL(Memset(mcGrid.cells.get(),0,mcGrid.cells.numBytes()));
     clearMCs<<<(dim3)divRoundUp(mcGrid.dd.dims,vec3i(4)),(dim3)vec3i(4)>>>

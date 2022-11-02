@@ -38,7 +38,8 @@ namespace vopat {
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
-
+    this->myRank = comm->myRank();
+    
     // ------------------------------------------------------------------
     // compute how *many* shards each rank has
     // ------------------------------------------------------------------
@@ -100,6 +101,7 @@ namespace vopat {
     if (!owl) return;
 
     auto &owlDevCode = vopat->owlDevCode;
+    this->myRank = vopat->comm->myRank();
 
     OWLVarDecl vars[]
       = {
@@ -142,6 +144,7 @@ namespace vopat {
   {
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
+    PING; PRINT(myRank);
     owlParamsSet1i(lp,"myRank",myRank);
   }
 

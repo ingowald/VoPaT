@@ -59,7 +59,7 @@ namespace vopat {
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
 
-    if (0 && prd.dbg)
+    if (1 && prd.dbg)
       printf("isec proxy %i (%f %f %f)(%f %f %f):%i\n",
              primID,
              proxy.domain.lower.x,
@@ -69,6 +69,11 @@ namespace vopat {
              proxy.domain.upper.y,
              proxy.domain.upper.z,
              proxy.rankID);
+    if (prd.dbg)
+      printf("skip-check proxy %i me %i skip %i\n",
+             proxy.rankID,
+             lp.nextDomainKernel.myRank,
+             int(prd.skipCurrentRank));
     if (prd.skipCurrentRank && (proxy.rankID == lp.nextDomainKernel.myRank)) return;
   
     vec3f org = optixGetWorldRayOrigin();
@@ -328,19 +333,22 @@ namespace vopat {
 #endif  
 
   inline __device__
-  int NextDomainKernel::LPData::computeNextRank(Ray &path, bool skipCurrentRank) const
+  int NextDomainKernel::LPData::computeNextRank(Ray &ray, bool skipCurrentRank) const
   {
     auto &lp = LaunchParams::get();
     
-    owl::Ray ray(path.origin,
-                 path.getDirection(),
-                 0.f,path.tMax);
+    owl::Ray optix_ray(ray.origin,
+                       ray.getDirection(),
+                       0.f,ray.tMax);
+    if (ray.dbg)
+      printf("tracing ray max_t %f, skip=%i\n",
+             ray.tMax,int(skipCurrentRank));
     NextDomainKernel::PRD prd;
     prd.closestRank = -1;
-    prd.closestDist = path.tMax;
+    prd.closestDist = ray.tMax;
     prd.skipCurrentRank = skipCurrentRank;
-    prd.dbg = path.dbg;
-    owl::traceRay(proxyBVH,ray,prd);
+    prd.dbg = ray.dbg;
+    owl::traceRay(proxyBVH,optix_ray,prd);
     return prd.closestRank;
   }
 
@@ -351,7 +359,7 @@ namespace vopat {
   }
     
   inline __device__
-  bool traceThroughLocalVolumeData(vec3f &hit_color, Ray &ray, Random &rng)
+  void traceThroughLocalVolumeData(Ray &ray, Random &rng)
   {
     auto &lp = LaunchParams::get();
     bool dbg = ray.dbg;
@@ -410,7 +418,6 @@ namespace vopat {
 #if 1
     vec4f mapped_volume_at_t_hit = 0.f;
     const float DENSITY = ((lp.volumeSampler.xf.density == 0.f) ? 1.f : lp.volumeSampler.xf.density);//.03f;
-    bool had_hit = false;
     dda::dda3(dda_org,dda_dir,ray.tMax,
               vec3ui(lp.mcGrid.dims),
               [&](vec3i cellID,float t0, float t1)->bool {
@@ -442,15 +449,15 @@ namespace vopat {
                   
                   // we DID sample the volume!
                   ray.tMax = t;
-                  hit_color = { mapped_volume_at_t_hit.x,
-                                      mapped_volume_at_t_hit.y,
-                                      mapped_volume_at_t_hit.z };
-                  had_hit = true;
+                  ray.hitType = Ray::HitType_Volume;
+                  ray.hit.volume.color = to_half({ mapped_volume_at_t_hit.x,
+                                                   mapped_volume_at_t_hit.y,
+                                                   mapped_volume_at_t_hit.z });
                   return /* false == "we're done" !! */ false;
                 }
               },
               dbg);
-    return had_hit;
+    
 #else
     vec3f color = 0.f;
     float opacity = 0.f;
@@ -493,20 +500,50 @@ namespace vopat {
   }
     
   inline __device__
-  void traceRayLocally(Ray &path)
+  void traceRayLocally(Ray &ray)
   {
     auto &lp = LaunchParams::get();
 
-    Random rng(path.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
-    
-    traceAgainstLocalGeometry(path);
+    Random rng(ray.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
 
-    vec3f volume_hit_color = 0.f;
-    traceThroughLocalVolumeData(volume_hit_color,path,rng);
+    // if (!ray.dbg) return;
+
+    traceAgainstLocalGeometry(ray);
+    if (ray.isShadow && ray.hitType != Ray::HitType_None)
+      // this shadow ray is occluded - let it drop dead.
+      return;
+
+    traceThroughLocalVolumeData(ray,rng);
+    if (ray.isShadow && ray.hitType != Ray::HitType_None)
+      // this shadow ray is occluded - let it drop dead.
+      return;
+
+    if (ray.dbg)
+      printf("ray hit type %i at %f\n",
+             int(ray.hitType),ray.tMax);
     
-    int nextRankToSendTo = -1;
-    if (nextRankToSendTo >= 0)
-      lp.forwardGlobals.forwardRay(path,nextRankToSendTo);
+    if (ray.dbg)
+      printf("------------------ NEXT: -------------\n");
+    int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
+    if (ray.dbg)
+      printf("next rank: %i\n",nextRankToSendTo);
+    if (nextRankToSendTo >= 0) {
+      lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
+      return;
+    }
+    // no need to forward - can shade!
+    if (ray.isShadow) {
+      // if we reach here we cannot have had any occlusion, else this
+      // ray would ahve dies already...
+      lp.fbLayer.addPixelContribution(ray.pixelID,from_half(ray.throughput));
+      return;
+    }
+
+    if (ray.hitType == Ray::HitType_Volume) {
+      lp.fbLayer.addPixelContribution(ray.pixelID,
+                                      from_half(ray.throughput)*
+                                      from_half(ray.hit.volume.color));
+    }
   }
   
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
@@ -528,7 +565,7 @@ namespace vopat {
     Ray ray;
     ray.pixelID  = lp.fbLayer.globalToIndex(pixelID);
     ray.isShadow = false;
-
+    ray.hitType  = Ray::HitType_None;
     auto &camera = lp.camera;
     ray.origin = camera.lens_00;
     vec3f dir

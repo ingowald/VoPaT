@@ -194,6 +194,7 @@ namespace vopat {
     // std::cout << "##################################################################" << std::endl;
     // fflush(0);
     forwardingLayer.clearQueue();
+    CUDA_SYNC_CHECK();
     owlLaunch2D(generatePrimaryWaveRG,
                 fbSize.x,
                 fbSize.y,

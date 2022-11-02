@@ -69,15 +69,18 @@ namespace vopat {
     vec3ui nb = divRoundUp(vec3ui(mcGrid.dd.dims),bs);
     PRINT(nb);
     PRINT(bs);
-    
+
+    std::cout << "resizing macro cells to " << mcGrid.dd.dims << " volume " << owl::common::volume(mcGrid.dd.dims) << std::endl;
     mcGrid.cells.resize(owl::common::volume(mcGrid.dd.dims));
     dim3 _nb{nb.x,nb.y,nb.z};
     dim3 _bs{bs.x,bs.y,bs.z};
+    mcGrid.dd.cells = mcGrid.cells.get();
     vopat::buildMCs<<<_nb,_bs>>>
       (mcGrid.cells.get(),
        mcGrid.dd.dims,
        mcWidth,
        globals);
+    CUDA_SYNC_CHECK();
 
     // stretch == how much bigger the hypotetical 'padded' voxel grid
     // is than the actual voxel grid
