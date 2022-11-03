@@ -40,7 +40,7 @@ namespace vopat {
       /*! note this always refers to a GLOBAL pixel ID even if we
         use islands; ie, this number may be LARGER than the number
         of pixels in the local frame buffer */
-      uint32_t    pixelID    : 23;
+      uint32_t    pixelID    : 22;
       uint32_t    numBounces :  4;
       uint32_t    dbg        :  1;
       uint32_t    crosshair  :  1;
@@ -48,6 +48,8 @@ namespace vopat {
       uint32_t    hitType    :  2;
     };
     vec3f       origin;
+    float tMax = 1e20f;
+    
     inline __device__ vec3f getOrigin() const { return origin; }
     
 #if 1
@@ -60,12 +62,17 @@ namespace vopat {
     vec3f direction;
 #endif
     small_vec3f throughput;
-    float tMax = 1e20f;
+    
+    /* node that spawned this ray, so later stages can reconstruct
+       where this ray has already been */
+    int16_t spawningRank;
+    int16_t dbg_destRank;
     union {
       struct { small_vec3f color; } volume;
       struct { small_vec3f N; float ior; } surf_glass;
       struct { small_vec3f N; small_vec3f diffuse; } surf_diffuse;
     } hit;
+
   };
 
   // ==================================================================

@@ -157,6 +157,7 @@ namespace vopat {
 //         (forward,volume.globals,surface.globals);
 //     // CUDA_SYNC_CHECK();
 // #endif
+    CUDA_SYNC_CHECK();
   }
 
   // __global__
@@ -246,7 +247,7 @@ namespace vopat {
       islandFbSize = -1;
     } else {
       islandFbSize = fbLayer.islandFbSize;
-      int maxRaysPerPixel = 1+/* 2* */VOPAT_MAX_BOUNCES;
+      int maxRaysPerPixel = 1+2*VOPAT_MAX_BOUNCES;
       forwardingLayer.resizeQueues(islandFbSize.x*islandFbSize.y*maxRaysPerPixel);
     }
   }
@@ -275,7 +276,30 @@ namespace vopat {
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
     resetAccumulation();
-    generatePrimaryWave();
+    auto island    = comm->worker.withinIsland;
+    if (!isMaster()) {
+
+      std::cout << "#######################################################" << std::endl;
+      fflush(0);
+      island->barrier();
+      
+      generatePrimaryWave();
+    
+      int numExchanged = 0;
+      while ((numExchanged = forwardingLayer.exchangeRays())) {
+
+#if 1
+        sleep(1);
+        island->barrier();
+        fflush(0);
+#endif
+        forwardingLayer.clearQueue();
+        CUDA_SYNC_CHECK();
+        traceLocally();
+        CUDA_SYNC_CHECK();
+      }
+
+    }
     fbLayer.addLocalFBs(fbPointer);
   }
 

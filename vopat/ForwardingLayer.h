@@ -70,17 +70,15 @@ namespace vopat {
 
     ForwardingLayer(CommBackend *comm);
 
-    void clearQueue()
-    {
-      perRankSendCounts.bzero();
-      allSendCounts.bzero();
-    }
+    void clearQueue();
     void resizeQueues(int maxRaysPerQueue);
     
     // void traceRaysLocally();
     void createSendQueue();
     int  exchangeRays();
 
+    int myRank() const { return comm->myRank(); }
+    
     inline bool isMaster() const { return comm->isMaster; }
     
     /*! ray queues we are expected to trace in the next step */
@@ -116,9 +114,11 @@ namespace vopat {
   (const Ray &ray, int nextRankForThisRay)
     const
   {
+    
     atomicAdd(&perRankSendCounts[nextRankForThisRay],1);
     int outID = atomicAdd(pNumRaysOut,1);
     rayQueueOut[outID] = ray;
+    rayQueueOut[outID].dbg_destRank = nextRankForThisRay;
     rayNextRank[outID] = nextRankForThisRay;
   }
 #endif

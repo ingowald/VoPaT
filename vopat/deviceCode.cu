@@ -58,9 +58,10 @@ namespace vopat {
     auto proxy = geom.proxies[primID];
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
-
+    
     if (1 && prd.dbg)
-      printf("isec proxy %i (%f %f %f)(%f %f %f):%i\n",
+      printf("(%i) isec proxy %i (%f %f %f)(%f %f %f):%i\n",
+             lp.rank,
              primID,
              proxy.domain.lower.x,
              proxy.domain.lower.y,
@@ -69,19 +70,60 @@ namespace vopat {
              proxy.domain.upper.y,
              proxy.domain.upper.z,
              proxy.rankID);
-    if (prd.dbg)
-      printf("skip-check proxy %i me %i skip %i\n",
-             proxy.rankID,
-             lp.nextDomainKernel.myRank,
-             int(prd.skipCurrentRank));
-    if (prd.skipCurrentRank && (proxy.rankID == lp.nextDomainKernel.myRank)) return;
-  
+
+
+    /* if this is a 'Find_Self_' phase we'll need to skip _all_other_
+       ranks' proxies: */
+    if (prd.phase == NextDomainKernel::Phase_FindSelf &&
+        proxy.rankID != lp.rank)
+      return;
+    
+    /* if this is a 'Find_Next_' phase we'll need to skip everybody
+       that's already been tagged in the 'others' phase: */
+    else if (prd.phase == NextDomainKernel::Phase_FindNext &&
+             prd.alreadyTravedMask.hasBitSet(proxy.rankID))
+      return;
+    
+    /*! if this is a 'Find_Others_' phase we can skip everybody that's
+      already tagged */
+    else if (prd.phase == NextDomainKernel::Phase_FindOthers &&
+             prd.alreadyTravedMask.hasBitSet(proxy.rankID))
+      return;
+
     vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
     float t0 = optixGetRayTmin();
     float t1 = optixGetRayTmax();
     if (!boxTest(proxy.domain,org,dir,t0,t1))
+      // we didn't even hit this proxy, so everything else is moot;
+      // exit.
       return;
+
+    if (1 && prd.dbg)
+      printf("(%i) proxy rank %i hit %f ray.tmax %f prd.dist %f prd.rank %i\n",
+             lp.rank,proxy.rankID,
+             t0,optixGetRayTmax(),prd.closestDist,(int)prd.closestRank);
+
+    
+    // ------------------------------------------------------------------
+    // ok, we DID hit that proxy, at distance t0
+    // ------------------------------------------------------------------
+
+    /* if this is the find _others_ phase: check if the proxy _would_
+       have been accepted before the currect-rank's hit, and if so,
+       set the bit. Either way, exit right away (no accept) */
+    if (prd.phase == NextDomainKernel::Phase_FindOthers) {
+      if (t0 < prd.closestDist ||
+          t0 == prd.closestDist && proxy.rankID < prd.closestDist)
+        /* this hit WOULD have been accepted if we hadn't explcitly
+           included it in the find-self phase */
+        prd.alreadyTravedMask.setBit(proxy.rankID);
+      return;
+    }
+    
+    /* otherwise, we're either finding the first, ourselves, or the
+       next other; in all of which cases we need to store the robustly
+       closest hit */
     if ((t0 > prd.closestDist)
         ||
         ((t0 == prd.closestDist)
@@ -90,21 +132,116 @@ namespace vopat {
          ))
       return;
 
+    /* seems we DO have a hit we wank to store - do so, and report one
+       float-bit more distant to mmake sure we'll still get called for
+       same-distance hits */
     prd.closestDist = t0;
     prd.closestRank = proxy.rankID;
+    if (prd.dbg)
+      printf("(%i) -> ACCEPTING hit %i dist %f\n",
+             lp.rank,(int)prd.closestRank,prd.closestDist);
     float reported_t = nextafterf(t0,CUDART_INF);
-    if (0 && prd.dbg)
-      printf(" proxy HIT box (%f %f) -> t %f/%f org %f %f %f dir %f %f %f\n",t0,t1,t0,reported_t,
-             org.x,
-             org.y,
-             org.z,
-             dir.x,
-             dir.y,
-             dir.z
-             );
     optixReportIntersection(reported_t,0);
   }
 
+  inline __device__
+  int NextDomainKernel::LPData::computeFirstRank(Ray &ray) const
+  {
+    auto &lp = LaunchParams::get();
+
+    if (ray.dbg) printf("------------------ FIRST (%i)-------------\n",lp.rank);
+    
+    owl::Ray optix_ray(ray.origin,
+                       ray.getDirection(),
+                       0.f,ray.tMax);
+    NextDomainKernel::PRD prd;
+    prd.phase = NextDomainKernel::Phase_FindFirst;
+    prd.closestDist = ray.tMax;
+    prd.closestRank = -1;
+    prd.dbg = ray.dbg;
+    owl::traceRay(proxyBVH,optix_ray,prd);
+    return prd.closestRank;
+  }
+
+  inline __device__
+  int NextDomainKernel::LPData::computeNextRank(Ray &ray) const
+  {
+    auto &lp = LaunchParams::get();
+    
+    if (ray.dbg)
+      printf("------------------ NEXT rank %i spawn %i-------------\n",
+             lp.rank,ray.spawningRank);
+    owl::Ray optix_ray(ray.origin,
+                       ray.getDirection(),
+                       0.f,nextafterf(ray.tMax,CUDART_INF));
+    NextDomainKernel::PRD prd;
+    prd.dbg = ray.dbg;
+    prd.alreadyTravedMask.clearBits();
+    prd.alreadyTravedMask.setBit(ray.spawningRank);
+    if (ray.spawningRank != lp.rank) {
+      // if we are NOT on the originating node
+
+      // ------------------------------------------------------------------
+      // phase 1: find ourselves - ie, find closest distance to any of
+      // our proxies; that's the proxy that any _other_ rank would
+      // have accepted to send this ray to us
+      // ------------------------------------------------------------------
+
+      if (ray.dbg) printf("------------------ NEXT, phase 1 -------------\n");
+      optix_ray.tmax = CUDART_INF;
+      prd.phase = NextDomainKernel::Phase_FindSelf;
+      prd.closestRank = -1;
+      prd.closestDist = CUDART_INF;
+      if (ray.dbg)
+        printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
+               ray.origin.x,
+               ray.origin.y,
+               ray.origin.z,
+               ray.getDirection().x,
+               ray.getDirection().y,
+               ray.getDirection().z,
+               optix_ray.tmax);
+      owl::traceRay(proxyBVH,optix_ray,prd);
+      if (prd.closestRank != lp.rank) {
+        if (ray.dbg)
+          printf("baaad - ray couldn't find itself - found %i, should be %i\n",
+                 prd.closestRank,lp.rank);
+        return -1;
+      }
+
+      // ------------------------------------------------------------------
+      // phase 2: trace ray again (up to ourselves), and mark all
+      // those ranks whose proxies would have been accepted BEFORE
+      // ours - those must be the ones that have already been
+      // traversed by this ray
+      // ------------------------------------------------------------------
+
+      if (ray.dbg) printf("------------------ NEXT, phase 2 -------------\n");
+      prd.phase = NextDomainKernel::Phase_FindOthers;
+      prd.alreadyTravedMask.setBit(prd.closestRank);
+      prd.closestRank = -1;
+      //prd.closestDist = nextafterf(prd.closestDist,CUDART_INF);
+      optix_ray.tmax = nextafterf(prd.closestDist,CUDART_INF);
+      if (ray.dbg)
+        printf("tracing ray max_t %f\n",optix_ray.tmax);
+      owl::traceRay(proxyBVH,optix_ray,prd);
+    }
+
+    if (ray.dbg) printf("------------------ NEXT, phase 3 -------------\n");
+    // ------------------------------------------------------------------
+    // phase 3: find next closest proxy (up to ray.tmax) that belongs
+    // on a rank that has _not_ yet been traversed
+    // ------------------------------------------------------------------
+    prd.phase = NextDomainKernel::Phase_FindNext;
+    prd.closestRank = -1;
+    prd.closestDist = ray.tMax;
+    optix_ray.tmax  = ray.tMax;
+      if (ray.dbg)
+        printf("tracing ray max_t %f\n",optix_ray.tmax);
+    owl::traceRay(proxyBVH,optix_ray,prd);
+    
+    return prd.closestRank;
+  }
 
 
 
@@ -164,194 +301,6 @@ namespace vopat {
   // ##################################################################
 
   
-#if 0
-  inline __device__
-  int computeNextNode(Ray ray, float t_already_travelled)
-  {
-    auto &lp = LaunchParams::get();
-    NextDomainKernel::PRD prd;
-    prd.closestRank = -1;
-    prd.closestDist = ray.tMax;
-    prd.skipCurrentRank = true;
-    prd.dbg = ray.dbg;
-    owl::Ray owlRay(ray.origin,ray.getDirection(),t_already_travelled,ray.tMax);
-    owl::traceRay(lp.nextDomainKernel.proxyBVH,owlRay,prd);
-    return prd.closestRank;
-  }
-  
-  inline __device__
-  int computeInitialRank(Ray ray)
-  {
-    auto &lp = LaunchParams::get();
-    NextDomainKernel::PRD prd;
-    prd.closestRank = -1;
-    prd.closestDist = ray.tMax;
-    prd.skipCurrentRank = false;
-    prd.dbg = ray.dbg;
-    owl::Ray owlRay(ray.origin,ray.getDirection(),0.f,ray.tMax);
-    if (ray.dbg)
-      printf("proxyBVH %lx\n",lp.nextDomainKernel.proxyBVH);
-    owl::traceRay(lp.nextDomainKernel.proxyBVH,owlRay,prd);
-    if (ray.dbg)
-      printf("closest rank %i\n",prd.closestRank);
-    return prd.closestRank;
-  }
-
-  inline __device__
-  void generatePrimaryWaveKernel(const vec2i launchIdx,
-                                 const ForwardGlobals &vopat,
-                                 const VolumeGlobals &globals)
-  {
-    int ix = launchIdx.x;
-    int iy = launchIdx.y;
-
-    // if (vec2i(ix,iy) == vec2i(0))
-    //   printf("launch 0 : islandsize %i %i \n",
-    //          vopat.islandFbSize.x,vopat.islandFbSize.y);
-             
-    if (ix >= vopat.islandFbSize.x) return;
-    if (iy >= vopat.islandFbSize.y) return;
-
-    bool dbg = (vec2i(ix,iy) == vopat.islandFbSize/2);
-    // if (dbg) printf("=======================================================\ngeneratePrimaryWaveKernel %i %i\n
-    // ",ix,iy);
-    
-    int myRank = vopat.islandRank;//myRank;
-    int world_iy
-      = vopat.islandIndex
-      + iy * vopat.islandCount;
-    Ray ray    = generateRay(vopat,vec2i(ix,world_iy),vec2f(.5f));
-    ray.dbg = dbg;
-    ray.crosshair = (ix == vopat.islandFbSize.x/2) || (iy == vopat.islandFbSize.y/2);
-    // #if 0
-    //     ray.dbg    = (vec2i(ix,world_iy) == vopat.worldFbSize/2);
-    //     if (ray.dbg) printf("----------- NEW RAY -----------\n");
-    // #else
-    //     ray.dbg    = false;
-    // #endif
-
-    ray.numBounces = 0;
-#if DEBUG_FORWARDS
-    ray.numFwds = 0;
-#endif
-    ray.crosshair = (ix == vopat.worldFbSize.x/2) || (world_iy == vopat.worldFbSize.y/2);
-    int dest   = computeInitialRank(ray);
-
-    if (dest < 0) {
-      /* "nobody" owns this pixel, set to background on rank 0 */
-      if (myRank == 0) {
-        // vopat.accumBuffer[islandPixelID(vopat,ray.pixelID)] += DeviceKernels::backgroundColor(ray,vopat);
-        vopat.addPixelContribution(ray.pixelID,backgroundColor(ray,vopat));
-      }
-      return;
-    }
-    if (dest != myRank) {
-      /* somebody else owns this pixel; we don't do anything */
-      return;
-    }
-    int queuePos = atomicAdd(&vopat.perRankSendCounts[myRank],1);
-    
-    if (queuePos >= vopat.islandFbSize.x*vopat.islandFbSize.y)
-      printf("FISHY PRIMARY RAY POS!\n");
-    
-    vopat.rayQueueIn[queuePos] = ray;
-    if (!checkOrigin(ray))
-      printf("fishy primary ray!\n");
-  }
-  
-  // OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
-  // {
-  //   const RayGenData &self = owl::getProgramData<RayGenData>();
-  //   const vec2i pixelID = owl::getLaunchIndex();
-  //   if (pixelID == owl::vec2i(0)) {
-  //     printf("%sHello OptiX From your First RayGen Program%s\n",
-  //            OWL_TERMINAL_CYAN,
-  //            OWL_TERMINAL_DEFAULT);
-  //   }
-
-  //   const vec2f screen = (vec2f(pixelID)+vec2f(.5f)) / vec2f(self.fbSize);
-  //   owl::Ray ray;
-  //   ray.origin    
-  //     = self.camera.pos;
-  //   ray.direction 
-  //     = normalize(self.camera.dir_00
-  //                 + screen.u * self.camera.dir_du
-  //                 + screen.v * self.camera.dir_dv);
-
-  //   vec3f color;
-  //   owl::traceRay(/*accel to trace against*/self.world,
-  //                 /*the ray to trace*/ray,
-  //                 /*prd*/color);
-    
-  //   const int fbOfs = pixelID.x+self.fbSize.x*pixelID.y;
-  //   self.fbPtr[fbOfs]
-  //     = owl::make_rgba(color);
-  // }
-
-  // OPTIX_CLOSEST_HIT_PROGRAM(TriangleMesh)()
-  // {
-  //   vec3f &prd = owl::getPRD<vec3f>();
-
-  //   const TrianglesGeomData &self = owl::getProgramData<TrianglesGeomData>();
-  
-  //   // compute normal:
-  //   const int   primID = optixGetPrimitiveIndex();
-  //   const vec3i index  = self.index[primID];
-  //   const vec3f &A     = self.vertex[index.x];
-  //   const vec3f &B     = self.vertex[index.y];
-  //   const vec3f &C     = self.vertex[index.z];
-  //   const vec3f Ng     = normalize(cross(B-A,C-A));
-
-  //   const vec3f rayDir = optixGetWorldRayDirection();
-
-  //   // compute texture coordinates
-  //   const vec2f uv     = optixGetTriangleBarycentrics();
-  //   const vec2f tc
-  //     = (1.f-uv.x-uv.y)*self.texCoord[index.x]
-  //     +      uv.x      *self.texCoord[index.y]
-  //     +           uv.y *self.texCoord[index.z];
-  //   // retrieve color from texture
-  //   vec4f texColor = tex2D<float4>(self.texture,tc.x,tc.y);
-
-  //   prd = (.2f + .8f*fabs(dot(rayDir,Ng))) * vec3f(texColor);
-
-  // }
-
-  // OPTIX_MISS_PROGRAM(miss)()
-  // {
-  //   const vec2i pixelID = owl::getLaunchIndex();
-
-  //   const MissProgData &self = owl::getProgramData<MissProgData>();
-  
-  //   vec3f &prd = owl::getPRD<vec3f>();
-  //   int pattern = (pixelID.x / 8) ^ (pixelID.y/8);
-  //   prd = (pattern&1) ? self.color1 : self.color0;
-  // }
-
-
-
-#endif  
-
-  inline __device__
-  int NextDomainKernel::LPData::computeNextRank(Ray &ray, bool skipCurrentRank) const
-  {
-    auto &lp = LaunchParams::get();
-    
-    owl::Ray optix_ray(ray.origin,
-                       ray.getDirection(),
-                       0.f,ray.tMax);
-    if (ray.dbg)
-      printf("tracing ray max_t %f, skip=%i\n",
-             ray.tMax,int(skipCurrentRank));
-    NextDomainKernel::PRD prd;
-    prd.closestRank = -1;
-    prd.closestDist = ray.tMax;
-    prd.skipCurrentRank = skipCurrentRank;
-    prd.dbg = ray.dbg;
-    owl::traceRay(proxyBVH,optix_ray,prd);
-    return prd.closestRank;
-  }
-
   inline __device__
   void traceAgainstLocalGeometry(Ray &path)
   {
@@ -522,16 +471,26 @@ namespace vopat {
       printf("ray hit type %i at %f\n",
              int(ray.hitType),ray.tMax);
     
-    if (ray.dbg)
-      printf("------------------ NEXT: -------------\n");
+    // ==================================================================
+    // check if ray needs futher processing on another node
+    // ==================================================================
     int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
     if (ray.dbg)
       printf("next rank: %i\n",nextRankToSendTo);
     if (nextRankToSendTo >= 0) {
+      if (ray.dbg)
+        printf("---> forwarding to %i\n",nextRankToSendTo);
+      if (nextRankToSendTo == lp.rank) {
+        printf("forwarding to ourselves!?\n");
+        return;
+      }
       lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
       return;
     }
-    // no need to forward - can shade!
+
+    // ==================================================================
+    // ray doesn't need forwarding; it's done and can be shaded here!
+    // ==================================================================
     if (ray.isShadow) {
       // if we reach here we cannot have had any occlusion, else this
       // ray would ahve dies already...
@@ -540,9 +499,11 @@ namespace vopat {
     }
 
     if (ray.hitType == Ray::HitType_Volume) {
-      lp.fbLayer.addPixelContribution(ray.pixelID,
-                                      from_half(ray.throughput)*
-                                      from_half(ray.hit.volume.color));
+      vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
+      if (ray.dbg)
+        printf("(%i) adding frag %f %f %f\n",
+               lp.rank,frag.x,frag.y,frag.z);
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
     }
   }
   
@@ -550,6 +511,11 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
     int rayID = owl::getLaunchIndex().x;
+    Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
+    if (ray.dbg)
+      printf("(%i) RECEIVED ray w/ origin %i....\n",
+             lp.rank,(int)ray.spawningRank);
+    traceRayLocally(ray);
     // Woodcock::traceRay(rayID,
     //                    lp.forwardGlobals,
     //                    lp.volumeGlobals,
@@ -589,10 +555,16 @@ namespace vopat {
 
     Ray ray = generateRay(pixelID,pixelSample);
     auto &fullFbSize = lp.fbLayer.fullFbSize;
-    ray.dbg = (pixelID == fullFbSize/2);
-    ray.crosshair = !ray.dbg && ((pixelID.x == lp.fbLayer.fullFbSize.x/2) || (pixelID.y == lp.fbLayer.fullFbSize.y/2));
 
-    int pixelOwner = lp.nextDomainKernel.computeNextRank(ray,false);
+    vec2i dbgPixel(540,1016-600);
+    // vec2i dbgPixel = fullFbSize/2;
+    ray.dbg = (pixelID == dbgPixel);
+
+    
+    ray.crosshair
+      = !ray.dbg && ((pixelID.x == dbgPixel.x) || (pixelID.y == dbgPixel.y));
+    ray.spawningRank = lp.rank;
+    int pixelOwner = lp.nextDomainKernel.computeFirstRank(ray);
 #define VISUALIZE_PROXIES 0
 #if VISUALIZE_PROXIES
     vec3f color

@@ -28,8 +28,11 @@ namespace vopat {
   
   
   struct NextDomainKernel {
-    enum { RETRY = 1<<30 };
+    enum { MAX_RANKS = 64 };
     
+    // enum { RETRY = 1<<30 };
+    enum { Phase_FindFirst, Phase_FindSelf, Phase_FindOthers, Phase_FindNext };
+          
     struct Proxy {
       box3f domain;
       int   rankID;
@@ -37,14 +40,28 @@ namespace vopat {
     };
 
     struct PRD {
-      uint32_t   skipCurrentRank:1;
+      struct {
+        inline __device__ void clearBits()
+        { for (int i=0;i<(MAX_RANKS+63)/64;i++) qwords[i] = 0; }
+        
+        inline __device__ void setBit(int rank)
+        { qwords[rank/64] |= (1<<(rank%64)); }
+        
+        inline __device__ bool hasBitSet(int rank)
+        { return qwords[rank/64] & (1<<(rank%64)); }
+        
+        uint64_t   qwords[(MAX_RANKS+63)/64];
+      } alreadyTravedMask;
+      
       uint32_t   dbg:1;
-      int   closestRank:30;
-      float closestDist;
+      uint32_t   phase:2;
+      int32_t    closestRank:20;
+      float      closestDist;
     };
     
     struct LPData {
-      inline __device__ int computeNextRank(Ray &path, bool skipCurrentRank=true) const;
+      inline __device__ int computeFirstRank(Ray &path) const;
+      inline __device__ int computeNextRank(Ray &path) const;
       
       int                    myRank;
       Proxy                 *proxies;
