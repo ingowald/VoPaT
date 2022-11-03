@@ -374,7 +374,12 @@ namespace vopat {
       // cmdline parsed, set up mpi
       // ******************************************************************
       MPIBackend mpiBackend(argc,argv,islandSize);
-    
+      if (!mpiBackend.isMaster) {
+        PRINT(mpiBackend.worker.gpuID);
+        cudaSetDevice(mpiBackend.worker.gpuID);
+      }
+
+      
       // ******************************************************************
       // load model, and check that it meets our mpi config
       // ******************************************************************

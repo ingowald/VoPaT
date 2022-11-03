@@ -27,7 +27,7 @@ namespace vopat {
     int ofs = 0;
     for (int i=0;i<globals.islandSize;i++) {
       globals.perRankSendOffsets[i] = ofs;
-      printf("(%i) compact offset %i = %i\n",rank,i,ofs);
+      // printf("(%i) compact offset %i = %i\n",rank,i,ofs);
       ofs += globals.perRankSendCounts[i];
     }
   }
@@ -38,8 +38,8 @@ namespace vopat {
     if (tid >= numRays) return;
 
     int dest = globals.rayNextRank[tid];
-    if (globals.rayQueueIn[tid].dbg_destRank != dest)
-      printf("bad dest in out queue\n");
+    // if (globals.rayQueueIn[tid].dbg_destRank != dest)
+    //   printf("bad dest in out queue\n");
     // if (dest < 0) return;
 
     int slot = atomicAdd(&globals.perRankSendOffsets[dest],1);
@@ -50,55 +50,54 @@ namespace vopat {
 
   void ForwardingLayer::createSendQueue()
   {
-    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+    // std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
     int numRaysOut;
     CUDA_CALL(Memcpy(&numRaysOut,dd.pNumRaysOut,sizeof(int),cudaMemcpyDefault));
-    printf("[%i] num out %i\n",myRank(),numRaysOut);
+    // printf("[%i] num out %i\n",myRank(),numRaysOut);
     computeCompactionOffsets<<<1,1>>>
       (myRank(),dd);
-    CUDA_SYNC_CHECK();
+    // CUDA_SYNC_CHECK();
     int blockSize = 256;
     int numBlocks = divRoundUp(numRaysOut,blockSize);
     std::swap(rayQueueOut,rayQueueIn);
     std::swap(dd.rayQueueOut,dd.rayQueueIn);
 
-    CUDA_CALL(Memset(dd.rayQueueOut,-1,sizeof(Ray)*numRaysOut));
+    // CUDA_CALL(Memset(dd.rayQueueOut,-1,sizeof(Ray)*numRaysOut));
     if (numBlocks)
       compactRays<<<numBlocks,blockSize>>>
         (dd,numRaysOut);
-    CUDA_SYNC_CHECK();
+    // CUDA_SYNC_CHECK();
   }
 
-  __global__
-  void checkRaysReceived(int *d_flag, Ray *rayQueueIn, int numRays, int rank)
-  {
-    int tid = threadIdx.x+blockIdx.x*blockDim.x;
-    if (tid >= numRays) return;
+  // __global__
+  // void checkRaysReceived(int *d_flag, Ray *rayQueueIn, int numRays, int rank)
+  // {
+  //   int tid = threadIdx.x+blockIdx.x*blockDim.x;
+  //   if (tid >= numRays) return;
 
-    if (rayQueueIn[tid].dbg_destRank != rank) {
-      if (atomicAdd(d_flag,1) == 0)
-        printf("NOT the right rank where this was supposed to go - on %i ray wanted %i!?\n",
-               rank,rayQueueIn[tid].dbg_destRank);
-    }
-  }
+  //   if (rayQueueIn[tid].dbg_destRank != rank) {
+  //     if (atomicAdd(d_flag,1) == 0)
+  //       printf("NOT the right rank where this was supposed to go - on %i ray wanted %i!?\n",
+  //              rank,rayQueueIn[tid].dbg_destRank);
+  //   }
+  // }
 
-  __global__
-  void checkRaysOut(int *d_flag, Ray *rayQueueOut, int ofs, int numRays, int dest, int rank)
-  {
-    int tid = threadIdx.x+blockIdx.x*blockDim.x;
-    if (tid >= numRays) return;
+  // __global__
+  // void checkRaysOut(int *d_flag, Ray *rayQueueOut, int ofs, int numRays, int dest, int rank)
+  // {
+  //   int tid = threadIdx.x+blockIdx.x*blockDim.x;
+  //   if (tid >= numRays) return;
 
-    if (rayQueueOut[ofs+tid].dbg_destRank != dest)
-      if (atomicAdd(d_flag,1) == 0)
-        printf("(%i) checkout - ofs %i: ray says %i list pos says %i\n",
-               rank,
-               ofs+tid,rayQueueOut[ofs+tid].dbg_destRank,dest
-               );
-  }
+  //   if (rayQueueOut[ofs+tid].dbg_destRank != dest)
+  //     if (atomicAdd(d_flag,1) == 0)
+  //       printf("(%i) checkout - ofs %i: ray says %i list pos says %i\n",
+  //              rank,
+  //              ofs+tid,rayQueueOut[ofs+tid].dbg_destRank,dest
+  //              );
+  // }
 
   int  ForwardingLayer::exchangeRays()
   {
-    PRINT(sizeof(Ray));
     createSendQueue();
     
     host_sendCounts = perRankSendCounts.download();
@@ -109,14 +108,14 @@ namespace vopat {
     int myRank     = comm->islandRank();
     int numWorkers = comm->islandSize();
 
-    for (int printRank=0;printRank<numWorkers;printRank++) {
-      island->barrier();
-      fflush(0);
-      if (myRank != printRank) continue;
+    // for (int printRank=0;printRank<numWorkers;printRank++) {
+    //   island->barrier();
+    //   fflush(0);
+    //   if (myRank != printRank) continue;
       
-      for (int i=0;i<numWorkers;i++)
-        printf("[%i] to rank %i = %i\n",myRank,i,host_sendCounts[i]);
-    } 
+    //   for (int i=0;i<numWorkers;i++)
+    //     printf("[%i] to rank %i = %i\n",myRank,i,host_sendCounts[i]);
+    // } 
     
     /* iw - TODO: change this to use alltoall instead of allgaher;
        with allgather each rank received N*N elements, which describes
@@ -125,14 +124,14 @@ namespace vopat {
     std::vector<int> allRankSendCounts(numWorkers*numWorkers);
     island->allGather(allRankSendCounts,host_sendCounts);
 
-    for (int printRank=0;printRank<numWorkers;printRank++) {
-      island->barrier();
-      fflush(0);
-      if (myRank != printRank) continue;
+    // for (int printRank=0;printRank<numWorkers;printRank++) {
+    //   island->barrier();
+    //   fflush(0);
+    //   if (myRank != printRank) continue;
       
-      for (int i=0;i<numWorkers*numWorkers;i++)
-        printf("[%i] allSendCounts[%i] = %i\n",myRank,i,allRankSendCounts[i]);
-    }
+    //   for (int i=0;i<numWorkers*numWorkers;i++)
+    //     printf("[%i] allSendCounts[%i] = %i\n",myRank,i,allRankSendCounts[i]);
+    // }
     
     // ------------------------------------------------------------------
     // compute SEND counts and offsets
@@ -147,21 +146,21 @@ namespace vopat {
       ofs += sendByteCounts[i];
     }
 
-    for (int i=0;i<numWorkers;i++) {
-      int numRays = sendByteCounts[i] / sizeof(Ray);
-      if (numRays == 0) continue;
-      int bs = 128;
-      int nb = divRoundUp(numRays,bs);
-      int *result;
-      cudaMallocManaged(&result,sizeof(int));
-      *result = 0;
-      checkRaysOut<<<nb,bs>>>(result,rayQueueOut.get(),
-                              sendByteOffsets[i]/sizeof(Ray),
-                              numRays,i,myRank);
-      CUDA_SYNC_CHECK();
-      if (*result)
-        throw std::runtime_error("invalid compaction queue");
-    }
+    // for (int i=0;i<numWorkers;i++) {
+    //   int numRays = sendByteCounts[i] / sizeof(Ray);
+    //   if (numRays == 0) continue;
+    //   int bs = 128;
+    //   int nb = divRoundUp(numRays,bs);
+    //   int *result;
+    //   cudaMallocManaged(&result,sizeof(int));
+    //   *result = 0;
+    //   checkRaysOut<<<nb,bs>>>(result,rayQueueOut.get(),
+    //                           sendByteOffsets[i]/sizeof(Ray),
+    //                           numRays,i,myRank);
+    //   CUDA_SYNC_CHECK();
+    //   if (*result)
+    //     throw std::runtime_error("invalid compaction queue");
+    // }
     
     
     // ------------------------------------------------------------------
@@ -179,23 +178,23 @@ namespace vopat {
       numReceived += from_i;
     }
 
-    for (int printRank=0;printRank<numWorkers;printRank++) {
-      island->barrier();
-      fflush(0);
-      if (myRank != printRank) continue;
+    // for (int printRank=0;printRank<numWorkers;printRank++) {
+    //   island->barrier();
+    //   fflush(0);
+    //   if (myRank != printRank) continue;
       
-      for (int i=0;i<numWorkers;i++)
-        printf("[%2i] from %2i = %9i/%9i ofs %9i    to %2i = %9i/%9i ofs %9i\n",
-               myRank,
-               i,
-               recvByteCounts[i],
-               recvByteCounts[i]/(int)sizeof(Ray), 
-               recvByteOffsets[i]/(int)sizeof(Ray),
-               i,
-               sendByteCounts[i],
-               sendByteCounts[i]/(int)sizeof(Ray),
-               sendByteOffsets[i]/(int)sizeof(Ray));
-    } 
+    //   for (int i=0;i<numWorkers;i++)
+    //     printf("[%2i] from %2i = %9i/%9i ofs %9i    to %2i = %9i/%9i ofs %9i\n",
+    //            myRank,
+    //            i,
+    //            recvByteCounts[i],
+    //            recvByteCounts[i]/(int)sizeof(Ray), 
+    //            recvByteOffsets[i]/(int)sizeof(Ray),
+    //            i,
+    //            sendByteCounts[i],
+    //            sendByteCounts[i]/(int)sizeof(Ray),
+    //            sendByteOffsets[i]/(int)sizeof(Ray));
+    // } 
     
     // ------------------------------------------------------------------
     // exeute the all2all
@@ -210,20 +209,20 @@ namespace vopat {
     numRaysIn = numReceived;
     dd.numRaysIn = numRaysIn;
 
-    if (numRaysIn) {
-      int bs = 128;
-      int nb = divRoundUp(numRaysIn,bs);
-      int *result;
-      cudaMallocManaged(&result,sizeof(int));
-      *result = 0;
-      checkRaysReceived<<<nb,bs>>>(result,rayQueueIn.get(),numRaysIn,myRank);
-      CUDA_SYNC_CHECK();
-      if (*result) {
-        printf("WRONG result!\n");
-        sleep(1);
-        exit(1);
-      }
-    }
+    // if (numRaysIn) {
+    //   int bs = 128;
+    //   int nb = divRoundUp(numRaysIn,bs);
+    //   int *result;
+    //   cudaMallocManaged(&result,sizeof(int));
+    //   *result = 0;
+    //   checkRaysReceived<<<nb,bs>>>(result,rayQueueIn.get(),numRaysIn,myRank);
+    //   CUDA_SYNC_CHECK();
+    //   if (*result) {
+    //     printf("WRONG result!\n");
+    //     sleep(1);
+    //     exit(1);
+    //   }
+    // }
 
     
     // ------------------------------------------------------------------
@@ -349,12 +348,7 @@ namespace vopat {
   {
     if (isMaster()) {
     } else {
-      // dd.islandRank  = comm->islandRank();
       dd.islandSize  = comm->islandSize();
-      // dd.islandIndex = comm->islandIndex();
-      // dd.islandCount = comm->islandCount();
-      PING; PRINT(dd.islandSize);
-      
       allSendCounts.resize(1);
       perRankSendCounts.resize(dd.islandSize);
       perRankSendOffsets.resize(dd.islandSize);
@@ -375,10 +369,8 @@ namespace vopat {
 
   void ForwardingLayer::resizeQueues(int maxRaysPerQueue)
   {
-    PING; PRINT(maxRaysPerQueue);
     if (isMaster()) {
     } else {
-      // PRINT(newSize);
       rayQueueIn.resize(maxRaysPerQueue);
       dd.rayQueueIn   = rayQueueIn.get();
 

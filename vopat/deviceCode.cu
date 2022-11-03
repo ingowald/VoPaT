@@ -30,8 +30,9 @@ namespace vopat {
 
   inline __device__ const LaunchParams &LaunchParams::get()
   { return optixLaunchParams; }
-  // { return (const LaunchParams &)optixLaunchParams[0]; }
 
+  inline __device__
+  void traceRayLocally(Ray &ray);
 
   
   // ##################################################################
@@ -448,79 +449,12 @@ namespace vopat {
 #endif
   }
     
-  inline __device__
-  void traceRayLocally(Ray &ray)
-  {
-    auto &lp = LaunchParams::get();
-
-    Random rng(ray.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
-
-    // if (!ray.dbg) return;
-
-    traceAgainstLocalGeometry(ray);
-    if (ray.isShadow && ray.hitType != Ray::HitType_None)
-      // this shadow ray is occluded - let it drop dead.
-      return;
-
-    traceThroughLocalVolumeData(ray,rng);
-    if (ray.isShadow && ray.hitType != Ray::HitType_None)
-      // this shadow ray is occluded - let it drop dead.
-      return;
-
-    if (ray.dbg)
-      printf("ray hit type %i at %f\n",
-             int(ray.hitType),ray.tMax);
-    
-    // ==================================================================
-    // check if ray needs futher processing on another node
-    // ==================================================================
-    int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
-    if (ray.dbg)
-      printf("next rank: %i\n",nextRankToSendTo);
-    if (nextRankToSendTo >= 0) {
-      if (ray.dbg)
-        printf("---> forwarding to %i\n",nextRankToSendTo);
-      if (nextRankToSendTo == lp.rank) {
-        printf("forwarding to ourselves!?\n");
-        return;
-      }
-      lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
-      return;
-    }
-
-    // ==================================================================
-    // ray doesn't need forwarding; it's done and can be shaded here!
-    // ==================================================================
-    if (ray.isShadow) {
-      // if we reach here we cannot have had any occlusion, else this
-      // ray would ahve dies already...
-      lp.fbLayer.addPixelContribution(ray.pixelID,from_half(ray.throughput));
-      return;
-    }
-
-    if (ray.hitType == Ray::HitType_Volume) {
-      vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
-      if (ray.dbg)
-        printf("(%i) adding frag %f %f %f\n",
-               lp.rank,frag.x,frag.y,frag.z);
-      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
-    }
-  }
-  
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
     auto &lp = LaunchParams::get();
     int rayID = owl::getLaunchIndex().x;
     Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
-    if (ray.dbg)
-      printf("(%i) RECEIVED ray w/ origin %i....\n",
-             lp.rank,(int)ray.spawningRank);
     traceRayLocally(ray);
-    // Woodcock::traceRay(rayID,
-    //                    lp.forwardGlobals,
-    //                    lp.volumeGlobals,
-    //                    lp.surfaceGlobals);
-    
   } 
 
   inline __device__
@@ -598,6 +532,76 @@ namespace vopat {
     //   (launchIdx,
     //    lp.forwardGlobals,
     //    lp.volumeGlobals);
+  }
+  
+
+
+
+  inline __device__
+  void traceRayLocally(Ray &ray)
+  {
+    auto &lp = LaunchParams::get();
+
+    Random rng(ray.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
+
+    // if (!ray.dbg) return;
+
+    traceAgainstLocalGeometry(ray);
+    if (ray.isShadow && ray.hitType != Ray::HitType_None)
+      // this shadow ray is occluded - let it drop dead.
+      return;
+
+    traceThroughLocalVolumeData(ray,rng);
+    if (ray.isShadow && ray.hitType != Ray::HitType_None)
+      // this shadow ray is occluded - let it drop dead.
+      return;
+
+    if (ray.dbg)
+      printf("ray hit type %i at %f\n",
+             int(ray.hitType),ray.tMax);
+    
+    // ==================================================================
+    // check if ray needs futher processing on another node
+    // ==================================================================
+    int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
+    if (ray.dbg)
+      printf("next rank: %i\n",nextRankToSendTo);
+    if (nextRankToSendTo >= 0) {
+      if (ray.dbg)
+        printf("---> forwarding to %i\n",nextRankToSendTo);
+      if (nextRankToSendTo == lp.rank) {
+        printf("forwarding to ourselves!?\n");
+        return;
+      }
+      lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
+      return;
+    }
+
+    // ==================================================================
+    // ray doesn't need forwarding; it's done and can be shaded here!
+    // ==================================================================
+    if (ray.isShadow) {
+      // if we reach here we cannot have had any occlusion, else this
+      // ray would ahve dies already...
+      lp.fbLayer.addPixelContribution(ray.pixelID,from_half(ray.throughput));
+      return;
+    }
+
+    if (ray.hitType == Ray::HitType_Volume) {
+      // this was a volume hit; let's just store that color
+      vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
+      if (ray.dbg)
+        printf("(%i) adding frag %f %f %f\n",
+               lp.rank,frag.x,frag.y,frag.z);
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
+    }
+    else if (ray.hitType == Ray::HitType_None) {
+      // ray didn't hit anything; but we KNOW it's not a shadow ray -
+      // see do abckground
+      vec3f frag = backgroundColor(ray);
+      if (ray.crosshair) frag = 1.f - frag;
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
+    }
   }
   
 }

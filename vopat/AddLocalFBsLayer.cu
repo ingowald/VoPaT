@@ -157,6 +157,7 @@ namespace vopat {
     numAccumulatedFrames++;
     
     if (isMaster()) {
+      PING;
       /* nothing to do on master yet, wait for workers to render... */
       assert(fbPointer);
       assert(fullFbSize.x > 0);
@@ -171,8 +172,10 @@ namespace vopat {
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fullFbSize.x*fullFbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
       CUDA_SYNC_CHECK();
+      PING;
     } else {
       
+      PING;
       const int numIslands = comm->worker.numIslands;
       const int islandIdx  = comm->worker.islandIdx;
       const int islandRank = comm->worker.withinIsland->rank;
@@ -269,6 +272,7 @@ namespace vopat {
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
+      PING;
     }
   }
 

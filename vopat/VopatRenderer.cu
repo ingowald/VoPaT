@@ -57,6 +57,8 @@ namespace vopat {
       lpVars.push_back
         ({"rank",OWL_INT,OWL_OFFSETOF(LaunchParams,rank)});
       lpVars.push_back
+        ({"sampleID",OWL_INT,OWL_OFFSETOF(LaunchParams,sampleID)});
+      lpVars.push_back
         ({"mcGrid",OWL_USER_TYPE(MCGrid::DD),OWL_OFFSETOF(LaunchParams,mcGrid)});
       lpVars.push_back
         ({"volumeSampler.xf",OWL_USER_TYPE(Volume::DD),OWL_OFFSETOF(LaunchParams,volumeSampler.xf)});
@@ -275,24 +277,26 @@ namespace vopat {
 
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
-    resetAccumulation();
-    auto island    = comm->worker.withinIsland;
+    // resetAccumulation();
+    
     if (!isMaster()) {
+      
+      int thisFrameID = accumID++;
+      owlParamsSet1i(lp,"sampleID",thisFrameID);
 
-      std::cout << "#######################################################" << std::endl;
-      fflush(0);
-      island->barrier();
+      // std::cout << "#######################################################" << std::endl;
+      // fflush(0);
+      // island->barrier();
       
       generatePrimaryWave();
     
       int numExchanged = 0;
-      while ((numExchanged = forwardingLayer.exchangeRays())) {
+      while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
 
-#if 1
-        sleep(1);
-        island->barrier();
-        fflush(0);
-#endif
+        // sleep(1);
+        // island->barrier();
+        // fflush(0);
+        
         forwardingLayer.clearQueue();
         CUDA_SYNC_CHECK();
         traceLocally();

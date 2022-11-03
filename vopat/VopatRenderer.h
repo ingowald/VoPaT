@@ -52,7 +52,7 @@ namespace vopat {
     void resizeFrameBuffer(const vec2i &newSize);
     
     void screenShot() { fbLayer.screenShot(); }
-    void resetAccumulation() { fbLayer.resetAccumulation(); }
+    void resetAccumulation() { accumID = 0; fbLayer.resetAccumulation(); }
     // void generatePrimaryWave(const ForwardGlobals &forward);
     // void traceLocally(const ForwardGlobals &forward, bool fishy);
     
@@ -126,6 +126,7 @@ namespace vopat {
     AddLocalFBsLayer fbLayer;
     MCGrid           mcGrid;
     vec2i islandFbSize;
+    int accumID;
   };
 
   
