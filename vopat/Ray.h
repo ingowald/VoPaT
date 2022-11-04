@@ -51,8 +51,9 @@ namespace vopat {
     float tMax = 1e20f;
     
     inline __device__ vec3f getOrigin() const { return origin; }
+    inline __device__ void setOrigin(vec3f org) { origin = org; }
     
-#if 1
+#if 0
     inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
     inline __device__ vec3f getDirection() const { return from_half(direction); }
     small_vec3f direction;

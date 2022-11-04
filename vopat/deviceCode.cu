@@ -32,7 +32,7 @@ namespace vopat {
   { return optixLaunchParams; }
 
   inline __device__
-  void traceRayLocally(Ray &ray);
+  void traceRayLocally(Random &rng, Ray &ray);
 
   
   // ##################################################################
@@ -375,9 +375,9 @@ namespace vopat {
                   return false;
                 t1 = min(t1,ray.tMax);
                 float majorant = lp.mcGrid.getMajorant(cellID);
-                const float step_scale = 1.f/(majorant*DENSITY);
                 if (majorant == 0.f)
                   return t1 < ray.tMax;
+                const float step_scale = 1.f/(majorant*DENSITY);
 
                 float t = t0;
                 while (true) {
@@ -393,7 +393,7 @@ namespace vopat {
                     continue;
                   
                   mapped_volume_at_t_hit = lp.volumeSampler.xf.map(f);
-                  if (rng()*DENSITY >= mapped_volume_at_t_hit.w)
+                  if (rng()*majorant >= mapped_volume_at_t_hit.w)
                     // reject this sample
                     continue;
                   
@@ -452,9 +452,12 @@ namespace vopat {
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
   {
     auto &lp = LaunchParams::get();
+    
     int rayID = owl::getLaunchIndex().x;
+
     Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
-    traceRayLocally(ray);
+    Random rng(ray.pixelID,0x2345678 + (lp.rank+lp.sampleID) * FNV_PRIME);
+    traceRayLocally(rng,ray);
   } 
 
   inline __device__
@@ -481,18 +484,20 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
     const vec2i pixelID = lp.fbLayer.localToGlobal(owl::getLaunchIndex());//owl::getLaunchIndex();
+    Random rng(pixelID.x+FNV_PRIME*pixelID.y,0x1234567 + FNV_PRIME * lp.sampleID);
+
     if (pixelID.x >= lp.fbLayer.fullFbSize.x ||
         pixelID.y >= lp.fbLayer.fullFbSize.y)
       return;
         
-    vec2f pixelSample = .5f;
+    vec2f pixelSample = { rng(), rng() };//.5f;
 
     Ray ray = generateRay(pixelID,pixelSample);
     auto &fullFbSize = lp.fbLayer.fullFbSize;
 
-    vec2i dbgPixel(540,1016-600);
-    // vec2i dbgPixel = fullFbSize/2;
-    ray.dbg = (pixelID == dbgPixel);
+    //vec2i dbgPixel(540,1016-600);
+    vec2i dbgPixel = fullFbSize/2;
+    ray.dbg = 0;//(pixelID == dbgPixel);
 
     
     ray.crosshair
@@ -525,7 +530,7 @@ namespace vopat {
     // for ray generation we "forward" all rays to ourselves:
     lp.forwardGlobals.forwardRay(ray,lp.rank);
 #else
-    traceRayLocally(ray);
+    traceRayLocally(rng,ray);
 #endif
     // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
     // generatePrimaryWaveKernel
@@ -538,11 +543,9 @@ namespace vopat {
 
 
   inline __device__
-  void traceRayLocally(Ray &ray)
+  void traceRayLocally(Random &rng, Ray &ray)
   {
     auto &lp = LaunchParams::get();
-
-    Random rng(ray.pixelID,0x1234567 + lp.rank * FNV_PRIME ^ lp.sampleID);
 
     // if (!ray.dbg) return;
 
@@ -588,12 +591,33 @@ namespace vopat {
     }
 
     if (ray.hitType == Ray::HitType_Volume) {
+#if 1
+      float ambient = .1f;
+      vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
+      if (ray.dbg)
+        printf("(%i) adding frag %f %f %f\n",
+               lp.rank,frag.x,frag.y,frag.z);
+      lp.fbLayer.addPixelContribution(ray.pixelID,ambient * frag);
+
+      ray.throughput = to_half(frag*(1.f-ambient));
+      ray.isShadow = 1;
+      ray.spawningRank = lp.rank;
+      ray.hitType = Ray::HitType_None;
+      vec3f lightDir = normalize(vec3f(1.f,1.f,1.f));
+      ray.setOrigin(ray.getOrigin()
+                    +ray.tMax*ray.getDirection()
+                    +.1f*lightDir);
+      ray.setDirection(lightDir);
+      ray.tMax = CUDART_INF;
+      lp.forwardGlobals.forwardRay(ray,lp.rank);
+#else
       // this was a volume hit; let's just store that color
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
       if (ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);
       lp.fbLayer.addPixelContribution(ray.pixelID,frag);
+#endif
     }
     else if (ray.hitType == Ray::HitType_None) {
       // ray didn't hit anything; but we KNOW it's not a shadow ray -

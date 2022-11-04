@@ -74,7 +74,6 @@ namespace vopat {
     void resizeQueues(int maxRaysPerQueue);
     
     // void traceRaysLocally();
-    void createSendQueue();
     int  exchangeRays();
 
     int myRank() const { return comm->myRank(); }
@@ -105,6 +104,9 @@ namespace vopat {
     /*! number of rays currently in the "in" queue */
     int numRaysIn;
     CommBackend *comm;
+
+  private:
+    void createSendQueue();
   };
   
 

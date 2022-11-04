@@ -157,7 +157,6 @@ namespace vopat {
     numAccumulatedFrames++;
     
     if (isMaster()) {
-      PING;
       /* nothing to do on master yet, wait for workers to render... */
       assert(fbPointer);
       assert(fullFbSize.x > 0);
@@ -172,10 +171,8 @@ namespace vopat {
       CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fullFbSize.x*fullFbSize.y*sizeof(*masterFB),
                        cudaMemcpyDefault));
       CUDA_SYNC_CHECK();
-      PING;
     } else {
       
-      PING;
       const int numIslands = comm->worker.numIslands;
       const int islandIdx  = comm->worker.islandIdx;
       const int islandRank = comm->worker.withinIsland->rank;
@@ -193,6 +190,7 @@ namespace vopat {
       // ------------------------------------------------------------------
       vec2i blockSize(16);
       vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
+      assert(numAccumulatedFrames > 0);
       encodeAccumBufferForSending<<<numBlocks,blockSize>>>
         (islandFbSize,
          compSendMemory.get(),
@@ -224,19 +222,6 @@ namespace vopat {
         sendOffsets[i] = hisLineBegin*sizeOfLine;
       }
 
-      // for (int i=0;i<islandSize;i++) {
-      //   printf("(%i.%i) send[%i] = ofs %i cnt %i - sz %li; recv[%i] = ofs %i cnt %i - sz %li\n",
-      //          comm->islandIndex(),
-      //          comm->islandRank(),
-      //          i,
-      //          sendOffsets[i],
-      //          sendCounts[i],
-      //          compSendMemory.numBytes(),
-      //          i,
-      //          recvOffsets[i],
-      //          recvCounts[i],
-      //          compInputsMemory.numBytes());
-      // }
       comm->worker.withinIsland->allToAll
         (compSendMemory.get(), //const void *sendBuf,
          sendCounts.data(),//const int *sendCounts,
@@ -272,7 +257,6 @@ namespace vopat {
          ourRegionSize.x*sizeof(uint32_t),
          blockTags.data(),
          blockPointers.data());
-      PING;
     }
   }
 

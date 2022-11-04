@@ -182,6 +182,10 @@ namespace vopat {
     auto &fbSize = fbLayer.islandFbSize;
     if (fbSize.y <= 0)
       return;
+
+    int thisFrameID = accumID++;
+    owlParamsSet1i(lp,"sampleID",thisFrameID);
+    
     
     auto &forward = forwardingLayer.dd;
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
@@ -259,6 +263,7 @@ namespace vopat {
                                           const interval<float> &range,
                                           const float density)
   {
+    resetAccumulation();
     // printf("(%i.%i) setting transfer function num %i range %f %f\n",
     //        comm->islandIndex(),
     //        comm->islandRank(),
@@ -277,34 +282,18 @@ namespace vopat {
 
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
-    // resetAccumulation();
-    
     if (!isMaster()) {
       
-      int thisFrameID = accumID++;
-      owlParamsSet1i(lp,"sampleID",thisFrameID);
-
-      // std::cout << "#######################################################" << std::endl;
-      // fflush(0);
-      // island->barrier();
-      
+      forwardingLayer.clearQueue();
       generatePrimaryWave();
     
-      int numExchanged = 0;
-      while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
-
-        // sleep(1);
-        // island->barrier();
-        // fflush(0);
-        
+      while (forwardingLayer.exchangeRays()) {
         forwardingLayer.clearQueue();
-        CUDA_SYNC_CHECK();
         traceLocally();
-        CUDA_SYNC_CHECK();
       }
-
     }
     fbLayer.addLocalFBs(fbPointer);
+    comm->barrierAll();
   }
 
 } // ::vopat
