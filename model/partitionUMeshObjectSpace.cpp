@@ -94,6 +94,31 @@ namespace umesh {
 
     out[0] = new Brick;
     out[1] = new Brick;
+#if 1
+    std::mutex mutex[2];
+    parallel_for_blocked
+      (0ull,in->prims.size(),128*1024ull,
+       [&](size_t begin,size_t end){
+        std::vector<UMesh::PrimRef> prims[2];
+        box3f bounds[2];
+        box3f centBounds[2];
+        for (size_t i=begin;i<end;i++) {
+          auto prim = in->prims[i];
+          const box3f pb = mesh->getBounds(prim);
+          int side = (pb.center()[dim] < pos) ? 0 : 1;
+          prims[side].push_back(prim);
+          bounds[side].extend(pb);
+          centBounds[side].extend(pb.center());
+        }
+        for (int side=0;side<2;side++) {
+          std::lock_guard<std::mutex> lock(mutex[side]);
+          out[side]->bounds.extend(bounds[side]);
+          out[side]->centBounds.extend(centBounds[side]);
+          for (auto prim : prims[side])
+            out[side]->prims.push_back(prim);
+        }
+      });
+#else
     for (auto prim : in->prims) {
       const box3f pb = mesh->getBounds(prim);
       int side = (pb.center()[dim] < pos) ? 0 : 1;
@@ -101,6 +126,7 @@ namespace umesh {
       out[side]->bounds.extend(pb);
       out[side]->centBounds.extend(pb.center());
     }
+#endif
     std::cout << "done splitting " << prettyNumber(in->prims.size()) << " prims\tw/ bounds " << in->bounds << std::endl;
     std::cout << "into L = " << prettyNumber(out[0]->prims.size()) << " prims\tw/ bounds " << out[0]->bounds << std::endl;
     std::cout << " and R = " << prettyNumber(out[1]->prims.size()) << " prims\tw/ bounds " << out[1]->bounds << std::endl;
@@ -113,12 +139,14 @@ namespace umesh {
     if (in->centBounds.lower == in->centBounds.upper)
       throw std::runtime_error("can't split this any more ...");
 
+    std::mutex mutex;
     float bestRatio = 0.f;
     float bestPos;
     int bestDim;
     const int numPlanes = 7;
     for (int dim=0;dim<3;dim++) {
-      for (int plane=0;plane<numPlanes;plane++) {
+      parallel_for(numPlanes,[&](int plane) {
+      // for (int plane=0;plane<numPlanes;plane++) {
         float f = (plane+1.f)/(numPlanes+1.f);
         float pos = (1.f-f)*in->centBounds.lower[dim]+f*in->centBounds.upper[dim];
         Brick *tmp_out[2];
@@ -127,15 +155,18 @@ namespace umesh {
         float weight0 = tmp_out[0]->weight();
         float weight1 = tmp_out[1]->weight();
         float ratio = min(weight0,weight1) / (weight0+weight1);
-        if (ratio >= bestRatio) {
-          std::cout << "*** NEW BEST, ratio is " << ratio << std::endl;
-          bestDim = dim;
-          bestPos = pos;
-          bestRatio = ratio;
+        {
+          std::lock_guard<std::mutex> lock(mutex);
+          if (ratio >= bestRatio) {
+            std::cout << "*** NEW BEST, ratio is " << ratio << std::endl;
+            bestDim = dim;
+            bestPos = pos;
+            bestRatio = ratio;
+          }
         }
         delete tmp_out[0];
         delete tmp_out[1];
-      }
+                             });
     }
     std::cout << "=== found BEST split at " << ('x'+bestDim) << " = " << bestPos << std::endl;
     splitAt(bestDim,bestPos,mesh,in,out);
