@@ -70,18 +70,18 @@ namespace vopat {
     owlGeomTypeSetClosestHit(gt,0,owlDevCode,"UMeshGeomCH");
 
     scalarsBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT,
-                                               myBrick->umesh->perVertex->values.size(),
-                                               myBrick->umesh->perVertex->values.data());
+                                          myBrick->umesh->perVertex->values.size(),
+                                          myBrick->umesh->perVertex->values.data());
     // globals.scalars = (float*)owlBufferGetPointer(scalarsBuffer,0);
     
     verticesBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT3,
-                                                myBrick->umesh->vertices.size(),
-                                                myBrick->umesh->vertices.data());
+                                           myBrick->umesh->vertices.size(),
+                                           myBrick->umesh->vertices.data());
     // globals.vertices = (vec3f*)owlBufferGetPointer(verticesBuffer,0);
-
+    
     tetsBuffer = owlDeviceBufferCreate(owl,OWL_INT4,
-                                            myBrick->umesh->tets.size(),
-                                            myBrick->umesh->tets.data());
+                                       myBrick->umesh->tets.size(),
+                                       myBrick->umesh->tets.data());
     // globals.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(tetsBuffer,0);
 
     CUDA_SYNC_CHECK();
@@ -124,16 +124,18 @@ namespace vopat {
                            sharedFaceIndices.size(),sizeof(vec3i),0);
     owlGeomSetBuffer(geom,"tets",tetsBuffer);
     owlGeomSetBuffer(geom,"vertices",verticesBuffer);
+    PING; PRINT((int*)owlBufferGetPointer(verticesBuffer,0));
     owlGeomSetBuffer(geom,"scalars",scalarsBuffer);
     owlGeomSetBuffer(geom,"tetsOnFace",sharedFaceNeighborsBuffer);
     blas = owlTrianglesGeomGroupCreate(owl,1,&geom);
 
-    // and put this into a single-instnace tlas
+    // and put this into a single-instance tlas
     owlGroupBuildAccel(blas);
     tlas = owlInstanceGroupCreate(owl,1,&blas);
     
     owlGroupBuildAccel(tlas);
     globals.sampleAccel = owlGroupGetTraversable(tlas,0);
+    globals.domain = myBrick->domain;
     
     CUDA_SYNC_CHECK();
     std::cout << "shared faces stuff built. done" << std::endl;
@@ -145,8 +147,9 @@ namespace vopat {
     // globals.xf.numValues = this->xf.colorMap.N;
     // globals.xf.domain    = this->xf.domain;
     // globals.xf.density   = this->xf.density;
-        
+
     owlParamsSetRaw(lp,"volumeSampler.umesh",&globals);
+    owlParamsSet1i(lp,"volumeSampler.type",int(VolumeSamplerType_UMesh));
   }
   
   void UMeshVolume::addLPVars(std::vector<OWLVarDecl> &lpVars) 
@@ -258,7 +261,7 @@ namespace vopat {
   {
     const int blockID
       = blockIdx.x
-      + blockIdx.y * MAX_GRID_SIZE
+      + blockIdx.y * 1024
       ;
     const int primIdx = blockID*blockDim.x + threadIdx.x;
     if (primIdx >= numTets) return;    
@@ -279,7 +282,10 @@ namespace vopat {
               << "#vopat.umesh: building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
-    mcGrid.dd.dims = 256;
+    PRINT(myBrick->domain);
+    mcGrid.dd.dims = 64;
+    // mcGrid.dd.dims = 8;
+    mcGrid.dims = mcGrid.dd.dims;
     mcGrid.cells.resize(volume(mcGrid.dd.dims));
     mcGrid.dd.cells = mcGrid.cells.get();
     CUDA_SYNC_CHECK();// PING;
@@ -293,9 +299,11 @@ namespace vopat {
       throw std::runtime_error("no tets!?");
     const unsigned int blockSize = 128;
     unsigned int numTets = (int)myBrick->umesh->tets.size();
+    PRINT(numTets);
     const unsigned int numBlocks = divRoundUp(numTets,blockSize*1024u);
     dim3 _nb{1024u,numBlocks,1u};
     dim3 _bs{blockSize,1u,1u};
+    PRINT((vec3i&)_nb);
     rasterTets<<<_nb,_bs>>>
       (mcGrid.dd.cells,
        mcGrid.dd.dims,
@@ -309,5 +317,11 @@ namespace vopat {
               << "#vopat.umesh: done building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
+    affine3f toMcGrid
+      = linear3f::scale(vec3f(mcGrid.dd.dims));
+    affine3f toWorldDomain
+      = { linear3f::scale(myBrick->domain.size()), myBrick->domain.lower };
+    mcGrid.dd.worldToMcSpace
+      = toMcGrid * rcp(toWorldDomain);
   }
 }

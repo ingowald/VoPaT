@@ -36,13 +36,13 @@ target_compile_definitions(owl_viewer
   -DOWL_FORCE_SLOW_DISPLAY=1
   )
 
-
 add_subdirectory(submodules/cuteeOWL EXCLUDE_FROM_ALL)
 target_compile_definitions(qtOWL
   PUBLIC
   -DCUTEEOWL_FORCE_SLOW_DISPLAY=1
   )
 
+add_subdirectory(submodules/miniScene EXCLUDE_FROM_ALL)
 
 option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the device" ON)
 

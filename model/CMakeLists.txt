@@ -38,6 +38,7 @@ add_custom_target(vopat_umesh_tools ALL)
 add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
 target_link_libraries(vopat_model PUBLIC
   umesh
+  miniScene
   )
 
 # ==================================================================

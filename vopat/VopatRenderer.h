@@ -18,7 +18,9 @@
 
 #include "vopat/LaunchParams.h"
 #include "volume/Volume.h"
+#include "surface/MeshGeom.h"
 #include "model/Model.h"
+#include "miniScene/Scene.h"
 
 #ifndef VOPAT_MAX_BOUNCES
 /*! bounces==0 means primary rays only, no shadow ray; bouncs==1 means
@@ -36,11 +38,14 @@ namespace vopat {
     typedef std::shared_ptr<VopatRenderer> SP;
 
     static SP create(CommBackend *comm,
-                     Volume::SP volume)
-    { return std::make_shared<VopatRenderer>(comm,volume); }
+                     Volume::SP volume,
+                     mini::Scene::SP replicatedGeom)
+    { return std::make_shared<VopatRenderer>(comm,volume,replicatedGeom); }
     
     VopatRenderer(CommBackend *comm,
-                  Volume::SP volume//,
+                  Volume::SP volume,
+                  mini::Scene::SP replicatedGeom
+                  //,
                   // Model::SP model,
                   // const std::string &baseFileName
                   );
@@ -53,28 +58,10 @@ namespace vopat {
     
     void screenShot() { fbLayer.screenShot(); }
     void resetAccumulation() { accumID = 0; fbLayer.resetAccumulation(); }
-    // void generatePrimaryWave(const ForwardGlobals &forward);
-    // void traceLocally(const ForwardGlobals &forward, bool fishy);
-    
-    // static inline __device__
-    // int computeInitialRank(const VolumeGlobals &vopat,
-    //                        Ray ray, bool dbg = false);
-    
-    // static inline __device__
-    // int computeNextNode(const ForwardGlobals &vopat,
-    //                     const Ray &ray,
-    //                     const float t_already_travelled,
-    //                     bool dbg = false);
 
     void setTransferFunction(const std::vector<vec4f> &cm,
                              const interval<float> &range,
                              const float density);
-
-    // void setISO(int numActive,
-    //             const std::vector<int> &active,
-    //             const std::vector<float> &value,
-    //             const std::vector<vec3f> &colors)
-    // { surface.setISO(numActive,active,value,colors); }
 
     void setLights(float ambient,
                    const std::vector<DirectionalLight> &dirLights) 
@@ -83,7 +70,11 @@ namespace vopat {
     }
 
     int myRank() const { return comm->islandRank(); }
-    
+
+    /*! builds OWL accel structure(s) for all replicated geometry, and
+        sets accel to launch params */
+    void buildReplicatedGeometry();
+      
     void setCamera(const vec3f &from,
                    const vec3f &at,
                    const vec3f &up,
@@ -105,7 +96,7 @@ namespace vopat {
 
     CommBackend *comm;
     Volume::SP volume;
-    // SurfaceIntersector surface;
+    mini::Scene::SP replicatedGeom;
 
     OWLContext owl;
     OWLModule  owlDevCode;

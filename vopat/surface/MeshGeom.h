@@ -14,45 +14,36 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "vopat/volume/StructuredVolume.h"
-#include "vopat/volume/UMeshVolume.h"
+#pragma once
+
+#include "common/vopat.h"
+#include "miniScene/Scene.h"
+#include <owl/owl.h>
 
 namespace vopat {
+
+  struct MeshGeom {
+
+    /*! the device-side struct used for the actual OWL geometry */
+    struct DD {
+      vec3f *vertices;
+      vec3i *indices;
+      vec3f  diffuseColor;
+    };
+
+    struct PRD {
+      vec3f diffuseColor;
+      vec3f N;
+      float t;
+    };
+
+    static OWLGeom createGeom(OWLContext owl, mini::Mesh::SP mesh);
+    
+    /*! defines 'our' geometry type in the given owl context */
+    static void defineGeometryType(OWLContext owl, OWLModule devCode);
+    
+    /*! geometry for actual triangle mesh surface geometry */
+    static OWLGeomType meshGT;
+  };
   
-  Volume::SP Volume::createFrom(Brick::SP brick)
-  {
-    if (!brick)
-      // this is OK - we're probably on master, which doesn't have a brick
-      return {};
-    
-    if (StructuredBrick::SP typedBrick = brick->as<StructuredBrick>())
-      return StructuredVolume::create(typedBrick);
-    else if (UMeshBrick::SP typedBrick = brick->as<UMeshBrick>())
-      return UMeshVolume::create(typedBrick);
-    else
-      throw std::runtime_error("un-recognized model type !?");
-  }
-
-  void Volume::setTransferFunction(const std::vector<vec4f> &cm,
-                                   const interval<float> &xfDomain,
-                                   const float density)
-  {
-    if (!brick)
-      // master ...
-      return;
-    
-    xf.colorMap.upload(cm);
-    // globals.xf.values = colorMap.get();
-    // xf.numValues = cm.size();
-    xf.domain = xfDomain;
-    xf.density = density;
-
-    xfGlobals.values    = this->xf.colorMap.get();
-    xfGlobals.numValues = this->xf.colorMap.N;
-    xfGlobals.domain    = this->xf.domain;
-    xfGlobals.density   = this->xf.density;
-  }
-    
-
-} // ::vopat
-
+} // :: vopat

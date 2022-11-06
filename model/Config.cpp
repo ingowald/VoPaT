@@ -38,9 +38,6 @@ namespace vopat {
     write(out,camera);
     write(out,lights.ambient);
     write(out,lights.directional);
-    PRINT(lights.directional.size());
-    if (lights.directional.size() > 0)
-      PRINT(lights.directional[0].dir);
   }
   
   ModelConfig ModelConfig::load(const std::string &fileName)
@@ -66,10 +63,7 @@ namespace vopat {
     read(in,mc.camera);
     read(in,mc.lights.ambient);
     read(in,mc.lights.directional);
-    PRINT(mc.lights.directional.size());
-    if (mc.lights.directional.size() > 0)
-      PRINT(mc.lights.directional[0].dir);
-    
+
     return mc;
   }
   

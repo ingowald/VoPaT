@@ -71,7 +71,7 @@ namespace vopat {
     union {
       struct { small_vec3f color; } volume;
       struct { small_vec3f N; float ior; } surf_glass;
-      struct { small_vec3f N; small_vec3f diffuse; } surf_diffuse;
+      struct { small_vec3f N; small_vec3f color; } surf_diffuse;
     } hit;
 
   };

@@ -52,6 +52,7 @@ namespace vopat {
       inline __device__ bool gradient(vec3f &g, vec3f P, vec3f delta, bool dbg) const;
       
       OptixTraversableHandle sampleAccel;
+      box3f domain;
     };
     
     DD        globals;
@@ -80,12 +81,16 @@ namespace vopat {
   bool UMeshVolume::DD::sample(float &f, vec3f P, bool dbg) const
   {
     SamplePRD prd;
+
+    if (P.x >= domain.upper.x) return false;
+    
     const float INVALID_VALUE = CUDART_INF;//1e20f;
     prd.sampledValue = INVALID_VALUE;
     owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);
     traceRay(sampleAccel,sampleRay,prd);
+    if (prd.sampledValue == INVALID_VALUE) return false;
     f = prd.sampledValue;
-    return prd.sampledValue != INVALID_VALUE;
+    return true;
   }
 
   inline __device__

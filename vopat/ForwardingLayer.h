@@ -116,7 +116,6 @@ namespace vopat {
   (const Ray &ray, int nextRankForThisRay)
     const
   {
-    
     atomicAdd(&perRankSendCounts[nextRankForThisRay],1);
     int outID = atomicAdd(pNumRaysOut,1);
     rayQueueOut[outID] = ray;

@@ -46,7 +46,8 @@ namespace dda {
 
   inline __device__ int smallestDim(vec3f v)
   {
-    return (v.x <= min(v.y,v.z)) ? 0 : ((v.y <= min(v.x,v.z)) ? 1 : 2);
+    return (v.x <= min(v.y,v.z)) ? 0 : ((v.y <= v.z) ? 1 : 2);
+    // return (v.x <= min(v.y,v.z)) ? 0 : ((v.y <= min(v.x,v.z)) ? 1 : 2);
   }
 #else
   inline __device__ int   get(vec3i v, int dim) { return v[dim]; }
@@ -80,11 +81,25 @@ namespace dda {
     const vec3f rcp_dir     = rcp(dir);
     const vec3f abs_rcp_dir = abs(rcp(dir));
     const vec3f f_size = vec3f(gridSize);
-    
-    vec3f t_lo = (vec3f(0.f) - org) * rcp(dir);
-    vec3f t_hi = (f_size     - org) * rcp(dir);
+
+    if (dbg) {
+      printf("ray (%f %f %f) +t (%f %f %f), tmax %f, grid %i %i %i\n",
+             org.x,org.y,org.z,
+             dir.x,dir.y,dir.z,
+             tMax,gridSize.x,gridSize.y,gridSize.z);
+    }
+    vec3f t_lo = (vec3f(0.f) - org) * rcp_dir;
+    vec3f t_hi = (f_size     - org) * rcp_dir;
     vec3f t_nr = min(t_lo,t_hi);
     vec3f t_fr = max(t_lo,t_hi);
+    if (dbg)
+      printf(" t nr %f %f %f fr %f %f %f\n",
+             t_nr.x,
+             t_nr.y,
+             t_nr.z,
+             t_fr.x,
+             t_fr.y,
+             t_fr.z);
     if (dir.x == 0.f) {
       if (org.x <= 0.f || org.x >= f_size.x)
         // ray passes by the volume ...
@@ -106,7 +121,7 @@ namespace dda {
     
     float ray_t0 = max(0.f,reduce_max(t_nr));
     float ray_t1 = min(tMax,reduce_min(t_fr));
-    // if (dbg) printf("DDA t %f %f\n",ray_t0,ray_t1);
+    if (dbg) printf("DDA t %f %f\n",ray_t0,ray_t1);
     // if (isnan(ray_t0) || isnan(ray_t1))
     //   printf("NAN in DDA!\n");
     
@@ -116,13 +131,13 @@ namespace dda {
     
     // compute first cell that ray is in:
     vec3f org_in_volume = org + ray_t0 * dir;
-    // if (dbg) printf("org in vol %f %f %f size %i %i %i\n",
-    //                 org_in_volume.x,
-    //                 org_in_volume.y,
-    //                 org_in_volume.z,
-    //                 gridSize.x,
-    //                 gridSize.y,
-    //                 gridSize.z);
+    if (dbg) printf("org in vol %f %f %f size %i %i %i\n",
+                    org_in_volume.x,
+                    org_in_volume.y,
+                    org_in_volume.z,
+                    gridSize.x,
+                    gridSize.y,
+                    gridSize.z);
     vec3f f_cell = max(vec3f(0.f),min(f_size-1.f,floor(org_in_volume)));
     vec3f f_cell_end = {
                         dir.x > 0.f ? f_cell.x+1.f : f_cell.x,
@@ -164,22 +179,22 @@ namespace dda {
          dir.y > 0.f ? (int)gridSize.y : -1,
          dir.z > 0.f ? (int)gridSize.z : -1
     };
-    // if (dbg)
-    //   printf("stop %i %i %i\n",
-    //          stop.x,
-    //          stop.y,
-    //          stop.z);
+    if (dbg)
+      printf("stop %i %i %i\n",
+             stop.x,
+             stop.y,
+             stop.z);
     const vec3i cell_delta
       = {
          (dir.x > 0.f ? +1 : -1),
          (dir.y > 0.f ? +1 : -1),
          (dir.z > 0.f ? +1 : -1)
     };
-    // if (dbg)
-    //   printf("cell_delta %i %i %i\n",
-    //          cell_delta.x,
-    //          cell_delta.y,
-    //          cell_delta.z);
+    if (dbg)
+      printf("cell_delta %i %i %i\n",
+             cell_delta.x,
+             cell_delta.y,
+             cell_delta.z);
     vec3i cell = vec3i(f_cell);
     float next_cell_begin = 0.f;
     while (1) {
@@ -188,11 +203,11 @@ namespace dda {
       const float cell_t1 = min(ray_t0+t_closest,tMax);
       if (cell_t0 >= cell_t1)
         return;
-      // if (dbg)
-      //   printf("cell %i %i %i dists %f %f %f closest %f t %f %f\n",
-      //          cell.x,cell.y,cell.z,
-      //          t_next.x,t_next.y,t_next.z,
-      //          t_closest,cell_t0,cell_t1);
+      if (dbg)
+        printf("---- cell %i %i %i dists %f %f %f closest %f t %f %f\n",
+               cell.x,cell.y,cell.z,
+               t_next.x,t_next.y,t_next.z,
+               t_closest,cell_t0,cell_t1);
       bool wantToGoOn = lambda(cell,cell_t0,cell_t1);
       if (!wantToGoOn)
         return;

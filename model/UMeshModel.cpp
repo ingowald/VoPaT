@@ -23,7 +23,8 @@ namespace vopat {
   std::string UMeshBrick::toString() const
   {
     std::stringstream ss;
-    ss << "UMeshBrick #"<<ID << " " << domain << " " << (umesh?umesh->toString():std::string("<no mesh>"));
+    ss << "UMeshBrick #"<<ID << " " << domain
+       << " " << (umesh?umesh->toString():std::string("<no mesh>"));
     
     return ss.str();
   }
@@ -117,7 +118,14 @@ namespace vopat {
         continue;
       }
       result.push_back(Shard{ node.domain, node.valueRange });
+      PRINT(node.valueRange);
     }
+
+    for (auto res : result) {
+      PRINT(res.valueRange);
+      PRINT(res.domain);
+    }
+    PRINT(result.size());
     return result;
   }
   
@@ -154,6 +162,11 @@ namespace vopat {
     std::ifstream in(fileName,std::ios::binary);
     read(in,umesh->perVertex->values);
     read(in,umesh->perVertex->valueRange);
+    PING;
+    for (int i=0;i<umesh->perVertex->values.size();i=(i+1)*2) {
+      PRINT(umesh->perVertex->values[i]);
+    }
+    PRINT(umesh->perVertex->valueRange);
   }
     
 }

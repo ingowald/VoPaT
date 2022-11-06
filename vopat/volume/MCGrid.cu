@@ -67,7 +67,7 @@ namespace vopat {
     transfer function */
   __global__ void mapMacroCell(MacroCell *mcData,
                                vec3i mcDims,
-                               vec4f *xfValues,
+                               const vec4f *xfValues,
                                int numXfValues,
                                interval<float> xfDomain)
   {
@@ -102,12 +102,27 @@ namespace vopat {
     for (int i=lo_idx;i<=hi_idx;i++)
       maxOpacity = max(maxOpacity,xfValues[i].w);
     mc.maxOpacity = maxOpacity;
+
+    // printf("maxop %i %i %i = %f\n",
+    //        mcID.x,mcID.y,mcID.z,maxOpacity);
     
     if (0 && mcID == mcDims/2)
       printf("center macrocell at %i %i %i: input range %f %f, max opacity %f\n",
              mcID.x,mcID.y,mcID.z,
              mc.inputRange.lower,mc.inputRange.upper,mc.maxOpacity
              );
+  }
+  
+  void MCGrid::mapXF(const vec4f *d_xfValues,
+                     int xfSize,
+                     range1f xfDomain)
+  {
+    vec3i bs = 4;
+    vec3i nb = divRoundUp(dims,bs);
+    PING;
+    PRINT(nb);
+    
+    mapMacroCell<<<(dim3)nb,(dim3)bs>>>(dd.cells,dd.dims,d_xfValues,xfSize,xfDomain);
   }
   
 } // ::vopat

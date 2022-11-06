@@ -21,6 +21,7 @@ embed_ptx(
   PTX_LINK_LIBRARIES
   owl::owl
   umesh
+  miniScene
   
   SOURCES
   deviceCode.cu
@@ -33,7 +34,9 @@ add_library(vopat_render
   volume/StructuredVolume.cu
   volume/UMeshVolume.cu
   volume/Volume.cpp
-  
+
+  surface/MeshGeom.cpp
+
 #  Renderer.cpp
 #  ModelConfig.cpp
   

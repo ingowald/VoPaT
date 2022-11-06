@@ -24,6 +24,8 @@
 
 namespace vopat {
 
+  enum { VolumeSamplerType_UMesh=0, VolumeSamplerType_Structured };
+    
   struct Volume {
     typedef std::shared_ptr<Volume> SP;
 

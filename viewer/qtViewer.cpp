@@ -67,6 +67,8 @@ namespace vopat {
 
     AppInterface &master;
     Model::SP model;
+    mini::Scene::SP replicatedGeom;
+    
     VoPaTViewer(AppInterface &master,
                 Model::SP model,
                 ModelConfig::SP _modelConfig,
@@ -321,6 +323,7 @@ namespace vopat {
     // ******************************************************************
     ModelConfig::SP modelConfig = std::make_shared<ModelConfig>(); 
     int islandSize = -1;
+    std::string replicatedGeometryModelFileName = "";
     try {
       std::string inFileBase = "";
       for (int i=1;i<argc;i++) {
@@ -328,6 +331,9 @@ namespace vopat {
         if (arg[0] != '-') {
           inFileBase = arg;
         } 
+        else if (arg == "--replicated-geometry" || arg == "-rg") {
+          replicatedGeometryModelFileName = argv[++i];
+        }
         else if (arg == "--renderer" || arg == "-r") {
           rendererName = argv[++i];
         }
@@ -379,7 +385,6 @@ namespace vopat {
         cudaSetDevice(mpiBackend.worker.gpuID);
       }
 
-      
       // ******************************************************************
       // load model, and check that it meets our mpi config
       // ******************************************************************
@@ -388,17 +393,17 @@ namespace vopat {
         throw std::runtime_error("incompatible number of bricks and workers");
 
       // ******************************************************************
+      // load replicated geometry, if available
+      // ******************************************************************
+      mini::Scene::SP replicatedGeom;
+      if (!replicatedGeometryModelFileName.empty())
+        replicatedGeom = mini::Scene::load(replicatedGeometryModelFileName);
+      
+      // ******************************************************************
       // create renderer, workers, etc.
       // ******************************************************************
       const bool isMaster = mpiBackend.isMaster;
       int myRank = mpiBackend.islandRank();
-// #if VOPAT_UMESH
-//       if (isMaster) {
-//         std::cout << "got the following brick domains: " << std::endl;
-//         for (auto brick : model->bricks)
-//           std:: cout << "  - " << brick->domain << std::endl;
-//       }
-// #endif
 
       Brick::SP brick
         = isMaster
@@ -413,7 +418,7 @@ namespace vopat {
       Volume::SP volume = Volume::createFrom(brick);
         
       VopatRenderer::SP renderer
-        = VopatRenderer::create(&mpiBackend,volume);
+        = VopatRenderer::create(&mpiBackend,volume,replicatedGeom);
 
       AppInterface appInterface(&mpiBackend,renderer);
       if (!isMaster) {

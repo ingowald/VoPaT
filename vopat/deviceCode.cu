@@ -20,6 +20,7 @@
 // #include "vopat/NextDomainKernel.h"
 #include <cuda.h>
 #include "vopat/DDA.h"
+#include "vopat/surface/MeshGeom.h"
 
 using namespace vopat;
 
@@ -59,8 +60,9 @@ namespace vopat {
     auto proxy = geom.proxies[primID];
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
-    
-    if (1 && prd.dbg)
+
+    bool dbg_next = false;
+    if (dbg_next &&prd.dbg)
       printf("(%i) isec proxy %i (%f %f %f)(%f %f %f):%i\n",
              lp.rank,
              primID,
@@ -100,7 +102,7 @@ namespace vopat {
       // exit.
       return;
 
-    if (1 && prd.dbg)
+    if (dbg_next && prd.dbg)
       printf("(%i) proxy rank %i hit %f ray.tmax %f prd.dist %f prd.rank %i\n",
              lp.rank,proxy.rankID,
              t0,optixGetRayTmax(),prd.closestDist,(int)prd.closestRank);
@@ -114,11 +116,21 @@ namespace vopat {
        have been accepted before the currect-rank's hit, and if so,
        set the bit. Either way, exit right away (no accept) */
     if (prd.phase == NextDomainKernel::Phase_FindOthers) {
+      if (dbg_next &&prd.dbg)
+        printf(" others proxy.t %f prd.t %f proxy.rank %i prd.rank %i\n",
+               t0,prd.closestDist,proxy.rankID,prd.closestRank);
       if (t0 < prd.closestDist ||
-          t0 == prd.closestDist && proxy.rankID < prd.closestDist)
+          t0 == prd.closestDist && proxy.rankID < prd.closestRank) {
         /* this hit WOULD have been accepted if we hadn't explcitly
            included it in the find-self phase */
         prd.alreadyTravedMask.setBit(proxy.rankID);
+        if (dbg_next &&prd.dbg)
+          printf(" -> DID set bit, mask now  0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+      } else {
+        if (dbg_next &&prd.dbg)
+          printf(" -> did NOT set bit!\n");
+      }
+        
       return;
     }
     
@@ -138,7 +150,7 @@ namespace vopat {
        same-distance hits */
     prd.closestDist = t0;
     prd.closestRank = proxy.rankID;
-    if (prd.dbg)
+    if (dbg_next &&prd.dbg)
       printf("(%i) -> ACCEPTING hit %i dist %f\n",
              lp.rank,(int)prd.closestRank,prd.closestDist);
     float reported_t = nextafterf(t0,CUDART_INF);
@@ -168,9 +180,11 @@ namespace vopat {
   int NextDomainKernel::LPData::computeNextRank(Ray &ray) const
   {
     auto &lp = LaunchParams::get();
+
+    bool dbg_next = false;
     
     if (ray.dbg)
-      printf("------------------ NEXT rank %i spawn %i-------------\n",
+      printf("------------------ NEXT (on rank %i, spawn %i)-------------\n",
              lp.rank,ray.spawningRank);
     owl::Ray optix_ray(ray.origin,
                        ray.getDirection(),
@@ -179,6 +193,8 @@ namespace vopat {
     prd.dbg = ray.dbg;
     prd.alreadyTravedMask.clearBits();
     prd.alreadyTravedMask.setBit(ray.spawningRank);
+    if (dbg_next && ray.dbg)
+      printf("already trav mask INIT 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
     if (ray.spawningRank != lp.rank) {
       // if we are NOT on the originating node
 
@@ -188,12 +204,13 @@ namespace vopat {
       // have accepted to send this ray to us
       // ------------------------------------------------------------------
 
-      if (ray.dbg) printf("------------------ NEXT, phase 1 -------------\n");
+      if (dbg_next && ray.dbg)
+        printf("------------------ NEXT, phase 1 (find self, self being %i) -------------\n",lp.rank);
       optix_ray.tmax = CUDART_INF;
       prd.phase = NextDomainKernel::Phase_FindSelf;
       prd.closestRank = -1;
       prd.closestDist = CUDART_INF;
-      if (ray.dbg)
+      if (dbg_next && ray.dbg)
         printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
                ray.origin.x,
                ray.origin.y,
@@ -203,8 +220,10 @@ namespace vopat {
                ray.getDirection().z,
                optix_ray.tmax);
       owl::traceRay(proxyBVH,optix_ray,prd);
+      if (dbg_next && ray.dbg)
+        printf("already trav mask FRST 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
       if (prd.closestRank != lp.rank) {
-        if (ray.dbg)
+        if (dbg_next && ray.dbg)
           printf("baaad - ray couldn't find itself - found %i, should be %i\n",
                  prd.closestRank,lp.rank);
         return -1;
@@ -217,18 +236,24 @@ namespace vopat {
       // traversed by this ray
       // ------------------------------------------------------------------
 
-      if (ray.dbg) printf("------------------ NEXT, phase 2 -------------\n");
+      if (dbg_next && ray.dbg) {
+        printf("------------------ NEXT, phase 2, find OTHERS before us -------------\n");
+        printf("now adding rank %i\n",prd.closestRank);
+      }
       prd.phase = NextDomainKernel::Phase_FindOthers;
       prd.alreadyTravedMask.setBit(prd.closestRank);
-      prd.closestRank = -1;
+      // prd.closestRank = lp.rank;
       //prd.closestDist = nextafterf(prd.closestDist,CUDART_INF);
       optix_ray.tmax = nextafterf(prd.closestDist,CUDART_INF);
-      if (ray.dbg)
+      if (dbg_next && ray.dbg)
         printf("tracing ray max_t %f\n",optix_ray.tmax);
       owl::traceRay(proxyBVH,optix_ray,prd);
+      if (dbg_next && ray.dbg)
+        printf("already trav mask AFTR 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
     }
 
-    if (ray.dbg) printf("------------------ NEXT, phase 3 -------------\n");
+    if (dbg_next && ray.dbg)
+      printf("------------------ NEXT, phase 3 -------------\n");
     // ------------------------------------------------------------------
     // phase 3: find next closest proxy (up to ray.tmax) that belongs
     // on a rank that has _not_ yet been traversed
@@ -237,14 +262,42 @@ namespace vopat {
     prd.closestRank = -1;
     prd.closestDist = ray.tMax;
     optix_ray.tmax  = ray.tMax;
-      if (ray.dbg)
-        printf("tracing ray max_t %f\n",optix_ray.tmax);
+    if (dbg_next && ray.dbg)
+      printf("tracing ray max_t %f\n",optix_ray.tmax);
     owl::traceRay(proxyBVH,optix_ray,prd);
     
     return prd.closestRank;
   }
 
+  // ##################################################################
+  // Surface Mesh Geometry Shared-face Sampler Code
+  // ##################################################################
+  
+  /*! closest-hit program for shared-faces geometry */
+  OPTIX_CLOSEST_HIT_PROGRAM(MeshGeomCH)()
+  {
+    const MeshGeom::DD &geom = owl::getProgramData<MeshGeom::DD>();
+    MeshGeom::PRD &prd = owl::getPRD<MeshGeom::PRD>();
+    int primID = optixGetPrimitiveIndex();
+    vec3i indices = geom.indices[primID];
+    
+    vec3f v0 = geom.vertices[indices.x];
+    vec3f v1 = geom.vertices[indices.y];
+    vec3f v2 = geom.vertices[indices.z];
+    
+    v0 = optixTransformPointFromObjectToWorldSpace(v0);
+    v1 = optixTransformPointFromObjectToWorldSpace(v1);
+    v2 = optixTransformPointFromObjectToWorldSpace(v2);
+      
+    prd.t = optixGetRayTmax();
+    prd.diffuseColor = geom.diffuseColor;
+    prd.N = normalize(cross(v1-v0,v2-v0));
+  }
 
+  /*! closest-hit program for shared-faces geometry */
+  OPTIX_ANY_HIT_PROGRAM(MeshGeomAH)()
+  {
+  }
 
   // ##################################################################
   // UMeshVolume Shared-face Sampler Code
@@ -253,8 +306,9 @@ namespace vopat {
   /*! closest-hit program for shared-faces geometry */
   OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
   {
-    const UMeshGeom &geom = owl::getProgramData<UMeshGeom>();
+    const UMeshVolume::Geom &geom = owl::getProgramData<UMeshVolume::Geom>();
     int faceID = optixGetPrimitiveIndex();
+    
     const vec2i &tetsOnFace = geom.tetsOnFace[faceID];
     int side   = optixIsFrontFaceHit();
     int tetID  = (&tetsOnFace.x)[side];
@@ -262,7 +316,7 @@ namespace vopat {
       // outside face - no hit
       return;
   
-    vec4i tet  = geom.tets[tetID];
+    vec4i tet  = (vec4i&)geom.tets[tetID];
     const vec3f P    = optixGetWorldRayOrigin();
     const vec3f A    = geom.vertices[tet.x] - P;
     const vec3f B    = geom.vertices[tet.y] - P;
@@ -301,11 +355,32 @@ namespace vopat {
   // UNSORTED
   // ##################################################################
 
+  inline __device__
+  void traceAgainstLocalGeometry(Ray &ray)
+  {
+  }
   
   inline __device__
-  void traceAgainstLocalGeometry(Ray &path)
+  void traceAgainstReplicatedGeometry(Ray &ray)
   {
     auto &lp = LaunchParams::get();
+    if (!lp.replicatedSurfaceBVH) return;
+    
+    owl::Ray optix_ray(ray.origin,
+                       ray.getDirection(),
+                       0.f,ray.tMax);
+    
+    MeshGeom::PRD prd;
+    prd.t = CUDART_INF;
+    
+    owl::traceRay(lp.replicatedSurfaceBVH,optix_ray,prd);
+    
+    if (prd.t < CUDART_INF) {
+      ray.hitType = Ray::HitType_Surf_Diffuse;
+      ray.tMax    = prd.t;
+      ray.hit.surf_diffuse.color = to_half(prd.diffuseColor);
+      ray.hit.surf_diffuse.N     = to_half(prd.N);
+    }
   }
     
   inline __device__
@@ -319,58 +394,20 @@ namespace vopat {
 
     vec3f ray_org = ray.getOrigin();
     vec3f ray_dir = ray.getDirection();
-    float ray_t0=0,ray_t1=CUDART_INF;
-    float dda_t0=0,dda_t1=CUDART_INF;
-    boxTest(lp.volumeSampler.structured.dbg_domain,ray_org,ray_dir,ray_t0,ray_t1);
-    boxTest(lp.volumeSampler.structured.dbg_domain,dda_org,dda_dir,dda_t0,dda_t1);
-    if (0 && ray.dbg) {
-      printf("(%i) dbg.domain %f %f %f  %f %f %f\n",
-             lp.rank,
-             lp.volumeSampler.structured.dbg_domain.lower.x,
-             lp.volumeSampler.structured.dbg_domain.lower.y,
-             lp.volumeSampler.structured.dbg_domain.lower.z,
-             lp.volumeSampler.structured.dbg_domain.upper.x,
-             lp.volumeSampler.structured.dbg_domain.upper.y,
-             lp.volumeSampler.structured.dbg_domain.upper.z);
-      printf("(%i) tracing dda ray (%f %f %f) + t *(%f %f %f) ray %f %f...dda %f %f\n",
-             lp.rank,
-             dda_org.x,
-             dda_org.y,
-             dda_org.z,
-             dda_dir.x,
-             dda_dir.y,
-             dda_dir.z,
-             ray_t0,ray_t1,
-             dda_t0,dda_t1
-             );
-    }
-    // if (ray.dbg) {
-    // vec3f dda_p0 = dda_org + dda_t0 * dda_dir;
-    // vec3f dda_p1 = dda_org + dda_t1 * dda_dir;
-    // vec3f ray_p0 = ray_org + ray_t0 * ray_dir;
-    // vec3f ray_p1 = ray_org + ray_t1 * ray_dir;
-    // printf("dda - ray %f %f %f ...  %f %f %f\n",
-    //        ray_p0.x,
-    //        ray_p0.y,
-    //        ray_p0.z,
-    //        ray_p1.x,
-    //        ray_p1.y,
-    //        ray_p1.z);
-    // printf("dda - dda %f %f %f ...  %f %f %f\n",
-    //        dda_p0.x,
-    //        dda_p0.y,
-    //        dda_p0.z,
-    //        dda_p1.x,
-    //        dda_p1.y,
-    //        dda_p1.z);
-    // }
 
-#if 1
     vec4f mapped_volume_at_t_hit = 0.f;
     const float DENSITY = ((lp.volumeSampler.xf.density == 0.f) ? 1.f : lp.volumeSampler.xf.density);//.03f;
     dda::dda3(dda_org,dda_dir,ray.tMax,
               vec3ui(lp.mcGrid.dims),
               [&](vec3i cellID,float t0, float t1)->bool {
+                if (dbg)
+                  printf("in mc cell %i %i %i (of %i %i %i) range %f %f\n",
+                         cellID.x,cellID.y,cellID.z,
+                         lp.mcGrid.dims.x,
+                         lp.mcGrid.dims.y,
+                         lp.mcGrid.dims.z,
+                         t0,t1);
+                
                 if (t0 >= ray.tMax)
                   return false;
                 t1 = min(t1,ray.tMax);
@@ -378,21 +415,32 @@ namespace vopat {
                 if (majorant == 0.f)
                   return t1 < ray.tMax;
                 const float step_scale = 1.f/(majorant*DENSITY);
+                
+                if (dbg)
+                  printf(" -> majorant %f\n",majorant);
 
                 float t = t0;
                 while (true) {
                   // Sample a distance
-                  t = t - (logf(1.f - rng()) * step_scale);
+                  float r = rng();
+                  t = t - (logf(1.f - r) * step_scale);
+                  if (dbg) printf("  -> rng %f dt %f t %f\n",
+                                  r,logf(1.f-r),t);
                   if (/*we left the cell: */t >= t1) 
                     /* leave this cell, but tell DDA to keep on going */
                     return t1 < ray.tMax;
 
                   vec3f P = ray.getOrigin()+t*ray.getDirection();
                   float f = CUDART_INF;
-                  if (!lp.volumeSampler.structured.sample(f,P,dbg))
+
+                  if (!lp.volumeSampler.sample(f,P,dbg)) {
+                    if (1 && dbg) printf("-> volume miss!\n");
                     continue;
+                  }
                   
                   mapped_volume_at_t_hit = lp.volumeSampler.xf.map(f);
+                  if (1 && dbg) printf("-> volume at %f %f %f is xf %f -> %f!\n",
+                                       P.x,P.y,P.z,f,mapped_volume_at_t_hit.w);
                   if (rng()*majorant >= mapped_volume_at_t_hit.w)
                     // reject this sample
                     continue;
@@ -407,46 +455,6 @@ namespace vopat {
                 }
               },
               dbg);
-    
-#else
-    vec3f color = 0.f;
-    float opacity = 0.f;
-    
-    dda::dda3(dda_org,dda_dir,ray.tMax,
-              vec3ui(lp.mcGrid.dims),
-              [&](vec3i cellID,float t0, float t1)->bool {
-                if (0 && dbg)
-                  printf("in mc cell %i %i %i range %f %f\n",cellID.x,cellID.y,cellID.z,t0,t1);
-
-                float dt = 3.f;
-                for (float t = t0+rng()*dt; true; t += dt) {
-                  vec3f P = ray.getOrigin()+t*ray.getDirection();
-                  float f = CUDART_INF;
-                  if (t >= t1) {
-                    if (0 && dbg) printf("exit cell at t %f\n",t);
-                    break;
-                  }
-                  bool valid = lp.volumeSampler.structured.sample(f,P,dbg);
-                  if (0 && dbg) printf("t %f P %f %f %f valid %i\n",t,
-                                  P.x,P.y,P.z,int(valid));
-                  
-                  if (!valid)
-                    continue;
-                  
-                  vec4f mapped
-                    = lp.volumeSampler.xf.map(f);
-                  color += (1.f-opacity) * mapped.w * vec3f(mapped.x,mapped.y,mapped.z);
-                  opacity += (1.f-opacity)*mapped.w;
-                  opacity = min(opacity,1.f);
-                    if (0 && dbg)
-                    printf("volume %f -> (%f %f %f ; %f)\n",f,mapped.x,mapped.y,mapped.z,mapped.w);
-                }
-                
-                return true;
-              },
-              dbg);
-    lp.fbLayer.addPixelContribution(ray.pixelID,opacity * color);
-#endif
   }
     
   OPTIX_RAYGEN_PROGRAM(traceLocallyRG)()
@@ -456,7 +464,9 @@ namespace vopat {
     int rayID = owl::getLaunchIndex().x;
 
     Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
-    Random rng(ray.pixelID,0x2345678 + (lp.rank+lp.sampleID) * FNV_PRIME);
+    Random rng((ray.pixelID*2+ray.isShadow)*16+ray.numBounces,
+               0x2345678 + (lp.rank*13+lp.sampleID));
+    // for (int i=0;i<10;i++) rng();
     traceRayLocally(rng,ray);
   } 
 
@@ -484,7 +494,8 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
     const vec2i pixelID = lp.fbLayer.localToGlobal(owl::getLaunchIndex());//owl::getLaunchIndex();
-    Random rng(pixelID.x+FNV_PRIME*pixelID.y,0x1234567 + FNV_PRIME * lp.sampleID);
+    Random rng(pixelID.x+FNV_PRIME*pixelID.y,0x1234567 + 13 * 17 * lp.sampleID);
+    for (int i=0;i<10;i++) rng();
 
     if (pixelID.x >= lp.fbLayer.fullFbSize.x ||
         pixelID.y >= lp.fbLayer.fullFbSize.y)
@@ -497,12 +508,14 @@ namespace vopat {
 
     //vec2i dbgPixel(540,1016-600);
     vec2i dbgPixel = fullFbSize/2;
-    ray.dbg = 0;//(pixelID == dbgPixel);
+    // ray.dbg = 0;
+    ray.dbg = (pixelID == dbgPixel);
+    // ray.dbg = (ray.pixelID == 540106);
 
-    
     ray.crosshair
       = !ray.dbg && ((pixelID.x == dbgPixel.x) || (pixelID.y == dbgPixel.y));
     ray.spawningRank = lp.rank;
+    ray.numBounces = 0;
     int pixelOwner = lp.nextDomainKernel.computeFirstRank(ray);
 #define VISUALIZE_PROXIES 0
 #if VISUALIZE_PROXIES
@@ -514,29 +527,22 @@ namespace vopat {
       lp.fbLayer.addPixelContribution(ray.pixelID,color);
     return;
 #endif
-    if (pixelOwner == -1 && lp.rank == 0) {
-      // pixel not owned by anybody; let's do background on rank 0
-      vec3f frag = backgroundColor(ray);
-      if (ray.crosshair) frag = 1.f - frag;
-      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
-      return;
-    }
+
+    // if we have replicated geometry we MAY have some intersection
+    // with a ray even if there's no proxy - so even if the proxies
+    // didn't 'claim' a pixel owner we still have to assign one so the
+    // ray does get traced "somewhere". If we do NOT have replicated
+    // geometry that means we'll go through all the pain of tracing a
+    // ray locally that'll never hit any geometry, but that'll still
+    // fall back to background color, so all's fine.
+    if (pixelOwner == -1)
+      pixelOwner = 0;
 
     if (pixelOwner != lp.rank)
       // we don't own the closest proxy - let somebody else deal with it ...
       return;
 
-#if 0
-    // for ray generation we "forward" all rays to ourselves:
-    lp.forwardGlobals.forwardRay(ray,lp.rank);
-#else
     traceRayLocally(rng,ray);
-#endif
-    // lp.fbLayer.addPixelContribution(vec2i(pixelID.x,pixelID.y),abs(from_half(ray.direction)));
-    // generatePrimaryWaveKernel
-    //   (launchIdx,
-    //    lp.forwardGlobals,
-    //    lp.volumeGlobals);
   }
   
 
@@ -549,18 +555,24 @@ namespace vopat {
 
     // if (!ray.dbg) return;
 
+    if (ray.spawningRank == lp.rank)
+      traceAgainstReplicatedGeometry(ray);
     traceAgainstLocalGeometry(ray);
+    
     if (ray.isShadow && ray.hitType != Ray::HitType_None)
       // this shadow ray is occluded - let it drop dead.
       return;
 
     traceThroughLocalVolumeData(ray,rng);
-    if (ray.isShadow && ray.hitType != Ray::HitType_None)
+    if (ray.isShadow && ray.hitType != Ray::HitType_None) {
+      if (ray.dbg) printf("shadow ray died OCCLUDED. done with it\n");
       // this shadow ray is occluded - let it drop dead.
       return;
+    }
 
     if (ray.dbg)
-      printf("ray hit type %i at %f\n",
+      printf("(%i) ray hit type %i at %f\n",
+             lp.rank,
              int(ray.hitType),ray.tMax);
     
     // ==================================================================
@@ -576,6 +588,7 @@ namespace vopat {
         printf("forwarding to ourselves!?\n");
         return;
       }
+      // if (lp.emergency) printf("emergency ray: %i\n",ray.pixelID);
       lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
       return;
     }
@@ -584,9 +597,12 @@ namespace vopat {
     // ray doesn't need forwarding; it's done and can be shaded here!
     // ==================================================================
     if (ray.isShadow) {
+      vec3f frag = from_half(ray.throughput);
+      if (ray.dbg) printf("shadow ray died UN-occluded -> adding frag %f %f %f\n",
+                          frag.x,frag.y,frag.z);
       // if we reach here we cannot have had any occlusion, else this
       // ray would ahve dies already...
-      lp.fbLayer.addPixelContribution(ray.pixelID,from_half(ray.throughput));
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
       return;
     }
 
@@ -607,6 +623,13 @@ namespace vopat {
       ray.setOrigin(ray.getOrigin()
                     +ray.tMax*ray.getDirection()
                     +.1f*lightDir);
+      if (ray.dbg) {
+        printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
+        printf("SHADOW ray at %f %f %f\n",
+               ray.getOrigin().x,
+               ray.getOrigin().y,
+               ray.getOrigin().z);
+      }
       ray.setDirection(lightDir);
       ray.tMax = CUDART_INF;
       lp.forwardGlobals.forwardRay(ray,lp.rank);
@@ -616,6 +639,37 @@ namespace vopat {
       if (ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);
+      lp.fbLayer.addPixelContribution(ray.pixelID,frag);
+#endif
+    }
+    else if (ray.hitType == Ray::HitType_Surf_Diffuse) {
+      // ray didn't hit anything; but we KNOW it's not a shadow ray -
+      // see do abckground
+      vec3f N = from_half(ray.hit.surf_diffuse.N);
+      vec3f rd = from_half(ray.hit.surf_diffuse.color);
+      float scale = .2f+.8f*fabsf(dot(ray.getDirection(),N));
+      vec3f frag = from_half(ray.throughput) * scale * rd;
+      
+#if 1
+      float ambient = .1f;
+      if (ray.dbg)
+        printf("(%i) adding frag %f %f %f\n",
+               lp.rank,frag.x,frag.y,frag.z);
+      lp.fbLayer.addPixelContribution(ray.pixelID,ambient * frag);
+
+      ray.throughput = to_half(frag*(1.f-ambient));
+      ray.isShadow = 1;
+      ray.spawningRank = lp.rank;
+      ray.hitType = Ray::HitType_None;
+      vec3f lightDir = normalize(vec3f(1.f,1.f,1.f));
+      ray.setOrigin(ray.getOrigin()
+                    +ray.tMax*ray.getDirection()
+                    +.1f*lightDir);
+      ray.setDirection(lightDir);
+      ray.tMax = CUDART_INF;
+      lp.forwardGlobals.forwardRay(ray,lp.rank);
+#else
+      if (ray.crosshair) frag = 1.f - frag;
       lp.fbLayer.addPixelContribution(ray.pixelID,frag);
 #endif
     }

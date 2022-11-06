@@ -108,6 +108,7 @@ namespace vopat {
               << "#vopat.structured: done building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
+    mcGrid.dims = mcGrid.dd.dims;
   }
     
   void StructuredVolume::build(OWLContext owl,
@@ -175,6 +176,7 @@ namespace vopat {
     // globals.xf.density   = this->xf.density;
         
     owlParamsSetRaw(lp,"volumeSampler.structured",&globals);
+    owlParamsSet1i(lp,"volumeSampler.type",int(VolumeSamplerType_Structured));
   }
   
   void StructuredVolume::addLPVars(std::vector<OWLVarDecl> &lpVars) 

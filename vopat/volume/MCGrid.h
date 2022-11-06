@@ -20,6 +20,8 @@
 
 namespace vopat {
 
+  using range1f = interval<float>;
+  
   struct MacroCell {
     /*! input values _before_ transfer function */
     interval<float> inputRange;
@@ -49,6 +51,10 @@ namespace vopat {
 
     CUDAArray<MacroCell> cells;
     vec3i                dims = 0;
+
+    void mapXF(const vec4f *d_xfValues,
+               int xfSize,
+               range1f xfDomain);
     
     DD dd;
   };
@@ -58,7 +64,7 @@ namespace vopat {
     transfer function */
   __global__ void mapMacroCell(MacroCell *mcData,
                                vec3i mcDims,
-                               vec4f *xfValues,
+                               const vec4f *xfValues,
                                int numXfValues,
                                interval<float> xfDomain);
 

@@ -39,13 +39,13 @@ namespace vopat {
   // using SurfaceGlobals = typename SurfaceIntersector::Globals;
     
   /*! "triangle mesh" geometry type for shared-faces method */
-  struct UMeshGeom {
-    vec4i *tets;
-    vec3f *vertices;
-    float *scalars;
-    vec2i *tetsOnFace;
-  };
-  
+  // struct UMeshGeom {
+  //   vec4i *tets;
+  //   vec3f *vertices;
+  //   float *scalars;
+  //   vec2i *tetsOnFace;
+  // };
+
   struct LaunchParams {
     static inline __device__ const LaunchParams &get();
 
@@ -57,13 +57,26 @@ namespace vopat {
     NextDomainKernel::LPData nextDomainKernel;
     Camera                   camera;
     struct{
+      int type;
       union {
         UMeshVolume::DD      umesh;
         StructuredVolume::DD structured;
       };
+#if __CUDA_ARCH__
+      inline __device__ bool sample(float &f, vec3f P, bool dbg) const
+      {
+        if (type == VolumeSamplerType_Structured)
+          return structured.sample(f,P,dbg);
+        else
+          return umesh.sample(f,P,dbg);
+      }
+#endif
       Volume::DD xf;
     } volumeSampler;
 
+    OptixTraversableHandle replicatedSurfaceBVH;
+
+    int emergency;
     int rank;
     int sampleID;
   };

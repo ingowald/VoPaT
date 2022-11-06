@@ -21,12 +21,14 @@ namespace vopat {
   extern "C" char deviceCode_ptx[];
   
   VopatRenderer::VopatRenderer(CommBackend *comm,
-                               Volume::SP volume//,
+                               Volume::SP volume,
+                               mini::Scene::SP replicatedGeom//,
                                // Model::SP model,
                                // const std::string &baseFileName
                                )
     : comm(comm),
       volume(volume),
+      replicatedGeom(replicatedGeom),
       forwardingLayer(comm),
       fbLayer(comm)
   {
@@ -49,24 +51,35 @@ namespace vopat {
       nextDomainKernel.addLPVars(lpVars,OWL_OFFSETOF(LaunchParams,nextDomainKernel));
       volume->addLPVars(lpVars);
       lpVars.push_back
-        ({"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),OWL_OFFSETOF(LaunchParams,forwardGlobals)});
+        ({"forwardGlobals",OWL_USER_TYPE(ForwardGlobals),
+          OWL_OFFSETOF(LaunchParams,forwardGlobals)});
       lpVars.push_back
-        ({"fbLayer",OWL_USER_TYPE(AddLocalFBsLayer::DD),OWL_OFFSETOF(LaunchParams,fbLayer)});
+        ({"fbLayer",OWL_USER_TYPE(AddLocalFBsLayer::DD),
+          OWL_OFFSETOF(LaunchParams,fbLayer)});
       lpVars.push_back
-        ({"camera",OWL_USER_TYPE(Camera),OWL_OFFSETOF(LaunchParams,camera)});
+        ({"camera",OWL_USER_TYPE(Camera),
+          OWL_OFFSETOF(LaunchParams,camera)});
       lpVars.push_back
-        ({"rank",OWL_INT,OWL_OFFSETOF(LaunchParams,rank)});
+        ({"rank",OWL_INT,
+          OWL_OFFSETOF(LaunchParams,rank)});
       lpVars.push_back
-        ({"sampleID",OWL_INT,OWL_OFFSETOF(LaunchParams,sampleID)});
+        ({"sampleID",OWL_INT,
+          OWL_OFFSETOF(LaunchParams,sampleID)});
       lpVars.push_back
-        ({"mcGrid",OWL_USER_TYPE(MCGrid::DD),OWL_OFFSETOF(LaunchParams,mcGrid)});
+        ({"emergency",OWL_INT,
+          OWL_OFFSETOF(LaunchParams,emergency)});
       lpVars.push_back
-        ({"volumeSampler.xf",OWL_USER_TYPE(Volume::DD),OWL_OFFSETOF(LaunchParams,volumeSampler.xf)});
-      // lpVars.push_back
-      //   ({"volumeGlobals",OWL_USER_TYPE(VolumeGlobals),OWL_OFFSETOF(LaunchParams,volumeGlobals)});
-      // lpVars.push_back
-      //   ({"surfaceGlobals",OWL_USER_TYPE(SurfaceGlobals),OWL_OFFSETOF(LaunchParams,surfaceGlobals)});
-
+        ({"mcGrid",OWL_USER_TYPE(MCGrid::DD),
+          OWL_OFFSETOF(LaunchParams,mcGrid)});
+      lpVars.push_back
+        ({"volumeSampler.xf",OWL_USER_TYPE(Volume::DD),
+          OWL_OFFSETOF(LaunchParams,volumeSampler.xf)});
+      lpVars.push_back
+        ({"volumeSampler.type",OWL_INT,
+          OWL_OFFSETOF(LaunchParams,volumeSampler.type)});
+      lpVars.push_back
+        ({"replicatedSurfaceBVH",OWL_GROUP,
+          OWL_OFFSETOF(LaunchParams,replicatedSurfaceBVH)});
       
       lp = owlParamsCreate(owl,sizeof(LaunchParams),
                            lpVars.data(),lpVars.size());
@@ -77,6 +90,8 @@ namespace vopat {
 
       volume->buildMCs(mcGrid);
       owlParamsSetRaw(lp,"mcGrid",&mcGrid.dd);
+
+      buildReplicatedGeometry();
       
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
@@ -88,51 +103,52 @@ namespace vopat {
       
       nextDomainKernel.setLPVars(lp);
     }
-                           
-    // volume = std::make_shared<Volume>(model,baseFileName,islandRank,gpuID);
-      
     CUDA_SYNC_CHECK();
-    // Reuse for ISOs
-//     surface.globals.gradientDelta = volume.globals.gradientDelta;
-// #if VOPAT_UMESH
-//     surface.globals.umesh        = volume.globals.umesh;
-// #else
-//     surface.globals.volume        = volume.globals.volume;
-// #endif
-//     surface.globals.islandRank    = volume.globals.islandRank;
-//     surface.globals.rankBoxes     = volume.globals.rankBoxes;
-//     // surface.globals.numRanks      = volume.globals.numRanks;
-//     surface.globals.myRegion      = volume.globals.myRegion;
-
-    // std::vector<int> hIsoActive({0,0,0,0});
-    // std::vector<float> hIsoValues({0.f,0.f,0.f,0.f});
-    // std::vector<vec3f> hIsoColors({{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f},{.8f,.8f,.8f}});
-    // PING;
-    // surface.isoActive.upload(hIsoActive);
-    // PING;
-    // surface.isoValues.upload(hIsoValues);
-    // PING;
-    // surface.isoColors.upload(hIsoColors);
-    // PING;
-
-    // surface.globals.iso.numActive = 0;
-    // surface.globals.iso.active    = surface.isoActive.get();
-    // surface.globals.iso.values    = surface.isoValues.get();
-    // surface.globals.iso.colors    = surface.isoColors.get();
-    // PING;
   }
 
-  // __global__
-  // void doTraceRaysLocally(ForwardGlobals forward,
-  //                         VolumeGlobals  volume,
-  //                         SurfaceGlobals surf)
-  // {
-  //   int tid = threadIdx.x+blockIdx.x*blockDim.x;
-  //   if (tid >= forward.numRaysInQueue) return;
+  /*! builds OWL accel structure(s) for all replicated geometry, and
+    sets accel to launch params */
+  void VopatRenderer::buildReplicatedGeometry()
+  {
+    if (!replicatedGeom) return;
 
-  //   traceRaysKernel(tid,forward,volume,surf);
-  // }
-  
+    MeshGeom::defineGeometryType(owl,owlDevCode);
+    
+    auto scene = replicatedGeom;
+    std::map<mini::Object::SP,OWLGroup> objectGroups;
+    for (auto inst : scene->instances)
+      objectGroups[inst->object] = 0;
+    int meshID = 0;
+    for (auto &og : objectGroups) {
+      auto obj = og.first;
+      std::vector<OWLGeom> geoms;
+
+      for (auto mesh : obj->meshes) {
+        OWLGeom geom = MeshGeom::createGeom(owl,mesh);
+        vec3f color = owl::common::randomColor(meshID++);
+        owlGeomSet3f(geom,"diffuseColor",color.x,color.y,color.z);
+        geoms.push_back(geom);
+      }
+      
+      OWLGroup group = owlTrianglesGeomGroupCreate(owl,geoms.size(),geoms.data());
+      owlGroupBuildAccel(group);
+      og.second = group;
+    }
+
+    std::vector<affine3f> transforms;
+    std::vector<OWLGroup> groups;
+    for (auto inst : scene->instances) {
+      transforms.push_back(inst->xfm);
+      groups.push_back(objectGroups[inst->object]);
+    }
+    OWLGroup world = owlInstanceGroupCreate(owl,groups.size(),
+                                            groups.data(),0,
+                                            (const float *)transforms.data());
+    owlGroupBuildAccel(world);
+
+    owlParamsSetGroup(lp,"replicatedSurfaceBVH",world);
+  }
+
   void VopatRenderer::traceLocally()
   {
     if (forwardingLayer.numRaysIn == 0)
@@ -143,42 +159,13 @@ namespace vopat {
 
     volume->setDD(lp);
     
-// #if VOPAT_UMESH_OPTIX
-    // printf(" -> tracing numRaysInQueue %i\n",forward.numRaysInQueue);
-    // owlParamsSetRaw(lp,"volumeGlobals",&volume.globals);
-    // owlParamsSetRaw(lp,"surfaceGlobals",&surface.globals);
-    // owlParamsSetGroup(lp,"umeshSampleBVH",volume.umeshAccel);
     owlLaunch2D(traceLocallyRG,forward.numRaysIn,1,lp);
-// #else
-//     // CUDA_SYNC_CHECK();
-//     int blockSize = 64;
-//     int numBlocks = divRoundUp(forward.numRaysIn,blockSize);
-//     if (fishy) printf(" -> tracing numRaysIn %i\n",forward.numRaysIn);
-//     if (numBlocks)
-//       doTraceRaysLocally<<<numBlocks,blockSize>>>
-//         (forward,volume.globals,surface.globals);
-//     // CUDA_SYNC_CHECK();
-// #endif
     CUDA_SYNC_CHECK();
   }
 
-  // __global__
-  // void doGeneratePrimaryWave(ForwardGlobals forward,
-  //                            VolumeGlobals globals)
-  // {
-  //   int ix = threadIdx.x + blockIdx.x*blockDim.x;
-  //   int iy = threadIdx.y + blockIdx.y*blockDim.y;
-  //   generatePrimaryWaveKernel(vec2i(ix,iy),forward,globals);
-  // }
-  
   void VopatRenderer::generatePrimaryWave()
   {
-    // auto &forwardGlobals = forwardingLayer.dd;
     CUDA_SYNC_CHECK();
-    // PING;
-    // PRINT(forwardGlobals.islandFbSize);
-    
-// #if VOPAT_UMESH_OPTIX
     auto &fbSize = fbLayer.islandFbSize;
     if (fbSize.y <= 0)
       return;
@@ -193,13 +180,7 @@ namespace vopat {
     owlParamsSetRaw(lp,"fbLayer",&fbLayerDD);
     owlParamsSetRaw(lp,"camera",&camera.dd);
     volume->setDD(lp);
-    // auto volumeGlobals = volume.globals;
-    // PRINT(forwardGlobals.islandFbSize);
-    // owlParamsSetRaw(lp,"forwardGlobals",&forwardGlobals);
-    // owlParamsSetRaw(lp,"volumeGlobals",&volumeGlobals);
 
-    // std::cout << "##################################################################" << std::endl;
-    // fflush(0);
     forwardingLayer.clearQueue();
     CUDA_SYNC_CHECK();
     owlLaunch2D(generatePrimaryWaveRG,
@@ -207,30 +188,12 @@ namespace vopat {
                 fbSize.y,
                 lp);
     owlLaunchSync(lp);
-    // std::cout << "##################################################################" << std::endl;
-    // fflush(0);
-// #else
-//     vec2i blockSize(16);
-//     vec2i numBlocks = divRoundUp(vopat.islandFbSize,blockSize);
-//     doGeneratePrimaryWave<<<numBlocks,blockSize>>>(vopat,volume.globals);
-// #endif
     CUDA_SYNC_CHECK();
   }
 
 
   void VopatRenderer::createNextDomainKernel()
   {
-    // NextDomainKernel &ndk = nextDomainKernel;
-    // std::cout << "building proxies" << std::endl;
-    // for (int rankID=0;rankID<volume.model->bricks.size();rankID++) {
-    //   NextDomainKernel::Proxy proxy;
-    //   proxy.rankID = rankID;
-    //   proxy.majorant = 1e20f;
-    //   proxy.domain = volume.model->bricks[rankID]->getDomain();
-    //   ndk.proxies.push_back(proxy);
-    // }
-
-    CUDA_SYNC_CHECK();
     nextDomainKernel.create(this);
     CUDA_SYNC_CHECK();
   }
@@ -264,30 +227,45 @@ namespace vopat {
                                           const float density)
   {
     resetAccumulation();
-    // printf("(%i.%i) setting transfer function num %i range %f %f\n",
-    //        comm->islandIndex(),
-    //        comm->islandRank(),
-    //        int(cm.size()),range.lower,range.upper);
 
     if (isMaster()) return;
-    
+
+    PING; 
     volume->setTransferFunction(cm,range,density);
     nextDomainKernel.mapXF(volume->xf.colorMap.get(),volume->xf.colorMap.N,
                            volume->xf.domain);
     nextDomainKernel.setLPVars(lp);
     owlParamsSetRaw(lp,"volumeSampler.xf",&volume->xfGlobals);
+    mcGrid.mapXF(volume->xf.colorMap.get(),volume->xf.colorMap.N,
+                 volume->xf.domain);
+    
     // printf("todo - update macro cells; todo - update shards/proxies\n"); 
   }
   
 
   void VopatRenderer::renderFrame(uint32_t *fbPointer)
   {
+    // for debugging:
+    // resetAccumulation();
+    
     if (!isMaster()) {
       
       forwardingLayer.clearQueue();
       generatePrimaryWave();
-    
-      while (forwardingLayer.exchangeRays()) {
+      
+      int numExchanged;
+      // int numIts = 0;
+      while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
+#if 0
+        std::cout << "==================================================================" << std::endl; fflush(0);
+        comm->worker.withinIsland->barrier();
+        usleep(50);
+        // sleep(1);
+#endif
+        // if (++numIts > 10)
+        //   owlParamsSet1i(lp,"emergency",1);
+          // break;
+        // PING; PRINT(numExchanged);
         forwardingLayer.clearQueue();
         traceLocally();
       }
