@@ -124,7 +124,6 @@ namespace vopat {
                            sharedFaceIndices.size(),sizeof(vec3i),0);
     owlGeomSetBuffer(geom,"tets",tetsBuffer);
     owlGeomSetBuffer(geom,"vertices",verticesBuffer);
-    PING; PRINT((int*)owlBufferGetPointer(verticesBuffer,0));
     owlGeomSetBuffer(geom,"scalars",scalarsBuffer);
     owlGeomSetBuffer(geom,"tetsOnFace",sharedFaceNeighborsBuffer);
     blas = owlTrianglesGeomGroupCreate(owl,1,&geom);
@@ -282,28 +281,25 @@ namespace vopat {
               << "#vopat.umesh: building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
-    PRINT(myBrick->domain);
     mcGrid.dd.dims = 64;
     // mcGrid.dd.dims = 8;
     mcGrid.dims = mcGrid.dd.dims;
     mcGrid.cells.resize(volume(mcGrid.dd.dims));
     mcGrid.dd.cells = mcGrid.cells.get();
-    CUDA_SYNC_CHECK();// PING;
+    CUDA_SYNC_CHECK();
     // CUDA_CALL(Memset(mcGrid.cells.get(),0,mcGrid.cells.numBytes()));
     clearMCs<<<(dim3)divRoundUp(mcGrid.dd.dims,vec3i(4)),(dim3)vec3i(4)>>>
       (mcGrid.cells.get(),mcGrid.dd.dims);
-    CUDA_SYNC_CHECK(); //PING;
+    CUDA_SYNC_CHECK();
     mcGrid.dd.cells  = mcGrid.cells.get();
 
     if (myBrick->umesh->tets.empty())
       throw std::runtime_error("no tets!?");
     const unsigned int blockSize = 128;
     unsigned int numTets = (int)myBrick->umesh->tets.size();
-    PRINT(numTets);
     const unsigned int numBlocks = divRoundUp(numTets,blockSize*1024u);
     dim3 _nb{1024u,numBlocks,1u};
     dim3 _bs{blockSize,1u,1u};
-    PRINT((vec3i&)_nb);
     rasterTets<<<_nb,_bs>>>
       (mcGrid.dd.cells,
        mcGrid.dd.dims,

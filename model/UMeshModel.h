@@ -55,6 +55,14 @@ namespace vopat {
     std::vector<Shard> makeShards(int numShards) override;
 
     umesh::UMesh::SP umesh;
+    /*! if domain is NOT empty, then some prims may be replicated
+        across multiple ranks, and each ranks' _bounding box_ may by
+        larger than the domain because some prims "stick out" of the
+        domain; in this case each rand should only render data within
+        the specified domain, and completely ignore what's sticking
+        out of it. If the domain IS empty, then the different ranks'
+        umeshes may overlap in terms of their bounding boxes, but no
+        prim should ever be in more than one rank */
     box3f domain;
   };
 

@@ -118,14 +118,7 @@ namespace vopat {
         continue;
       }
       result.push_back(Shard{ node.domain, node.valueRange });
-      PRINT(node.valueRange);
     }
-
-    for (auto res : result) {
-      PRINT(res.valueRange);
-      PRINT(res.domain);
-    }
-    PRINT(result.size());
     return result;
   }
   
@@ -162,10 +155,6 @@ namespace vopat {
     std::ifstream in(fileName,std::ios::binary);
     read(in,umesh->perVertex->values);
     read(in,umesh->perVertex->valueRange);
-    PING;
-    for (int i=0;i<umesh->perVertex->values.size();i=(i+1)*2) {
-      PRINT(umesh->perVertex->values[i]);
-    }
     PRINT(umesh->perVertex->valueRange);
   }
     

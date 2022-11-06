@@ -46,9 +46,6 @@ namespace vopat {
     std::vector<int>   shardsOnRank(islandSize);
     const int myNumShards = (int)myShards.size();
     island->allGather(shardsOnRank,myNumShards);
-    // PING;
-    // for (auto sor : shardsOnRank)
-    //   PRINT(sor);
     // ------------------------------------------------------------------
     // compute *total* number of shards, and allocate
     // ------------------------------------------------------------------
@@ -144,7 +141,6 @@ namespace vopat {
   {
     owlParamsSetBuffer(lp,"proxies",proxiesBuffer);
     owlParamsSetGroup(lp,"proxyBVH",tlas);
-    PING; PRINT(myRank);
     owlParamsSet1i(lp,"myRank",myRank);
   }
 

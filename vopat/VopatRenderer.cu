@@ -230,7 +230,6 @@ namespace vopat {
 
     if (isMaster()) return;
 
-    PING; 
     volume->setTransferFunction(cm,range,density);
     nextDomainKernel.mapXF(volume->xf.colorMap.get(),volume->xf.colorMap.N,
                            volume->xf.domain);
@@ -254,7 +253,6 @@ namespace vopat {
       generatePrimaryWave();
       
       int numExchanged;
-      // int numIts = 0;
       while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
 #if 0
         std::cout << "==================================================================" << std::endl; fflush(0);
@@ -262,10 +260,6 @@ namespace vopat {
         usleep(50);
         // sleep(1);
 #endif
-        // if (++numIts > 10)
-        //   owlParamsSet1i(lp,"emergency",1);
-          // break;
-        // PING; PRINT(numExchanged);
         forwardingLayer.clearQueue();
         traceLocally();
       }

@@ -22,6 +22,7 @@
    more than one brick */
 
 #include "Model.h"
+#include "model/UMeshModel.h"
 #include "umesh/UMesh.h"
 #include "umesh/check.h"
 #include "umesh/extractShellFaces.h"
@@ -31,10 +32,11 @@
 #include "umesh/RemeshHelper.h"
 #include <queue>
 
-#define PARALLEL_REINDEXING 1
+// #define PARALLEL_REINDEXING 1
 
 namespace umesh {
-
+  using namespace vopat;
+  
   void usage(const std::string &error = "")
   {
     if (error != "")
@@ -201,6 +203,8 @@ namespace umesh {
     }
     // model->parts.resize(brickList.size());
     
+    UMeshModel::SP vopatModel = UMeshModel::create();
+    vopatModel->numBricks = brickList.size();
     parallel_for
       (brickList.size(),
        [&](size_t brickID)
@@ -258,10 +262,31 @@ namespace umesh {
            indexer.add(in,prim);
 #endif
 
+
+#if 1
+         UMeshBrick::SP vopatBrick = UMeshBrick::create(brickID);
+         vopatBrick->umesh = out;
+         
+         box3f brickBounds = out->getBounds();
+         PING; PRINT(out->tets.size()); PRINT(brickBounds);
+         range1f brickRange = out->getValueRange();
+         vopatBrick->domain = (const vopat::box3f&)brickBounds;
+         PRINT(vopatBrick->domain);
+         
+         vopatModel->domain.extend((const vopat::box3f&)brickBounds);
+         vopatModel->valueRange.extend((const vopat::range1f&)brickRange);
+         // umb->umesh = out;
+         // model->bricks.push_back(umb);
+
+         vopatBrick->writeUnvaryingData(vopat::Model::canonicalBrickFileName(outFileName,brickID));
+         vopatBrick->writeTimeStep(vopat::Model::canonicalTimeStepFileName(outFileName,brickID,
+                                                                           "unknown",0));
+#else
          std::cout << "got umesh brick " << out->toString() << std::endl;
          char suffix[100];
          sprintf(suffix,"_part-%04i.umesh",(int)brickID);
          out->saveTo(outFileName+suffix);
+#endif
          // Model::Part::SP part = std::make_shared<Model::Part>();
          // part->mesh = out;
          // std::cout << "[" << brickID << "] got mesh " << part->mesh->toString() << std::endl;
@@ -280,7 +305,7 @@ namespace umesh {
          // }
          delete brick;
        });
-
+    vopatModel->save(Model::canonicalMasterFileName(outFileName));
     std::cout << "done building model, saving it..." << std::endl;
     // model->save(outFileName);
     std::cout << "done wrting mp-model... done all" << std::endl;

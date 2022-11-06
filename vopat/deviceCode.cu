@@ -162,7 +162,7 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
 
-    if (ray.dbg) printf("------------------ FIRST (%i)-------------\n",lp.rank);
+    if (0 && ray.dbg) printf("------------------ FIRST (%i)-------------\n",lp.rank);
     
     owl::Ray optix_ray(ray.origin,
                        ray.getDirection(),
@@ -183,7 +183,7 @@ namespace vopat {
 
     bool dbg_next = false;
     
-    if (ray.dbg)
+    if (dbg_next && ray.dbg)
       printf("------------------ NEXT (on rank %i, spawn %i)-------------\n",
              lp.rank,ray.spawningRank);
     owl::Ray optix_ray(ray.origin,
@@ -387,7 +387,7 @@ namespace vopat {
   void traceThroughLocalVolumeData(Ray &ray, Random &rng)
   {
     auto &lp = LaunchParams::get();
-    bool dbg = ray.dbg;
+    bool dbg = 0; //ray.dbg;
 
     vec3f dda_org = xfmPoint(lp.mcGrid.worldToMcSpace,ray.getOrigin());
     vec3f dda_dir = xfmVector(lp.mcGrid.worldToMcSpace,ray.getDirection());
@@ -508,9 +508,9 @@ namespace vopat {
 
     //vec2i dbgPixel(540,1016-600);
     vec2i dbgPixel = fullFbSize/2;
-    // ray.dbg = 0;
     ray.dbg = (pixelID == dbgPixel);
     // ray.dbg = (ray.pixelID == 540106);
+    ray.dbg = 0;
 
     ray.crosshair
       = !ray.dbg && ((pixelID.x == dbgPixel.x) || (pixelID.y == dbgPixel.y));

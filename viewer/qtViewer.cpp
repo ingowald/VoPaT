@@ -381,7 +381,6 @@ namespace vopat {
       // ******************************************************************
       MPIBackend mpiBackend(argc,argv,islandSize);
       if (!mpiBackend.isMaster) {
-        PRINT(mpiBackend.worker.gpuID);
         cudaSetDevice(mpiBackend.worker.gpuID);
       }
 

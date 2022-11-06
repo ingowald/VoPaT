@@ -119,9 +119,6 @@ namespace vopat {
   {
     vec3i bs = 4;
     vec3i nb = divRoundUp(dims,bs);
-    PING;
-    PRINT(nb);
-    
     mapMacroCell<<<(dim3)nb,(dim3)bs>>>(dd.cells,dd.dims,d_xfValues,xfSize,xfDomain);
   }
   
