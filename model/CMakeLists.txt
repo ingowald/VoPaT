@@ -34,8 +34,8 @@ target_link_libraries(vopat_model
   vopat_common
   )
 
-add_custom_target(vopat_umesh_tools ALL)
-add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
+#add_custom_target(vopat_umesh_tools ALL)
+#add_dependencies(vopat_umesh_tools umeshPartitionSpatially)
 target_link_libraries(vopat_model PUBLIC
   umesh
   miniScene
@@ -50,10 +50,18 @@ target_link_libraries(vopatSplitRaw
   )
 
 # ==================================================================
-add_executable(vopatSplitUMesh
+add_executable(vopatPartitionUMeshSpatially
   partitionUMesh.cpp
   )
-target_link_libraries(vopatSplitUMesh
+target_link_libraries(vopatPartitionUMeshSpatially
+  vopat_model
+  )
+
+# ==================================================================
+add_executable(vopatPartitionUMeshObjectSpace
+  partitionUMeshObjectSpace.cpp
+  )
+target_link_libraries(vopatPartitionUMeshObjectSpace
   vopat_model
   )
 
