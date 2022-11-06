@@ -76,9 +76,74 @@ namespace umesh {
     std::vector<UMesh::PrimRef> prims;
     box3f bounds;
     box3f centBounds;
+
+    inline float weight() const { return prims.size(); }
   };
 
 
+#if 1
+  void splitAt(int dim,
+               float pos,
+               UMesh::SP mesh,
+               Brick *in,
+               Brick *out[2])
+  {
+    std::cout << "---- test splitting ----" << std::endl;
+    std::cout << "splitting brick\tw/ bounds " << in->bounds << " cent " << in->centBounds << std::endl;
+    std::cout << "splitting at " << char('x'+dim) << "=" << pos << std::endl;
+
+    out[0] = new Brick;
+    out[1] = new Brick;
+    for (auto prim : in->prims) {
+      const box3f pb = mesh->getBounds(prim);
+      int side = (pb.center()[dim] < pos) ? 0 : 1;
+      out[side]->prims.push_back(prim);
+      out[side]->bounds.extend(pb);
+      out[side]->centBounds.extend(pb.center());
+    }
+    std::cout << "done splitting " << prettyNumber(in->prims.size()) << " prims\tw/ bounds " << in->bounds << std::endl;
+    std::cout << "into L = " << prettyNumber(out[0]->prims.size()) << " prims\tw/ bounds " << out[0]->bounds << std::endl;
+    std::cout << " and R = " << prettyNumber(out[1]->prims.size()) << " prims\tw/ bounds " << out[1]->bounds << std::endl;
+  }
+  
+  void split(UMesh::SP mesh,
+             Brick *in,
+             Brick *out[2])
+  {
+    if (in->centBounds.lower == in->centBounds.upper)
+      throw std::runtime_error("can't split this any more ...");
+
+    float bestRatio = 0.f;
+    float bestPos;
+    int bestDim;
+    const int numPlanes = 7;
+    for (int dim=0;dim<3;dim++) {
+      for (int plane=0;plane<numPlanes;plane++) {
+        float f = (plane+1.f)/(numPlanes+1.f);
+        float pos = (1.f-f)*in->centBounds.lower[dim]+f*in->centBounds.upper[dim];
+        Brick *tmp_out[2];
+        splitAt(dim,pos,mesh,in,tmp_out);
+
+        float weight0 = tmp_out[0]->weight();
+        float weight1 = tmp_out[1]->weight();
+        float ratio = min(weight0,weight1) / (weight0+weight1);
+        if (ratio >= bestRatio) {
+          std::cout << "*** NEW BEST, ratio is " << ratio << std::endl;
+          bestDim = dim;
+          bestPos = pos;
+          bestRatio = ratio;
+        }
+        delete tmp_out[0];
+        delete tmp_out[1];
+      }
+    }
+    std::cout << "=== found BEST split at " << ('x'+bestDim) << " = " << bestPos << std::endl;
+    splitAt(bestDim,bestPos,mesh,in,out);
+    std::cout << "done *actual* splitting " << prettyNumber(in->prims.size()) << " prims\tw/ bounds " << in->bounds << std::endl;
+    std::cout << "into L = " << prettyNumber(out[0]->prims.size()) << " prims\tw/ bounds " << out[0]->bounds << std::endl;
+    std::cout << " and R = " << prettyNumber(out[1]->prims.size()) << " prims\tw/ bounds " << out[1]->bounds << std::endl;
+  }
+#else
   void split(UMesh::SP mesh,
              Brick *in,
              Brick *out[2])
@@ -109,6 +174,7 @@ namespace umesh {
     std::cout << "into L = " << prettyNumber(out[0]->prims.size()) << " prims\tw/ bounds " << out[0]->bounds << std::endl;
     std::cout << " and R = " << prettyNumber(out[1]->prims.size()) << " prims\tw/ bounds " << out[1]->bounds << std::endl;
   }
+#endif
   
   void createInitialBrick(std::priority_queue<std::pair<int,Brick *>> &bricks,
                           UMesh::SP in)
