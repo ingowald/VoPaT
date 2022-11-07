@@ -19,6 +19,7 @@
 
 namespace vopat {
 
+#if UMESH_SHARED_FACES
   void sortIndices(int &A, int &B, int &orientation)
   {
     if (A > B) {
@@ -53,7 +54,9 @@ namespace vopat {
       lambda(face,orientation);
     }
   }
-
+#else
+#endif
+  
   void UMeshVolume::build(OWLContext owl,
                           OWLModule owlDevCode)
   {
@@ -61,13 +64,29 @@ namespace vopat {
                          { "vertices", OWL_BUFPTR, OWL_OFFSETOF(Geom,vertices) },
                          { "scalars", OWL_BUFPTR, OWL_OFFSETOF(Geom,scalars) },
                          { "tets", OWL_BUFPTR, OWL_OFFSETOF(Geom,tets) },
+                         { "numTets", OWL_INT, OWL_OFFSETOF(Geom,numTets) },
+#if UMESH_SHARED_FACES
                          { "tetsOnFace", OWL_BUFPTR, OWL_OFFSETOF(Geom,tetsOnFace) },
+#else
+#endif
                          { nullptr }
     };
-    gt = owlGeomTypeCreate(owl,OWL_TRIANGLES,
+    gt = owlGeomTypeCreate(owl,
+#if UMESH_SHARED_FACES
+                           OWL_TRIANGLES,
+#else
+                           OWL_GEOMETRY_USER,
+#endif
                            sizeof(Geom),
                            args,-1);
+#if UMESH_SHARED_FACES
     owlGeomTypeSetClosestHit(gt,0,owlDevCode,"UMeshGeomCH");
+#else
+    owlGeomTypeSetBoundsProg(gt,owlDevCode,"UMeshGeomBounds");
+    owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"UMeshGeomIS");
+    owlGeomTypeSetAnyHit(gt,0,owlDevCode,"UMeshGeomAH");
+    owlGeomTypeSetClosestHit(gt,0,owlDevCode,"UMeshGeomCH");
+#endif
 
     scalarsBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT,
                                           myBrick->umesh->perVertex->values.size(),
@@ -84,6 +103,7 @@ namespace vopat {
                                        myBrick->umesh->tets.data());
     // globals.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(tetsBuffer,0);
 
+#if UMESH_SHARED_FACES
     CUDA_SYNC_CHECK();
     std::cout << "building shared faces accel" << std::endl;
     std::map<vec3i,int> faceID;
@@ -116,17 +136,27 @@ namespace vopat {
     sharedFaceNeighborsBuffer
       = owlManagedMemoryBufferCreate(owl,OWL_INT2,
                               sharedFaceNeighbors.size(),sharedFaceNeighbors.data());
+#else
+#endif
     geom = owlGeomCreate(owl,gt);
     
+    owlGeomSet1i(geom,"numTets",int(myBrick->umesh->tets.size()));
+    owlGeomSetBuffer(geom,"tets",tetsBuffer);
+    owlGeomSetBuffer(geom,"vertices",verticesBuffer);
+    owlGeomSetBuffer(geom,"scalars",scalarsBuffer);
+
+#if UMESH_SHARED_FACES
     owlTrianglesSetVertices(geom,verticesBuffer,
                             myBrick->umesh->vertices.size(),sizeof(vec3f),0);
     owlTrianglesSetIndices(geom,sharedFaceIndicesBuffer,
                            sharedFaceIndices.size(),sizeof(vec3i),0);
-    owlGeomSetBuffer(geom,"tets",tetsBuffer);
-    owlGeomSetBuffer(geom,"vertices",verticesBuffer);
-    owlGeomSetBuffer(geom,"scalars",scalarsBuffer);
     owlGeomSetBuffer(geom,"tetsOnFace",sharedFaceNeighborsBuffer);
     blas = owlTrianglesGeomGroupCreate(owl,1,&geom);
+#else
+    owlGeomSetPrimCount(geom,myBrick->umesh->tets.size());
+    owlBuildPrograms(owl);
+    blas = owlUserGeomGroupCreate(owl,1,&geom);
+#endif
 
     // and put this into a single-instance tlas
     owlGroupBuildAccel(blas);
@@ -235,8 +265,6 @@ namespace vopat {
           fatomicMax(&cell.upper,primBounds4.upper.w);
         }
   }
-  
-  constexpr int MAX_GRID_SIZE = 1024;
   
   __global__ void clearMCs(MacroCell *mcData,
                            vec3i dims)

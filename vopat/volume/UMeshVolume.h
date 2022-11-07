@@ -20,6 +20,11 @@
 #include "model/UMeshModel.h"
 
 namespace vopat {
+
+  /*! if set to true, we'll use triangle accel for shared-face tets;
+      if not, we'll use user geom with actual point-in-tet test in
+      isec program (probably slower, but should need less memory) */
+  // #define UMESH_SHARED_FACES 1
   
   struct UMeshVolume : public Volume {
     typedef std::shared_ptr<UMeshVolume> SP;
@@ -40,7 +45,11 @@ namespace vopat {
       vec3f *vertices;
       float *scalars;
       umesh::UMesh::Tet *tets;
+      int numTets;
+#if UMESH_SHARED_FACES
       int2              *tetsOnFace;
+#else
+#endif
     };
     
     void buildMCs(MCGrid &mcGrid) override;
@@ -69,8 +78,11 @@ namespace vopat {
     OWLGeom     geom;
     OWLGroup    blas;
     OWLGroup    tlas;
+#if UMESH_SHARED_FACES
     OWLBuffer   sharedFaceIndicesBuffer;
     OWLBuffer   sharedFaceNeighborsBuffer;
+#else
+#endif
     OWLBuffer   scalarsBuffer, tetsBuffer, verticesBuffer;
   };
 
@@ -86,7 +98,11 @@ namespace vopat {
     
     const float INVALID_VALUE = CUDART_INF;//1e20f;
     prd.sampledValue = INVALID_VALUE;
+#if UMESH_SHARED_FACES
     owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e20f);
+#else
+    owl::Ray sampleRay(P,vec3f(1.f,1e-6f,1e-6f),0.f,1e-20f);
+#endif
     traceRay(sampleAccel,sampleRay,prd);
     if (prd.sampledValue == INVALID_VALUE) return false;
     f = prd.sampledValue;

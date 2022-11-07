@@ -32,7 +32,7 @@
 #include "umesh/RemeshHelper.h"
 #include <queue>
 
-// #define PARALLEL_REINDEXING 1
+#define PARALLEL_REINDEXING 1
 
 namespace umesh {
   using namespace vopat;
@@ -88,13 +88,12 @@ namespace umesh {
                Brick *in,
                Brick *out[2])
   {
-    std::cout << "---- test splitting ----" << std::endl;
     std::cout << "splitting brick\tw/ bounds " << in->bounds << " cent " << in->centBounds << std::endl;
     std::cout << "splitting at " << char('x'+dim) << "=" << pos << std::endl;
 
     out[0] = new Brick;
     out[1] = new Brick;
-#if 1
+#if 0
     std::mutex mutex[2];
     parallel_for_blocked
       (0ull,in->prims.size(),128*1024ull,
@@ -139,35 +138,48 @@ namespace umesh {
     if (in->centBounds.lower == in->centBounds.upper)
       throw std::runtime_error("can't split this any more ...");
 
+    std::cout << "#### test splitting ####" << std::endl;
     std::mutex mutex;
-    float bestRatio = 0.f;
+    float bestRatio = -std::numeric_limits<float>::infinity();
     float bestPos;
     int bestDim;
     const int numPlanes = 7;
-    for (int dim=0;dim<3;dim++) {
-      parallel_for(numPlanes,[&](int plane) {
-      // for (int plane=0;plane<numPlanes;plane++) {
-        float f = (plane+1.f)/(numPlanes+1.f);
-        float pos = (1.f-f)*in->centBounds.lower[dim]+f*in->centBounds.upper[dim];
-        Brick *tmp_out[2];
-        splitAt(dim,pos,mesh,in,tmp_out);
+    // for (int dim=0;dim<3;dim++)
+    parallel_for
+      (3,
+       [&](int dim){
+         parallel_for
+           (numPlanes,
+            [&](int plane) {
+              // for (int plane=0;plane<numPlanes;plane++) {
+              float f = (plane+1.f)/(numPlanes+1.f);
+              float pos = (1.f-f)*in->centBounds.lower[dim]+f*in->centBounds.upper[dim];
+              Brick *tmp_out[2];
+              splitAt(dim,pos,mesh,in,tmp_out);
+              
+              float weight0 = tmp_out[0]->weight();
+              float weight1 = tmp_out[1]->weight();
+              float area0 = area((const owl::common::box3f&)tmp_out[0]->bounds);
+              float area1 = area((const owl::common::box3f&)tmp_out[1]->bounds);
+              float areaParent = area((const owl::common::box3f&)in->bounds);
 
-        float weight0 = tmp_out[0]->weight();
-        float weight1 = tmp_out[1]->weight();
-        float ratio = min(weight0,weight1) / (weight0+weight1);
-        {
-          std::lock_guard<std::mutex> lock(mutex);
-          if (ratio >= bestRatio) {
-            std::cout << "*** NEW BEST, ratio is " << ratio << std::endl;
-            bestDim = dim;
-            bestPos = pos;
-            bestRatio = ratio;
-          }
-        }
-        delete tmp_out[0];
-        delete tmp_out[1];
-                             });
-    }
+              float weight_ratio = (max(weight0,weight1)-min(weight0,weight1))/(weight0+weight1);
+              float area_ratio = max(area0,area1)/areaParent;
+              float ratio = -((weight_ratio+.1f)*area_ratio);
+              // float ratio = min(weight0,weight1) / (weight0+weight1);
+              {
+                std::lock_guard<std::mutex> lock(mutex);
+                if (ratio >= bestRatio) {
+                  std::cout << "*** NEW BEST, ratio is " << ratio << std::endl;
+                  bestDim = dim;
+                  bestPos = pos;
+                  bestRatio = ratio;
+                }
+              }
+              delete tmp_out[0];
+              delete tmp_out[1];
+            });
+       });
     std::cout << "=== found BEST split at " << ('x'+bestDim) << " = " << bestPos << std::endl;
     splitAt(bestDim,bestPos,mesh,in,out);
     std::cout << "done *actual* splitting " << prettyNumber(in->prims.size()) << " prims\tw/ bounds " << in->bounds << std::endl;

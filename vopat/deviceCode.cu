@@ -21,6 +21,7 @@
 #include <cuda.h>
 #include "vopat/DDA.h"
 #include "vopat/surface/MeshGeom.h"
+#include "vopat/volume/UMeshVolume.h"
 
 using namespace vopat;
 
@@ -273,7 +274,7 @@ namespace vopat {
   // Surface Mesh Geometry Shared-face Sampler Code
   // ##################################################################
   
-  /*! closest-hit program for shared-faces geometry */
+  /*! closest-hit program for triangle mesh surface geometry */
   OPTIX_CLOSEST_HIT_PROGRAM(MeshGeomCH)()
   {
     const MeshGeom::DD &geom = owl::getProgramData<MeshGeom::DD>();
@@ -294,7 +295,7 @@ namespace vopat {
     prd.N = normalize(cross(v1-v0,v2-v0));
   }
 
-  /*! closest-hit program for shared-faces geometry */
+  /*! closest-hit program for triangle mesh surface geometry */
   OPTIX_ANY_HIT_PROGRAM(MeshGeomAH)()
   {
   }
@@ -302,7 +303,8 @@ namespace vopat {
   // ##################################################################
   // UMeshVolume Shared-face Sampler Code
   // ##################################################################
-  
+
+#if UMESH_SHARED_FACES
   /*! closest-hit program for shared-faces geometry */
   OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
   {
@@ -315,7 +317,6 @@ namespace vopat {
     if (tetID < 0)
       // outside face - no hit
       return;
-  
     vec4i tet  = (vec4i&)geom.tets[tetID];
     const vec3f P    = optixGetWorldRayOrigin();
     const vec3f A    = geom.vertices[tet.x] - P;
@@ -338,7 +339,70 @@ namespace vopat {
       + fC * geom.scalars[tet.z]
       + fD * geom.scalars[tet.w];
   }
+#else
+  OPTIX_BOUNDS_PROGRAM(UMeshGeomBounds)(const void  *geomData,
+                                        box3f       &primBounds,
+                                        const int    primID)
+  {
+    const UMeshVolume::Geom &geom = *(const UMeshVolume::Geom*)geomData;
+    vec4i tet = (const vec4i&)geom.tets[primID];
+    primBounds = box3f()
+      .including(geom.vertices[tet.x])
+      .including(geom.vertices[tet.y])
+      .including(geom.vertices[tet.z])
+      .including(geom.vertices[tet.w]);
+  }
 
+  /*! closest-hit program for shared-faces geometry */
+  OPTIX_INTERSECT_PROGRAM(UMeshGeomIS)()
+  {
+    const UMeshVolume::Geom &geom = owl::getProgramData<UMeshVolume::Geom>();
+    int tetID = optixGetPrimitiveIndex();
+    vec4i tet  = (vec4i&)geom.tets[tetID];
+    const vec3f P    = optixGetWorldRayOrigin();
+    const vec3f A    = geom.vertices[tet.x] - P;
+    const vec3f B    = geom.vertices[tet.y] - P;
+    const vec3f C    = geom.vertices[tet.z] - P;
+    const vec3f D    = geom.vertices[tet.w] - P;
+                                // vec3i{ A, C, B },
+                                // vec3i{ A, D, C },
+                                // vec3i{ A, B, D },
+                                // vec3i{ B, C, D }
+    float fD = (dot(A,cross(C,B)));
+    float fB = (dot(A,cross(D,C)));
+    float fC = (dot(A,cross(B,D)));
+    float fA = (dot(B,cross(C,D)));
+
+    float min_f = min(min(fA,fB),min(fC,fD));
+    if (min_f * fA < 0.f) return;
+    if (min_f * fB < 0.f) return;
+    if (min_f * fC < 0.f) return;
+    if (min_f * fD < 0.f) return;
+
+    fA = fabsf(fA);
+    fB = fabsf(fB);
+    fC = fabsf(fC);
+    fD = fabsf(fD);
+
+    const float scale = 1.f/(fA+fB+fC+fD);
+    fA *= scale;
+    fB *= scale;
+    fC *= scale;
+    fD *= scale;
+    auto &prd = owl::getPRD<UMeshVolume::SamplePRD>();
+    prd.sampledValue
+      = fA * geom.scalars[tet.x]
+      + fB * geom.scalars[tet.y]
+      + fC * geom.scalars[tet.z]
+      + fD * geom.scalars[tet.w];
+    optixReportIntersection(0,0);
+  }
+  OPTIX_ANY_HIT_PROGRAM(UMeshGeomAH)()
+  { optixTerminateRay(); }
+  OPTIX_CLOSEST_HIT_PROGRAM(UMeshGeomCH)()
+  {}
+#endif
+  
   inline __device__
   vec3f backgroundColor(const Ray &ray)
   {

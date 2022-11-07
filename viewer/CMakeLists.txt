@@ -62,7 +62,7 @@ add_executable(vopatHeadlessViewer
 target_link_libraries(vopatHeadlessViewer
   PUBLIC
   vopat_render
-  qtOWL
+#  qtOWL
   )
 set_property(TARGET vopatHeadlessViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
