@@ -22,8 +22,14 @@
 namespace vopat {
 
   using range1f = interval<float>;
-  
-  struct Shard {
+
+  /*! A "volume proxy" represents a certain part of the volume (it's
+      domain) through the min/max value range in that domain; any
+      volume can thus be (conservatively) represented through such
+      proxies, and any rank can later determine if the given part of
+      the volume is interesting for it's ray(s) even if it doesn't
+      have the full volume data that this volume proxy represents. */
+  struct VolumeProxy {
     box3f domain;
     range1f valueRange;
   };
@@ -59,9 +65,10 @@ namespace vopat {
     /*! load a given time step and variable's worth of voxels from given file name */
     virtual void loadTimeStep(const std::string &fileName) = 0;
     
-    /*! on a given rank, create shards for _exactly this_ brick (ranks
-        can then exchange those as required */
-    virtual std::vector<Shard> makeShards(int numShards) = 0;
+    /*! on a given rank, create the volume proxies for _exactly this_
+        'brick' of volume data (ranks can then exchange those as
+        required */
+    virtual std::vector<VolumeProxy> makeVolumeProxies(int numDesiredVPs) = 0;
     
     const int ID;
   };

@@ -81,7 +81,7 @@ namespace vopat {
                    uint32_t kernelOffset);
     void setLPVars(OWLLaunchParams lp);
 
-    /*! exhanges shards across all range, build *all* ranks' proxies
+    /*! exhanges volumeProxies across all range, build *all* ranks' proxies
         and value ranges, and upload to the proxiesBuffer and
         valueRangesBuffer */
     void createProxies(VopatRenderer *vopat);
@@ -93,12 +93,12 @@ namespace vopat {
     /*! total number of proxies gathered across all ranks - NOT only the active ones */
     int numProxies = -1;
     
-    /*! for each logical shard created across all ranks, this stores
+    /*! for each logical volumeProxy created across all ranks, this stores
         the corresponding proxy */
     OWLBuffer   proxiesBuffer;
     
-    /*! for each logical shard created across all ranks, this stores
-        the (pre-transfer function) value range for this shard (so the
+    /*! for each logical volumeProxy created across all ranks, this stores
+        the (pre-transfer function) value range for this volumeProxy (so the
         proxy's majorant can be recomputed if the xf changes) */
     OWLBuffer   valueRangesBuffer;
     

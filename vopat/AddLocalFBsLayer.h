@@ -42,7 +42,7 @@ namespace vopat {
       /*! transforms a "global" pixel ID into local island-frame buffer coordinates */
       inline __device__ vec2i globalToLocal(vec2i globalPixelID) const
       { return vec2i{globalPixelID.x,
-                       (islandScale == 1)
+                       (islandScale != 1)
                        ?((globalPixelID.y-islandBias)/islandScale)
                        :globalPixelID.y};
       }
@@ -104,12 +104,9 @@ namespace vopat {
     
     // ==================================================================
     
-    /*! "temporary" buffer where current node receives all the lines
-      that it has to compose */
-    // small_vec3f    *compInputsMemory = nullptr;
-
     /*! all of the other rank's lines that they send to us for compositing */
     CUDAArray<small_vec3f> compInputsMemory;//localAccumBuffer;
+    
     /*! all of the lines that _we_ send to _others_ (in lower
         prec). This is basically a reduced-precision version of the
         local accum buffer that we're sending out */
@@ -117,10 +114,9 @@ namespace vopat {
 
     /*! temporary memory where this node writes its composed lines
       to, and from where those can then be sent on to the master */
-    // uint32_t       *compResultMemory = nullptr;
     CUDAArray<uint32_t> compResultMemory;
-    vec2i           islandFbSize { 0,0 };
-    vec2i           fullFbSize { 0,0 };
+    vec2i               islandFbSize { 0,0 };
+    vec2i               fullFbSize   { 0,0 };
 
     /*! only on the master: the buffer we receive final composited
         pixels in, properly assembled across all islands */
@@ -137,15 +133,8 @@ namespace vopat {
     CommBackend *comm;
   };
 
-
-  // __global__ void encodeAccumBufferForSending(vec2i fbSize,
-  //                                             small_vec3f *lowerPrec,
-  //                                             vec3f *accumBuffer,
-  //                                             int numAccumFrames);
-    
-
   // ==================================================================
-  // IMPLEMENTATOIN
+  // IMPLEMENTATION
   // ==================================================================
 
   inline __both__ uint32_t make_8bit(const float f)
@@ -170,13 +159,6 @@ namespace vopat {
       (make_8bit(color.w) << 24);
   }
 
-  // inline __device__ void addToFB(vec3f *tgt, vec3f addtl)
-  // {
-  //   atomicAdd(&tgt->x,addtl.x);
-  //   atomicAdd(&tgt->y,addtl.y);
-  //   atomicAdd(&tgt->z,addtl.z);
-  // }
-  
 #ifdef __CUDA_ARCH__
   inline __device__
   void AddLocalFBsLayer::DD::addPixelContribution(vec2i pixelID, vec3f fragment) const
@@ -186,12 +168,6 @@ namespace vopat {
       return;
 
     pixelID = globalToLocal(pixelID);
-    // pixelID.y = 
-    // int global_iy = globalLinearPixelID / islandFbSize.x;
-    // int global_ix = globalLinearPixelID - global_iy * islandFbSize.x;
-    // int local_ix  = global_ix;
-    // int local_iy  = (global_iy - islandIndex) / islandCount;
-
     vec3f *tgt = accumBuffer+(pixelID.y*fullFbSize.x+pixelID.x);
 
     atomicAdd(&tgt->x,fragment.x);

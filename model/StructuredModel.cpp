@@ -75,19 +75,19 @@ namespace vopat {
     return brick;
   }
   
-  void StructuredBrick::recMakeShards(std::vector<Shard> &result,
-                                   const box3i &cellRange,
-                                   int numShards)
+  void StructuredBrick::recMakeVolumeProxies(std::vector<VolumeProxy> &result,
+                                             const box3i &cellRange,
+                                             int numVolumeProxies)
   {
-    if (numShards == 1 || cellRange.size() == vec3i(1)) {
-      Shard shard;
-      shard.domain.lower.x = float(cellRange.lower.x);
-      shard.domain.lower.y = float(cellRange.lower.y);
-      shard.domain.lower.z = float(cellRange.lower.z);
+    if (numVolumeProxies == 1 || cellRange.size() == vec3i(1)) {
+      VolumeProxy volumeProxy;
+      volumeProxy.domain.lower.x = float(cellRange.lower.x);
+      volumeProxy.domain.lower.y = float(cellRange.lower.y);
+      volumeProxy.domain.lower.z = float(cellRange.lower.z);
 
-      shard.domain.upper.x = float(cellRange.upper.x);
-      shard.domain.upper.y = float(cellRange.upper.y);
-      shard.domain.upper.z = float(cellRange.upper.z);
+      volumeProxy.domain.upper.x = float(cellRange.upper.x);
+      volumeProxy.domain.upper.y = float(cellRange.upper.y);
+      volumeProxy.domain.upper.z = float(cellRange.upper.z);
 
       range1f valueRange;
       const vec3i localSize = this->numVoxels;
@@ -101,25 +101,25 @@ namespace vopat {
               + localSize.x * localSize.y * localIdx.z;
             valueRange.extend(scalars[scalarIdx]);
           }
-      shard.valueRange = valueRange;
-      result.push_back(shard);
+      volumeProxy.valueRange = valueRange;
+      result.push_back(volumeProxy);
     } else {
       int dim = arg_max(cellRange.size());
-      int Nl = numShards/2;
-      int Nr = numShards - Nl;
-      int mid = cellRange.lower[dim] + size_t(Nl * cellRange.size()[dim]) / numShards;
+      int Nl = numVolumeProxies/2;
+      int Nr = numVolumeProxies - Nl;
+      int mid = cellRange.lower[dim] + size_t(Nl * cellRange.size()[dim]) / numVolumeProxies;
       box3i lRange = cellRange; lRange.upper[dim] = mid;
       box3i rRange = cellRange; rRange.lower[dim] = mid;
       
-      recMakeShards(result,lRange,Nl);
-      recMakeShards(result,rRange,Nr);
+      recMakeVolumeProxies(result,lRange,Nl);
+      recMakeVolumeProxies(result,rRange,Nr);
     }
   }
   
-  std::vector<Shard> StructuredBrick::makeShards(int numShards)
+  std::vector<VolumeProxy> StructuredBrick::makeVolumeProxies(int numVolumeProxies)
   {
-    std::vector<Shard> result;
-    recMakeShards(result,this->cellRange,numShards);
+    std::vector<VolumeProxy> result;
+    recMakeVolumeProxies(result,this->cellRange,numVolumeProxies);
     return result;
   }
 

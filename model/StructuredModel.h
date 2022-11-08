@@ -44,15 +44,18 @@ namespace vopat {
     void loadUnvaryingData(const std::string &fileName) override;
     void loadTimeStep(const std::string &fileName) override;
     
-    std::vector<Shard> makeShards(int numShards) override;
+    /*! on a given rank, create the volume proxies for _exactly this_
+        'brick' of volume data (ranks can then exchange those as
+        required */
+    std::vector<VolumeProxy> makeVolumeProxies(int numDesiredVPs) override;
 
     box3f getDomain() const
     { return box3f{vec3f(cellRange.lower),vec3f(cellRange.upper)}; }
   private:
     /*! internal helper function for recursive subdividion when making shards */
-    void recMakeShards(std::vector<Shard> &result,
-                       const box3i &cellRange,
-                       int numShardsForThisRange);
+    void recMakeVolumeProxies(std::vector<VolumeProxy> &result,
+                              const box3i &cellRange,
+                              int numVolumeProxies);
 
   public:
     box3i cellRange;

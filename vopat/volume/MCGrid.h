@@ -50,8 +50,9 @@ namespace vopat {
     { dd.dims = vec3i(0); }
 
     CUDAArray<MacroCell> cells;
-    vec3i                dims = 0;
 
+    /*! recompute all macro cells' majorant value by remap each such
+        cell's value range through the given transfer function */
     void mapXF(const vec4f *d_xfValues,
                int xfSize,
                range1f xfDomain);

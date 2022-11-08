@@ -80,7 +80,6 @@ namespace vopat {
     CUDA_SYNC_CHECK();
     vec2i tileSize = 32;
     const vec2i numTiles = divRoundUp(ourRegionSize,tileSize);
-    // const int islandSize = comm->worker.withinIsland->size;
     if (numTiles.x*numTiles.y > 0)
       cudaComposeRegion<<<numTiles,tileSize>>>
         (inputs,ourRegionSize,islandSize,
@@ -99,10 +98,10 @@ namespace vopat {
     // ==================================================================
       // this upper part should be per node, shared among all threads
       // ==================================================================
-      const int numIslands = comm->islandCount();//worker.numIslands;
-      const int islandIdx  = comm->islandIndex();//comm->worker.islandIdx;
-      const int islandRank = comm->islandRank();//comm->worker.withinIsland->rank;
-      const int islandSize = comm->islandSize();//comm->worker.withinIsland->size;
+      const int numIslands = comm->islandCount();
+      const int islandIdx  = comm->islandIndex();
+      const int islandRank = comm->islandRank();
+      const int islandSize = comm->islandSize();
     
       // ------------------------------------------------------------------
       // resize the full frame buffer - only the master needs the final

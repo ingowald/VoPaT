@@ -14,10 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-// #include "deviceCode.h"
 #include "LaunchParams.h"
-// #include "vopat/NodeRenderer.h"
-// #include "vopat/NextDomainKernel.h"
 #include <cuda.h>
 #include "vopat/DDA.h"
 #include "vopat/surface/MeshGeom.h"
@@ -25,7 +22,6 @@
 
 using namespace vopat;
 
-// extern "C" __constant__ uint8_t optixLaunchParams[sizeof(LaunchParams)];
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
 namespace vopat {
@@ -55,18 +51,17 @@ namespace vopat {
   {
     NextDomainKernel::Geom &geom = *(NextDomainKernel::Geom*)geomData;
 
-    if (primID >= 40) {
-      printf("invalid prim id in bounds prog!?\n");
-      return;
-    }
-
-    
     auto &proxy = geom.proxies[primID];
     if (proxy.majorant == 0.f) {
 #if 0
+      // this causes issues:
       primBounds = box3f();
+#elif 0
+      // this works:
+      primBounds = {vec3f(+FLT_MAX),vec3f(-FLT_MAX)};
 #else
-      primBounds = {proxy.domain.center(),proxy.domain.center()};//box3f();
+      // this works too:
+      primBounds = {proxy.domain.center(),proxy.domain.center()};
 #endif
     } else
       primBounds = proxy.domain;
@@ -87,7 +82,7 @@ namespace vopat {
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
 
-    bool dbg_next = true;//false;
+    bool dbg_next = false;
     if (dbg_next &&prd.dbg)
       printf("(%i) isec proxy %i (%f %f %f)(%f %f %f):%i\n",
              lp.rank,
@@ -123,8 +118,6 @@ namespace vopat {
       return;
     }
 
-    // vec3f org = optixGetWorldRayOrigin();
-    // vec3f dir = optixGetWorldRayDirection();
     vec3f org = optixGetObjectRayOrigin();
     vec3f dir = optixGetObjectRayDirection();
     float t0 = optixGetRayTmin();
@@ -217,7 +210,7 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
 
-    bool dbg_next = true; //false;
+    bool dbg_next = false;
 
     if (dbg_next && ray.dbg)
       printf("------------------ NEXT (on rank %i, spawn %i)-------------\n",
@@ -573,7 +566,10 @@ namespace vopat {
     vec3f ray_dir = ray.getDirection();
 
     vec4f mapped_volume_at_t_hit = 0.f;
-    const float DENSITY = ((lp.volumeSampler.xf.density == 0.f) ? 1.f : lp.volumeSampler.xf.density);//.03f;
+    const float DENSITY
+      = ((lp.volumeSampler.xf.density == 0.f)
+         ? 1.f
+         : lp.volumeSampler.xf.density);
     dda::dda3(dda_org,dda_dir,ray.tMax,
               vec3ui(lp.mcGrid.dims),
               [&](vec3i cellID,float t0, float t1)->bool {
@@ -643,7 +639,6 @@ namespace vopat {
     Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
     Random rng((ray.pixelID*2+ray.isShadow)*16+ray.numBounces,
                0x2345678 + (lp.rank*13+lp.sampleID));
-    // for (int i=0;i<10;i++) rng();
     traceRayLocally(rng,ray);
   } 
 
@@ -678,7 +673,7 @@ namespace vopat {
         pixelID.y >= lp.fbLayer.fullFbSize.y)
       return;
         
-    vec2f pixelSample = { rng(), rng() };//.5f;
+    vec2f pixelSample = { rng(), rng() };
 
     Ray ray = generateRay(pixelID,pixelSample);
     auto &fullFbSize = lp.fbLayer.fullFbSize;
@@ -730,8 +725,6 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
 
-    // if (!ray.dbg) return;
-
     if (ray.spawningRank == lp.rank)
       traceAgainstReplicatedGeometry(ray);
     traceAgainstLocalGeometry(ray);
@@ -747,7 +740,8 @@ namespace vopat {
       return;
     }
 
-    if (ray.dbg)
+    bool dbg_this = 0;
+    if (dbg_this && ray.dbg)
       printf("(%i) ray hit type %i at %f\n",
              lp.rank,
              int(ray.hitType),ray.tMax);
@@ -756,16 +750,16 @@ namespace vopat {
     // check if ray needs futher processing on another node
     // ==================================================================
     int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
-    if (ray.dbg)
+    if (dbg_this && ray.dbg)
       printf("next rank: %i\n",nextRankToSendTo);
     if (nextRankToSendTo >= 0) {
-      if (ray.dbg)
+      if (dbg_this && ray.dbg)
         printf("---> forwarding to %i\n",nextRankToSendTo);
       if (nextRankToSendTo == lp.rank) {
-        printf("forwarding to ourselves!?\n");
+        //printf("forwarding to ourselves!?\n");
         return;
-      }
-      if (lp.emergency > 20) {
+      }      
+      if (dbg_this && lp.emergency > 20) {
         printf("emergency ray: %i\n",ray.pixelID);
         ray.dbg = true;
       }
@@ -778,7 +772,7 @@ namespace vopat {
     // ==================================================================
     if (ray.isShadow) {
       vec3f frag = from_half(ray.throughput);
-      if (ray.dbg) printf("shadow ray died UN-occluded -> adding frag %f %f %f\n",
+      if (dbg_this && ray.dbg) printf("shadow ray died UN-occluded -> adding frag %f %f %f\n",
                           frag.x,frag.y,frag.z);
       // if we reach here we cannot have had any occlusion, else this
       // ray would have died already...
@@ -790,7 +784,7 @@ namespace vopat {
 #if 1
       float ambient = .1f;
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
-      if (ray.dbg)
+      if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);
       lp.fbLayer.addPixelContribution(ray.pixelID,ambient * frag);
@@ -803,7 +797,7 @@ namespace vopat {
       ray.setOrigin(ray.getOrigin()
                     +ray.tMax*ray.getDirection()
                     +.1f*lightDir);
-      if (ray.dbg) {
+      if (dbg_this && ray.dbg) {
         printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
         printf("SHADOW ray at %f %f %f\n",
                ray.getOrigin().x,
@@ -816,7 +810,7 @@ namespace vopat {
 #else
       // this was a volume hit; let's just store that color
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
-      if (ray.dbg)
+      if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);
       lp.fbLayer.addPixelContribution(ray.pixelID,frag);
@@ -832,7 +826,7 @@ namespace vopat {
       
 #if 1
       float ambient = .1f;
-      if (ray.dbg)
+      if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);
       lp.fbLayer.addPixelContribution(ray.pixelID,ambient * frag);

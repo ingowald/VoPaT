@@ -29,37 +29,37 @@ namespace vopat {
     return ss.str();
   }
   
-  std::vector<Shard> UMeshBrick::makeShards(int init_numShards)
+  std::vector<VolumeProxy> UMeshBrick::makeVolumeProxies(int init_numVolumeProxies)
   {
-    struct ShardNode {
+    struct VolumeProxyNode {
       box3f domain;
       range1f valueRange;
       int childID = -1;
-      int numShards = 0;
+      int numVolumeProxies = 0;
     };
 
     // ------------------------------------------------------------------
-    // BUILD kd-tree that defines the shards
+    // BUILD kd-tree that defines the volumeProxies
     // ------------------------------------------------------------------
-    std::vector<ShardNode> nodes;
+    std::vector<VolumeProxyNode> nodes;
     nodes.resize(1);
     nodes[0].domain = this->domain;//umesh->getBounds();
     nodes[0].childID = -1;
-    nodes[0].numShards = init_numShards;
+    nodes[0].numVolumeProxies = init_numVolumeProxies;
     {
       std::stack<int> todo; todo.push(0);
       while (!todo.empty()) {
         int nodeID = todo.top();todo.pop();
-        if (nodes[nodeID].numShards == 1)
+        if (nodes[nodeID].numVolumeProxies == 1)
           continue;
         int childID = nodes.size();
         nodes[nodeID].childID = childID;
         nodes.push_back({});
         nodes.push_back({});
 
-        int Nl = nodes[nodeID].numShards/2;
-        int Nr = nodes[nodeID].numShards - Nl;
-        float ratio = float(Nl)/float(nodes[nodeID].numShards);
+        int Nl = nodes[nodeID].numVolumeProxies/2;
+        int Nr = nodes[nodeID].numVolumeProxies - Nl;
+        float ratio = float(Nl)/float(nodes[nodeID].numVolumeProxies);
 
         auto pDomain = nodes[nodeID].domain;
 
@@ -70,8 +70,8 @@ namespace vopat {
         box3f lDomain = pDomain; lDomain.upper[dim] = mid;
         box3f rDomain = pDomain; rDomain.lower[dim] = mid;
 
-        nodes[childID+0].numShards = Nl;
-        nodes[childID+1].numShards = Nr;
+        nodes[childID+0].numVolumeProxies = Nl;
+        nodes[childID+1].numVolumeProxies = Nr;
         nodes[childID+0].domain = lDomain;
         nodes[childID+1].domain = rDomain;
 
@@ -108,16 +108,16 @@ namespace vopat {
     // ------------------------------------------------------------------
     // gather the leaves
     // ------------------------------------------------------------------
-    std::vector<Shard> result;
+    std::vector<VolumeProxy> result;
     int dbgID = 0;
     for (auto node : nodes) {
       int nodeID = dbgID++;
       if (node.childID >= 0) continue;
       if (node.valueRange.upper < node.valueRange.lower) {
-        std::cout << "WARNING: got a shard with zero elements here !?" << std::endl;
+        std::cout << "WARNING: got a volumeProxy with zero elements here !?" << std::endl;
         continue;
       }
-      result.push_back(Shard{ node.domain, node.valueRange });
+      result.push_back(VolumeProxy{ node.domain, node.valueRange });
     }
     return result;
   }

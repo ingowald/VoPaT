@@ -18,50 +18,6 @@
 
 namespace vopat {
 
-#if 0
-#if VOPAT_UMESH
-  // this gets done in VolumeRendererBase.cu:rasterTets
-#else
-/*! computes initial *input* range of the macrocells; ie, min/max of
-    raw data values *excluding* any transfer fucntion */
-  __global__ void initMacroCell(MacroCell *mcData,
-                                vec3i mcDims,
-                                int mcWidth,
-                                VoxelData volume)
-  {
-    vec3i mcID(threadIdx.x+blockIdx.x*blockDim.x,
-               threadIdx.y+blockIdx.y*blockDim.y,
-               threadIdx.z+blockIdx.z*blockDim.z);
-    
-    if (mcID.x >= mcDims.x) return;
-    if (mcID.y >= mcDims.y) return;
-    if (mcID.z >= mcDims.z) return;
-    
-    int mcIdx = mcID.x + mcDims.x*(mcID.y + mcDims.y*mcID.z);
-    auto &mc = mcData[mcIdx];
-
-    /* compute begin/end of VOXELS for this macro-cell */
-    vec3i begin = mcID*mcWidth;
-    vec3i end = min(begin + mcWidth + /* plus one for tri-lerp!*/1,
-                    volume.dims);
-    interval<float> valueRange;
-    for (int iz=begin.z;iz<end.z;iz++)
-      for (int iy=begin.y;iy<end.y;iy++)
-        for (int ix=begin.x;ix<end.x;ix++) {
-#if VOPAT_VOXELS_AS_TEXTURE
-          float f;
-          tex3D(&f,volume.texObjNN,ix,iy,iz);
-          valueRange.extend(f);
-#else
-          valueRange.extend(volume.voxels[ix+volume.dims.x*(iy+volume.dims.y*size_t(iz))]);
-#endif
-        }
-    mc.inputRange = valueRange;
-    mc.maxOpacity = 1.f;
-  }
-#endif
-#endif
-  
   /*! assuming the min/max of the raw data values are already set in a
     macrocell, this updates the *mapped* min/amx values from a given
     transfer function */
@@ -75,10 +31,6 @@ namespace vopat {
                threadIdx.y+blockIdx.y*blockDim.y,
                threadIdx.z+blockIdx.z*blockDim.z);
 
-    if (0 && mcID == vec3i(0))
-      printf("mapping macrocells to transfer function; input value range supposedly %f %f\n",
-             xfDomain.lower,xfDomain.upper);
-    
     if (mcID.x >= mcDims.x) return;
     if (mcID.y >= mcDims.y) return;
     if (mcID.z >= mcDims.z) return;
@@ -102,24 +54,21 @@ namespace vopat {
     for (int i=lo_idx;i<=hi_idx;i++)
       maxOpacity = max(maxOpacity,xfValues[i].w);
     mc.maxOpacity = maxOpacity;
-
-    // printf("maxop %i %i %i = %f\n",
-    //        mcID.x,mcID.y,mcID.z,maxOpacity);
-    
-    if (0 && mcID == mcDims/2)
-      printf("center macrocell at %i %i %i: input range %f %f, max opacity %f\n",
-             mcID.x,mcID.y,mcID.z,
-             mc.inputRange.lower,mc.inputRange.upper,mc.maxOpacity
-             );
   }
   
+  /*! recompute all macro cells' majorant value by remap each such
+    cell's value range through the given transfer function */
   void MCGrid::mapXF(const vec4f *d_xfValues,
                      int xfSize,
                      range1f xfDomain)
   {
-    vec3i bs = 4;
-    vec3i nb = divRoundUp(dims,bs);
-    mapMacroCell<<<(dim3)nb,(dim3)bs>>>(dd.cells,dd.dims,d_xfValues,xfSize,xfDomain);
+    // cuda block size:
+    const vec3i bs = 4;
+    // cuda num blocks
+    const vec3i nb = divRoundUp(dd.dims,bs);
+    mapMacroCell
+      <<<(dim3)nb,(dim3)bs>>>
+      (dd.cells,dd.dims,d_xfValues,xfSize,xfDomain);
   }
   
 } // ::vopat

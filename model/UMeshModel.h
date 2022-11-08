@@ -51,25 +51,28 @@ namespace vopat {
     /*! load a given time step and variable's worth of voxels from given file name */
     void loadTimeStep(const std::string &fileName) override;
     
-    /*! create given number of shards to describe the currently loaded data */
-    std::vector<Shard> makeShards(int numShards) override;
+    /*! on a given rank, create the volume proxies for _exactly this_
+        'brick' of volume data (ranks can then exchange those as
+        required */
+    std::vector<VolumeProxy> makeVolumeProxies(int numDesiredVPs) override;
 
+    /*! the unstructured mesh stored in this brick */
     umesh::UMesh::SP umesh;
-    /*! if domain is NOT empty, then some prims may be replicated
-        across multiple ranks, and each ranks' _bounding box_ may by
-        larger than the domain because some prims "stick out" of the
-        domain; in this case each rand should only render data within
-        the specified domain, and completely ignore what's sticking
-        out of it. If the domain IS empty, then the different ranks'
-        umeshes may overlap in terms of their bounding boxes, but no
-        prim should ever be in more than one rank */
+    
+    /*! Domain that this brick is defined over. This _may_ be a subset
+        of the umesh's bounding box if the umesh was created through
+        spatial partitioining and replication of on-the-fence
+        primitmives; in this case, samples should only be taken inside
+        the domain, no matter what the bbox of the umesh might look
+        like */
     box3f domain;
   };
 
+  /*! a (distributed) model made up of per-rank unstructured-mesh bricks */
   struct UMeshModel : public Model {
     typedef std::shared_ptr<UMeshModel> SP;
 
-    UMeshModel() : Model("UMeshModel/Spatial") {}
+    UMeshModel() : Model("UMeshModel") {}
     
     Brick::SP createBrick(int ID) override { return UMeshBrick::create(ID); }
     

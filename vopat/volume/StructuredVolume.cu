@@ -108,7 +108,6 @@ namespace vopat {
               << "#vopat.structured: done building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
-    mcGrid.dims = mcGrid.dd.dims;
   }
     
   void StructuredVolume::build(OWLContext owl,

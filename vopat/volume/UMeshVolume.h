@@ -51,9 +51,7 @@ namespace vopat {
 #else
 #endif
     };
-    
-    void buildMCs(MCGrid &mcGrid) override;
-    
+
     struct DD {
       inline __device__ bool sample(float &f, vec3f P, bool dbg) const;
       inline __device__ bool sampleElement(const int idx, float &f, vec3f P, bool dbg) const;
@@ -63,9 +61,10 @@ namespace vopat {
       OptixTraversableHandle sampleAccel;
       box3f domain;
     };
-    
-    DD        globals;
 
+    /*! build the given macro cell grid uses this volume's data */
+    void buildMCs(MCGrid &mcGrid) override;
+    
     void build(OWLContext owl,
                OWLModule owlDevCode) override;
     void setDD(OWLLaunchParams lp) override;
@@ -73,6 +72,8 @@ namespace vopat {
 
     UMeshBrick::SP myBrick;
     UMesh::SP      umesh;
+    
+    DD        globals;
     
     OWLGeomType gt;
     OWLGeom     geom;

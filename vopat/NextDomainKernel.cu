@@ -20,60 +20,60 @@
 
 namespace vopat {
 
-  int numShardsPerRank = 10;
+  int numVolumeProxiesPerRank = 10; //64;
   
-  /*! exhanges shards across all range, build *all* ranks' proxies
+  /*! exhanges volumeProxies across all range, build *all* ranks' proxies
     and value ranges, and upload to the proxiesBuffer and
     valueRangesBuffer */
   void NextDomainKernel::createProxies(VopatRenderer *vopat)
   {
     auto comm = vopat->comm;
 
-    std::vector<Shard> myShards
-      = vopat->volume->brick->makeShards(numShardsPerRank);
+    std::vector<VolumeProxy> myVolumeProxies
+      = vopat->volume->brick->makeVolumeProxies(numVolumeProxiesPerRank);
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
     this->myRank = comm->myRank();
     
     // ------------------------------------------------------------------
-    // compute how *many* shards each rank has
+    // compute how *many* volumeProxies each rank has
     // ------------------------------------------------------------------
-    std::vector<int>   shardsOnRank(islandSize);
-    const int myNumShards = (int)myShards.size();
-    island->allGather(shardsOnRank,myNumShards);
+    std::vector<int>   volumeProxiesOnRank(islandSize);
+    const int myNumVolumeProxies = (int)myVolumeProxies.size();
+    island->allGather(volumeProxiesOnRank,myNumVolumeProxies);
     // ------------------------------------------------------------------
-    // compute *total* number of shards, and allocate
+    // compute *total* number of volumeProxies, and allocate
     // ------------------------------------------------------------------
-    int allNumShards = 0;
-    for (auto sor : shardsOnRank) allNumShards += sor;
-    std::vector<Shard> allShards(allNumShards);
-    // for (int i=0;i<shardsOnRank.size();i++)
-    //   ss << "  shards from rank " << i << " : " << shardsOnRank[i] << std::endl;
-    // ss << "Sum all shards: " << allNumShards << std::endl;
+    int allNumVolumeProxies = 0;
+    for (auto sor : volumeProxiesOnRank) allNumVolumeProxies += sor;
+    std::vector<VolumeProxy> allVolumeProxies(allNumVolumeProxies);
+    // for (int i=0;i<volumeProxiesOnRank.size();i++)
+    //   ss << "  volumeProxies from rank " << i << " : " << volumeProxiesOnRank[i] << std::endl;
+    // ss << "Sum all volumeProxies: " << allNumVolumeProxies << std::endl;
     // ------------------------------------------------------------------
-    // *exchange all* shards across all ranks
+    // *exchange all* volumeProxies across all ranks
     // ------------------------------------------------------------------
-    island->allGather(allShards,myShards);
+    island->allGather(allVolumeProxies,myVolumeProxies);
 
     // ------------------------------------------------------------------
     // compute proxies and value ranges
     // ------------------------------------------------------------------
     std::vector<Proxy>   allProxies;
     std::vector<range1f> allValueRanges;
-    int numShardsDone = 0;
+    int numVolumeProxiesDone = 0;
     for (int rank=0;rank<islandSize;rank++)
-      for (int _i=0;_i<shardsOnRank[rank];_i++) {
-        int shardID = numShardsDone++;
-        auto shard = allShards[shardID];
+      for (int _i=0;_i<volumeProxiesOnRank[rank];_i++) {
+        int volumeProxyID = numVolumeProxiesDone++;
+        auto volumeProxy = allVolumeProxies[volumeProxyID];
         Proxy proxy;
-        proxy.domain = shard.domain;
+        proxy.domain = volumeProxy.domain;
         proxy.rankID = rank;
         // majorant will be set later, once we have XF - just cannot be
         // 0.f or bounds prog will axe this
         proxy.majorant = -1.f;
         allProxies.push_back(proxy);
-        allValueRanges.push_back(shard.valueRange);
+        allValueRanges.push_back(volumeProxy.valueRange);
       }
     this->numProxies = allProxies.size();
 

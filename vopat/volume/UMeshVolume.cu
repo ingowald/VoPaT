@@ -17,9 +17,14 @@
 #include "vopat/volume/UMeshVolume.h"
 #include "vopat/LaunchParams.h"
 
+/*! dimensions of the macro cell grid, in widest dimension */
+#define MC_GRID_SIZE 64
+
 namespace vopat {
 
 #if UMESH_SHARED_FACES
+  /*! sort indices of the edge A-B such that A<B; reverse orientation
+      if this requires a swap */
   void sortIndices(int &A, int &B, int &orientation)
   {
     if (A > B) {
@@ -28,6 +33,8 @@ namespace vopat {
     }
   }
   
+  /*! sort indices of the tet face such that A<B<C; reverse
+      orientation if this requires swapping the face orientation */
   void sortIndices(vec3i &face, int &orientation)
   {
     sortIndices(face.y,face.z,orientation);
@@ -91,17 +98,14 @@ namespace vopat {
     scalarsBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT,
                                           myBrick->umesh->perVertex->values.size(),
                                           myBrick->umesh->perVertex->values.data());
-    // globals.scalars = (float*)owlBufferGetPointer(scalarsBuffer,0);
     
     verticesBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT3,
                                            myBrick->umesh->vertices.size(),
                                            myBrick->umesh->vertices.data());
-    // globals.vertices = (vec3f*)owlBufferGetPointer(verticesBuffer,0);
     
     tetsBuffer = owlDeviceBufferCreate(owl,OWL_INT4,
                                        myBrick->umesh->tets.size(),
                                        myBrick->umesh->tets.data());
-    // globals.tets = (umesh::UMesh::Tet*)owlBufferGetPointer(tetsBuffer,0);
 
 #if UMESH_SHARED_FACES
     CUDA_SYNC_CHECK();
@@ -172,11 +176,6 @@ namespace vopat {
   
   void UMeshVolume::setDD(OWLLaunchParams lp) 
   {
-    // globals.xf.values    = this->xf.colorMap.get();
-    // globals.xf.numValues = this->xf.colorMap.N;
-    // globals.xf.domain    = this->xf.domain;
-    // globals.xf.density   = this->xf.density;
-
     owlParamsSetRaw(lp,"volumeSampler.umesh",&globals);
     owlParamsSet1i(lp,"volumeSampler.type",int(VolumeSamplerType_UMesh));
   }
@@ -303,19 +302,25 @@ namespace vopat {
     rasterBox(mcData,mcDims,domain,primBounds4);
   }
   
+  /*! build the given macro cell grid uses this volume's data */
   void UMeshVolume::buildMCs(MCGrid &mcGrid) 
   {
     std::cout << OWL_TERMINAL_BLUE
               << "#vopat.umesh: building macro cells .."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
-    mcGrid.dd.dims = 64;
-    // mcGrid.dd.dims = 8;
-    mcGrid.dims = mcGrid.dd.dims;
+
+    float maxWidth = reduce_max(myBrick->domain.size());
+    mcGrid.dd.dims = 1+vec3i(myBrick->domain.size() * ((MC_GRID_SIZE-1) / maxWidth));
+    printf("#vopat.umesh(%i): chosen macro-cell dims of (%i %i %i)\n",
+           myBrick->ID,
+           mcGrid.dd.dims.x,
+           mcGrid.dd.dims.y,
+           mcGrid.dd.dims.z);
+      
     mcGrid.cells.resize(volume(mcGrid.dd.dims));
     mcGrid.dd.cells = mcGrid.cells.get();
     CUDA_SYNC_CHECK();
-    // CUDA_CALL(Memset(mcGrid.cells.get(),0,mcGrid.cells.numBytes()));
     clearMCs<<<(dim3)divRoundUp(mcGrid.dd.dims,vec3i(4)),(dim3)vec3i(4)>>>
       (mcGrid.cells.get(),mcGrid.dd.dims);
     CUDA_SYNC_CHECK();
