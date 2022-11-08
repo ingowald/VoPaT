@@ -85,18 +85,13 @@ namespace vopat {
                            lpVars.data(),lpVars.size());
       owlParamsSet1i(lp,"rank",myRank());
       
-      PING;
       volume->build(owl,owlDevCode);
-      PING;
       volume->setDD(lp);
-      PING;
 
       volume->buildMCs(mcGrid);
       owlParamsSetRaw(lp,"mcGrid",&mcGrid.dd);
 
-      PING;
       buildReplicatedGeometry();
-      PING;
       
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);

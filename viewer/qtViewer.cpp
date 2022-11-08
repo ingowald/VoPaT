@@ -184,7 +184,6 @@ namespace vopat {
     /*! this gets called when the user presses a key on the keyboard ... */
     virtual void key(char key, const vec2i &where)
     {
-      PING;
       static uint32_t keyLightID = 0;
       
       switch (key) {

@@ -76,7 +76,7 @@ namespace vopat {
         allValueRanges.push_back(shard.valueRange);
       }
     this->numProxies = allProxies.size();
-    
+
     proxiesBuffer = owlDeviceBufferCreate
       (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());
     valueRangesBuffer = owlDeviceBufferCreate

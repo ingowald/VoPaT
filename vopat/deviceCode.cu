@@ -38,10 +38,11 @@ namespace vopat {
 
   inline __device__ float aLittleBitBiggerThan(float f)
   {
-    return CUDART_INF;
-    return f * (1.f+1e-3f);
+    // return f;
+    // return CUDART_INF;
+    // return f * (1.f+1e-3f);
     // return f * (1.f+1e-4f);
-    // return nextafterf(f,CUDART_INF);
+    return nextafterf(f,CUDART_INF);
   }
                                          
   // ##################################################################
@@ -53,10 +54,21 @@ namespace vopat {
                                     const int    primID)
   {
     NextDomainKernel::Geom &geom = *(NextDomainKernel::Geom*)geomData;
+
+    if (primID >= 40) {
+      printf("invalid prim id in bounds prog!?\n");
+      return;
+    }
+
+    
     auto &proxy = geom.proxies[primID];
-    if (proxy.majorant == 0.f)
+    if (proxy.majorant == 0.f) {
+#if 0
       primBounds = box3f();
-    else
+#else
+      primBounds = {proxy.domain.center(),proxy.domain.center()};//box3f();
+#endif
+    } else
       primBounds = proxy.domain;
   }
 
@@ -71,7 +83,7 @@ namespace vopat {
     auto &lp   = LaunchParams::get();
     auto &geom = owl::getProgramData<NextDomainKernel::Geom>();
     int primID = optixGetPrimitiveIndex();
-    auto proxy = geom.proxies[primID];
+    const auto &proxy = geom.proxies[primID];
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
 
@@ -91,28 +103,30 @@ namespace vopat {
 
     /* if this is a 'Find_Self_' phase we'll need to skip _all_other_
        ranks' proxies: */
-    if (prd.phase == NextDomainKernel::Phase_FindSelf &&
-        proxy.rankID != lp.rank)
+    if (((int)prd.phase == NextDomainKernel::Phase_FindSelf) &&
+        (proxy.rankID) != lp.rank)
       return;
     
     /* if this is a 'Find_Next_' phase we'll need to skip everybody
        that's already been tagged in the 'others' phase: */
-    else if (prd.phase == NextDomainKernel::Phase_FindNext &&
-             prd.alreadyTravedMask.hasBitSet(proxy.rankID))
+    else if (((int)prd.phase == NextDomainKernel::Phase_FindNext) &&
+             (prd.alreadyTravedMask.hasBitSet(proxy.rankID)))
       return;
     
     /*! if this is a 'Find_Others_' phase we can skip everybody that's
       already tagged */
-    else if (prd.phase == NextDomainKernel::Phase_FindOthers &&
-             prd.alreadyTravedMask.hasBitSet(proxy.rankID)) {
+    else if (((int)prd.phase == NextDomainKernel::Phase_FindOthers) &&
+              (prd.alreadyTravedMask.hasBitSet(proxy.rankID))) {
       if (dbg_next &&prd.dbg)
         printf("(%i) skipping proxy rank %i that already has a bit set...\n",
                lp.rank,proxy.rankID);
       return;
     }
 
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f dir = optixGetWorldRayDirection();
+    // vec3f org = optixGetWorldRayOrigin();
+    // vec3f dir = optixGetWorldRayDirection();
+    vec3f org = optixGetObjectRayOrigin();
+    vec3f dir = optixGetObjectRayDirection();
     float t0 = optixGetRayTmin();
     float t1 = optixGetRayTmax();
     if (!boxTest(proxy.domain,org,dir,t0,t1,dbg_next && prd.dbg)) {
@@ -140,13 +154,13 @@ namespace vopat {
       if (dbg_next &&prd.dbg)
         printf(" others proxy.t %f prd.t %f proxy.rank %i prd.rank %i\n",
                t0,prd.closestDist,proxy.rankID,prd.closestRank);
-      if (t0 < prd.closestDist ||
-          t0 == prd.closestDist && proxy.rankID < prd.closestRank) {
+      if ((t0 < prd.closestDist) ||
+          ((t0 == prd.closestDist) && (proxy.rankID < prd.closestRank))) {
         /* this hit WOULD have been accepted if we hadn't explicitly
            included it in the find-self phase */
         prd.alreadyTravedMask.setBit(proxy.rankID);
         if (dbg_next &&prd.dbg)
-          printf(" -> DID set bit, mask now  0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+          printf(" -> DID set bit, mask now  0x%08x\n",int(prd.alreadyTravedMask.words[0]));
       } else {
         if (dbg_next &&prd.dbg)
           printf(" -> did NOT set bit!\n");
@@ -204,7 +218,7 @@ namespace vopat {
     auto &lp = LaunchParams::get();
 
     bool dbg_next = true; //false;
-    
+
     if (dbg_next && ray.dbg)
       printf("------------------ NEXT (on rank %i, spawn %i)-------------\n",
              lp.rank,ray.spawningRank);
@@ -216,7 +230,7 @@ namespace vopat {
     prd.alreadyTravedMask.clearBits();
     prd.alreadyTravedMask.setBit(ray.spawningRank);
     if (dbg_next && ray.dbg)
-      printf("already trav mask INIT 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+      printf("already trav mask INIT 0x%08x\n",int(prd.alreadyTravedMask.words[0]));
     if (ray.spawningRank != lp.rank) {
       // if we are NOT on the originating node
 
@@ -250,7 +264,7 @@ namespace vopat {
                optix_ray.tmax);
       owl::traceRay(proxyBVH,optix_ray,prd);
       if (dbg_next && ray.dbg)
-        printf("already trav mask FRST 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+        printf("already trav mask FRST 0x%08x\n",int(prd.alreadyTravedMask.words[0]));
       if (prd.closestRank != lp.rank) {
         if (dbg_next && ray.dbg)
           printf("baaad - ray couldn't find itself - found %i, should be %i\n",
@@ -283,7 +297,7 @@ namespace vopat {
                           ray.getDirection(),
                           0.f,aLittleBitBiggerThan(distanceToSelf));
       if (dbg_next && ray.dbg)
-        printf("already trav mask BEFR 0x%08x\n",int(prd2.alreadyTravedMask.qwords[0]));
+        printf("already trav mask BEFR 0x%08x\n",int(prd2.alreadyTravedMask.words[0]));
       if (dbg_next && ray.dbg)
         printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
                optix_ray2.origin.x,
@@ -314,7 +328,7 @@ namespace vopat {
       prd.dbg = ray.dbg;
       optix_ray.tmax = aLittleBitBiggerThan(distanceToSelf);
       if (dbg_next && ray.dbg)
-        printf("already trav mask BEFR 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+        printf("already trav mask BEFR 0x%08x\n",int(prd.alreadyTravedMask.words[0]));
       if (dbg_next && ray.dbg)
         printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
                optix_ray.origin.x,
@@ -338,7 +352,7 @@ namespace vopat {
       owl::traceRay(proxyBVH,optix_ray,prd);
 #endif
       if (dbg_next && ray.dbg)        
-        printf("already trav mask AFTR 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+        printf("already trav mask AFTR 0x%08x\n",int(prd.alreadyTravedMask.words[0]));
     }
 
     if (dbg_next && ray.dbg)

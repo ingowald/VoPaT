@@ -42,21 +42,23 @@ namespace vopat {
     struct PRD {
       struct {
         inline __device__ void clearBits()
-        { for (int i=0;i<(MAX_RANKS+63)/64;i++) qwords[i] = 0; }
+        { for (int i=0;i<(MAX_RANKS+15)/16;i++) words[i] = 0; }
         
         inline __device__ void setBit(int rank)
-        { qwords[rank/64] |= (1ull<<(rank%64)); }
+        { words[rank/16] |= (1<<(rank%16)); }
         
         inline __device__ bool hasBitSet(int rank)
-        { return qwords[rank/64] & (1ull<<(rank%64)); }
+        { return words[rank/16] & (1<<(rank%16)); }
         
-        uint64_t   qwords[(MAX_RANKS+63)/64];
+        uint16_t   words[(MAX_RANKS+15)/16];
       } alreadyTravedMask;
       
-      uint32_t   dbg:1;
-      uint32_t   phase:3;
-      int32_t    closestRank:20;
       float      closestDist;
+      struct {
+        uint32_t   dbg:1;
+        uint32_t   phase:4;
+        int32_t    closestRank:20;
+      };
     };
     
     struct LPData {
