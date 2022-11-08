@@ -1,0 +1,303 @@
+// ======================================================================== //
+// Copyright 2022++ Ingo Wald                                               //
+//                                                                          //
+// Licensed under the Apache License, Version 2.0 (the "License");          //
+// you may not use this file except in compliance with the License.         //
+// You may obtain a copy of the License at                                  //
+//                                                                          //
+//     http://www.apache.org/licenses/LICENSE-2.0                           //
+//                                                                          //
+// Unless required by applicable law or agreed to in writing, software      //
+// distributed under the License is distributed on an "AS IS" BASIS,        //
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
+// See the License for the specific language governing permissions and      //
+// limitations under the License.                                           //
+// ======================================================================== //
+
+#include "AddLocalFBsLayer.h"
+#include <owl/owl_device.h>
+#include "3rdParty/stb_image//stb/stb_image_write.h"
+#include "3rdParty/stb_image//stb/stb_image.h"
+
+namespace vopat {
+
+  std::string AddLocalFBsLayer::screenShotFileName = "vopat";
+  
+  __global__ void encodeAccumBufferForSending(vec2i fbSize,
+                                              small_vec3f *localFB,
+                                              vec3f *accumBuffer,
+                                              int numAccumFrames)
+  {
+    int ix = threadIdx.x + blockIdx.x*blockDim.x;
+    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+
+    if (ix >= fbSize.x) return;
+    if (iy >= fbSize.y) return;
+
+    int i = ix + iy * fbSize.x;
+    
+    localFB[i] = to_half(accumBuffer[i] * (1.f/(numAccumFrames)));
+  }
+    
+  
+  
+  /*! the CUDA "parallel_for" variant */
+  __global__ void cudaComposeRegion(const small_vec3f *compInputs,
+                                    const vec2i ourRegionSize,
+                                    const int numInputsPerPixel,
+                                    // const int numSamplesPerPixel,
+                                    uint32_t *compOutputs,
+                                    bool doToneMapping)
+  {
+    const int our_y = threadIdx.y+blockIdx.y*blockDim.y;
+    if (our_y >= ourRegionSize.y) return;
+    const int our_x = threadIdx.x+blockIdx.x*blockDim.x;
+    if (our_x >= ourRegionSize.x) return;
+
+    vec3f sum = 0.f;
+    for (int i=0;i<numInputsPerPixel;i++) {
+      const int iy = our_y + i * ourRegionSize.y;
+      vec3f in = from_half(compInputs[our_x + iy * ourRegionSize.x]);
+      sum += in;
+    }
+    if (doToneMapping) {
+      const float rate = .7f;
+      sum.x = powf(sum.x,rate);
+      sum.y = powf(sum.y,rate);
+      sum.z = powf(sum.z,rate);
+    }
+              
+    compOutputs[our_x+our_y*ourRegionSize.x]
+      = make_rgba(sum);
+  }
+  
+  
+  void AddLocalFBsLayer::composeRegion(uint32_t *results,
+                                         const vec2i &ourRegionSize,
+                                         const small_vec3f *inputs,
+                                         int islandSize)
+  {
+    CUDA_SYNC_CHECK();
+    vec2i tileSize = 32;
+    const vec2i numTiles = divRoundUp(ourRegionSize,tileSize);
+    if (numTiles.x*numTiles.y > 0)
+      cudaComposeRegion<<<numTiles,tileSize>>>
+        (inputs,ourRegionSize,islandSize,
+         results,
+         false);
+    CUDA_SYNC_CHECK();
+  }
+  
+  void AddLocalFBsLayer::resize(const vec2i &newSize)
+  {
+    this->fullFbSize = newSize;
+    
+    if (comm->isMaster) {
+      masterFB.resize(fullFbSize.x*fullFbSize.y);
+    } else {
+    // ==================================================================
+      // this upper part should be per node, shared among all threads
+      // ==================================================================
+      const int numIslands = comm->islandCount();
+      const int islandIdx  = comm->islandIndex();
+      const int islandRank = comm->islandRank();
+      const int islandSize = comm->islandSize();
+    
+      // ------------------------------------------------------------------
+      // resize the full frame buffer - only the master needs the final
+      // frame buffer, but we need it to compute our local island frame
+      // buffer, as well as compositing buffer sizes
+      // ------------------------------------------------------------------
+      
+      // ------------------------------------------------------------------
+      // compute size of our island's frame buffer sub-set, and allocate
+      // local accum buffer of that size
+      // ------------------------------------------------------------------
+    
+      islandFbSize.x = fullFbSize.x;
+      islandFbSize.y
+         = (fullFbSize.y / numIslands)
+         + (islandIdx < (fullFbSize.y % numIslands));
+
+      // // ... and resize the local accum buffer
+      localAccumBuffer.resize(islandFbSize.x*islandFbSize.y);
+      compSendMemory.resize(islandFbSize.x*islandFbSize.y);
+      
+      // ------------------------------------------------------------------
+      // compute mem required for compositing, and allocate
+      // ------------------------------------------------------------------
+      const int ourCompLineBegin
+        = (islandFbSize.y * (islandRank+0)) / islandSize;
+      const int ourCompLineEnd
+        = (islandFbSize.y * (islandRank+1)) / islandSize;
+
+      // ------------------------------------------------------------------
+      // how many lines we'll *produce* during compositing, and mem for
+      // it
+      // ------------------------------------------------------------------
+      const int ourCompLineCount = ourCompLineEnd-ourCompLineBegin;
+      compResultMemory.resize(ourCompLineCount*islandFbSize.x);
+    
+      // ------------------------------------------------------------------
+      // how many lines we'll *receive* for compositing, and mem for it
+      // ------------------------------------------------------------------
+      const int numCompInputs = ourCompLineCount * islandSize;
+      compInputsMemory.resize(numCompInputs*islandFbSize.x);
+      
+      this->dd.fullFbSize = fullFbSize;
+      this->dd.islandScale = numIslands;
+      this->dd.islandBias  = islandIdx;
+      this->dd.accumBuffer = localAccumBuffer.get();//(vec3f*)owlBufferGetPointer(localAccumBuffer,0);
+    }
+  }
+  
+  void AddLocalFBsLayer::addLocalFBs(uint32_t *fbPointer)
+  {
+    numAccumulatedFrames++;
+    
+    if (isMaster()) {
+      /* nothing to do on master yet, wait for workers to render... */
+      assert(fbPointer);
+      assert(fullFbSize.x > 0);
+      assert(fullFbSize.y > 0);
+      CUDA_SYNC_CHECK();
+
+      comm->master.toWorkers->indexedGather
+        (masterFB.get(),
+         fullFbSize.x*sizeof(uint32_t),
+         fullFbSize.y);
+      CUDA_SYNC_CHECK();
+      CUDA_CALL(Memcpy(fbPointer,masterFB.get(),fullFbSize.x*fullFbSize.y*sizeof(*masterFB),
+                       cudaMemcpyDefault));
+      CUDA_SYNC_CHECK();
+    } else {
+      
+      const int numIslands = comm->worker.numIslands;
+      const int islandIdx  = comm->worker.islandIdx;
+      const int islandRank = comm->worker.withinIsland->rank;
+      const int islandSize = comm->worker.withinIsland->size;
+
+      const int ourLineBegin
+        = (islandFbSize.y * (islandRank+0)) / islandSize;
+      const int ourLineEnd
+        = (islandFbSize.y * (islandRank+1)) / islandSize;
+      const int ourLineCount = ourLineEnd-ourLineBegin;
+
+      // ------------------------------------------------------------------
+      // step 0: encode our local frame buffer in lower precision, so
+      // whatever we send out needs less bandwidth
+      // ------------------------------------------------------------------
+      vec2i blockSize(16);
+      vec2i numBlocks = divRoundUp(islandFbSize,blockSize);
+      assert(numAccumulatedFrames > 0);
+      encodeAccumBufferForSending<<<numBlocks,blockSize>>>
+        (islandFbSize,
+         compSendMemory.get(),
+         localAccumBuffer.get(),
+         numAccumulatedFrames);
+      CUDA_SYNC_CHECK();
+
+      // ------------------------------------------------------------------
+      // step 1: exchage accum buffer regions w/ island peers
+      // ------------------------------------------------------------------
+      std::vector<int> sendCounts(islandSize);
+      std::vector<int> sendOffsets(islandSize);
+      std::vector<int> recvCounts(islandSize);
+      std::vector<int> recvOffsets(islandSize);
+      for (int i=0;i<islandSize;i++) {
+        const size_t sizeOfLine = islandFbSize.x*sizeof(*compInputsMemory.get());
+        
+        // in:
+        recvCounts[i] = ourLineCount*sizeOfLine;
+        recvOffsets[i] = i*ourLineCount*sizeOfLine;
+        
+        // out:
+        const int hisLineBegin
+          = (islandFbSize.y * (i+0)) / islandSize;
+        const int hisLineEnd
+          = (islandFbSize.y * (i+1)) / islandSize;
+        const int hisLineCount = hisLineEnd-hisLineBegin;
+        sendCounts[i]  = hisLineCount*sizeOfLine;
+        sendOffsets[i] = hisLineBegin*sizeOfLine;
+      }
+
+      comm->worker.withinIsland->allToAll
+        (compSendMemory.get(), //const void *sendBuf,
+         sendCounts.data(),//const int *sendCounts,
+         sendOffsets.data(),//const int *sendOffsets,
+         compInputsMemory.get(),//void *recvBuf,
+         recvCounts.data(),//const int *recvCounts,
+         recvOffsets.data()//const int *recvOffsets) 
+         );
+      // ------------------------------------------------------------------
+      // step 2: compose locally (optix backend uses cuda)
+      // ------------------------------------------------------------------
+      const vec2i ourRegionSize(islandFbSize.x,ourLineCount);
+      composeRegion(compResultMemory.get(),
+                    ourRegionSize,
+                    compInputsMemory.get(),
+                    islandSize
+                    );
+      CUDA_SYNC_CHECK();
+      // ------------------------------------------------------------------
+      // step 3: send to master ...
+      // ------------------------------------------------------------------
+      std::vector<const void *> blockPointers(ourRegionSize.y);
+      std::vector<int> blockTags(ourRegionSize.y);
+      for (int iy=0;iy<ourRegionSize.y;iy++) {
+        const size_t sizeOfLine = ourRegionSize.x*sizeof(int);
+        int island_y = ourLineBegin+iy;
+        int global_y = islandIdx + island_y * numIslands;
+        blockTags[iy] = global_y;
+        blockPointers[iy] = ((char *)compResultMemory.get())+iy*sizeOfLine;
+      }
+      comm->worker.toMaster->indexedGatherSend
+        (ourRegionSize.y,
+         ourRegionSize.x*sizeof(uint32_t),
+         blockTags.data(),
+         blockPointers.data());
+    }
+  }
+
+
+  void AddLocalFBsLayer::screenShot()
+  {
+    std::string fileName = screenShotFileName;
+    std::vector<uint32_t> pixels;
+    vec2i fbSize;
+    if (isMaster()) {
+      fileName = fileName + "_master.png";
+      pixels = masterFB.download();
+      for (int iy=0;iy<fullFbSize.y/2;iy++) {
+        uint32_t *top = pixels.data() + iy * fullFbSize.x;
+        uint32_t *bot = pixels.data() + (fullFbSize.y-1-iy) * fullFbSize.x;
+        for (int ix=0;ix<fullFbSize.x;ix++)
+          std::swap(top[ix],bot[ix]);
+      }
+      fbSize = fullFbSize;
+    } else {
+      char suff[100];
+      sprintf(suff,"_island%03i_rank%05i.png",
+              comm->worker.islandIdx,comm->worker.withinIsland->rank);
+      fileName = fileName + suff;
+        
+      std::vector<small_vec3f> hostFB;
+      hostFB = compSendMemory.download();
+      for (int y=0;y<islandFbSize.y;y++) {
+        const small_vec3f *line = hostFB.data() + (islandFbSize.y-1-y)*islandFbSize.x;
+        for (int x=0;x<islandFbSize.x;x++) {
+          vec3f col = from_half(line[x]);
+          pixels.push_back(make_rgba(col) | (0xffu << 24));
+        }
+      }
+      fbSize = islandFbSize;
+    }
+    
+    stbi_write_png(fileName.c_str(),fbSize.x,fbSize.y,4,
+                   pixels.data(),fbSize.x*sizeof(uint32_t));
+    std::cout << "screenshot saved in '" << fileName << "'" << std::endl;
+
+  }
+
+}
+
