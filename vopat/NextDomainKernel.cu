@@ -28,13 +28,9 @@ namespace vopat {
   void NextDomainKernel::createProxies(VopatRenderer *vopat)
   {
     auto comm = vopat->comm;
-    
+
     std::vector<Shard> myShards
       = vopat->volume->brick->makeShards(numShardsPerRank);
-    // std::stringstream ss;
-    // for (int i=0;i<myShards.size();i++) {
-    //   ss << " rank " << vopat->myRank() << " intl shard " << i << ": " << myShards[i].domain << std::endl;
-    // }
     
     const int islandSize = comm->islandSize();
     auto island = comm->worker.withinIsland;
@@ -80,11 +76,6 @@ namespace vopat {
         allValueRanges.push_back(shard.valueRange);
       }
     this->numProxies = allProxies.size();
-    // for (auto &proxy : allProxies) {
-    //   PRINT(proxy.domain);
-    //   PRINT(proxy.majorant);
-    // }
-    // std::cout << ss.str();
     
     proxiesBuffer = owlDeviceBufferCreate
       (vopat->owl,OWL_USER_TYPE(Proxy),allProxies.size(),allProxies.data());
@@ -106,6 +97,8 @@ namespace vopat {
          { nullptr }
     };
     gt = owlGeomTypeCreate(owl,OWL_GEOMETRY_USER,sizeof(Geom),vars,-1);
+    owlGeomTypeSetAnyHit(gt,0,owlDevCode,"proxyAH");
+    owlGeomTypeSetClosestHit(gt,0,owlDevCode,"proxyCH");
     owlGeomTypeSetBoundsProg(gt,owlDevCode,"proxyBounds");
     owlGeomTypeSetIntersectProg(gt,0,owlDevCode,"proxyIsec");
 
@@ -132,9 +125,12 @@ namespace vopat {
 
   void NextDomainKernel::addLPVars(std::vector<OWLVarDecl> &lpVars, uint32_t kernelOffset)
   {
-    lpVars.push_back({"proxies",OWL_BUFPTR,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxies)});
-    lpVars.push_back({"proxyBVH",OWL_GROUP,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxyBVH)});
-    lpVars.push_back({"myRank",OWL_INT,kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,myRank)});
+    lpVars.push_back({"proxies",OWL_BUFPTR,
+                      kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxies)});
+    lpVars.push_back({"proxyBVH",OWL_GROUP,
+                      kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,proxyBVH)});
+    lpVars.push_back({"myRank",OWL_INT,
+                      kernelOffset+OWL_OFFSETOF(NextDomainKernel::LPData,myRank)});
   }
   
   void NextDomainKernel::setLPVars(OWLLaunchParams lp)

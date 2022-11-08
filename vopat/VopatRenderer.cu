@@ -85,13 +85,18 @@ namespace vopat {
                            lpVars.data(),lpVars.size());
       owlParamsSet1i(lp,"rank",myRank());
       
+      PING;
       volume->build(owl,owlDevCode);
+      PING;
       volume->setDD(lp);
+      PING;
 
       volume->buildMCs(mcGrid);
       owlParamsSetRaw(lp,"mcGrid",&mcGrid.dd);
 
+      PING;
       buildReplicatedGeometry();
+      PING;
       
       CUDA_SYNC_CHECK();
       owlBuildPrograms(owl);
@@ -249,11 +254,33 @@ namespace vopat {
     
     if (!isMaster()) {
       
+      owlParamsSet1i(lp,"emergency",0);
       forwardingLayer.clearQueue();
       generatePrimaryWave();
       
       int numExchanged;
+      int numIts = 0;
       while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
+        if (++numIts > 20) {
+          if (myRank() == 0)
+            std::cout << "fishy num forwards - done " << numIts << " rounds of forwarding already, now doing another with " << numExchanged << "rays ..." << std::endl;
+
+          owlParamsSet1i(lp,"emergency",numIts);
+          comm->worker.withinIsland->barrier();
+          usleep(20);
+          if (myRank() == 0)
+            std::cout << "==================================================================" << std::endl; fflush(0);
+          usleep(20);
+          
+          if (numIts > 30)
+            {
+            // break;
+              comm->worker.withinIsland->barrier();
+              sleep(1);
+              comm->worker.withinIsland->barrier();
+              exit(1);
+            }
+        }
 #if 0
         std::cout << "==================================================================" << std::endl; fflush(0);
         comm->worker.withinIsland->barrier();

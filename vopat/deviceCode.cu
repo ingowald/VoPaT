@@ -36,7 +36,14 @@ namespace vopat {
   inline __device__
   void traceRayLocally(Random &rng, Ray &ray);
 
-  
+  inline __device__ float aLittleBitBiggerThan(float f)
+  {
+    return CUDART_INF;
+    return f * (1.f+1e-3f);
+    // return f * (1.f+1e-4f);
+    // return nextafterf(f,CUDART_INF);
+  }
+                                         
   // ##################################################################
   // NextDomainKernel accel struct programs
   // ##################################################################
@@ -53,6 +60,12 @@ namespace vopat {
       primBounds = proxy.domain;
   }
 
+  OPTIX_ANY_HIT_PROGRAM(proxyAH)()
+  {}
+
+  OPTIX_CLOSEST_HIT_PROGRAM(proxyCH)()
+  {}
+
   OPTIX_INTERSECT_PROGRAM(proxyIsec)()
   {
     auto &lp   = LaunchParams::get();
@@ -62,7 +75,7 @@ namespace vopat {
 
     auto &prd = owl::getPRD<NextDomainKernel::PRD>();
 
-    bool dbg_next = false;
+    bool dbg_next = true;//false;
     if (dbg_next &&prd.dbg)
       printf("(%i) isec proxy %i (%f %f %f)(%f %f %f):%i\n",
              lp.rank,
@@ -91,17 +104,24 @@ namespace vopat {
     /*! if this is a 'Find_Others_' phase we can skip everybody that's
       already tagged */
     else if (prd.phase == NextDomainKernel::Phase_FindOthers &&
-             prd.alreadyTravedMask.hasBitSet(proxy.rankID))
+             prd.alreadyTravedMask.hasBitSet(proxy.rankID)) {
+      if (dbg_next &&prd.dbg)
+        printf("(%i) skipping proxy rank %i that already has a bit set...\n",
+               lp.rank,proxy.rankID);
       return;
+    }
 
     vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
     float t0 = optixGetRayTmin();
     float t1 = optixGetRayTmax();
-    if (!boxTest(proxy.domain,org,dir,t0,t1))
+    if (!boxTest(proxy.domain,org,dir,t0,t1,dbg_next && prd.dbg)) {
       // we didn't even hit this proxy, so everything else is moot;
       // exit.
+      if (dbg_next &&prd.dbg)
+        printf("(%i) missed... %f %f\n",lp.rank,t0,t1);
       return;
+    }
 
     if (dbg_next && prd.dbg)
       printf("(%i) proxy rank %i hit %f ray.tmax %f prd.dist %f prd.rank %i\n",
@@ -122,7 +142,7 @@ namespace vopat {
                t0,prd.closestDist,proxy.rankID,prd.closestRank);
       if (t0 < prd.closestDist ||
           t0 == prd.closestDist && proxy.rankID < prd.closestRank) {
-        /* this hit WOULD have been accepted if we hadn't explcitly
+        /* this hit WOULD have been accepted if we hadn't explicitly
            included it in the find-self phase */
         prd.alreadyTravedMask.setBit(proxy.rankID);
         if (dbg_next &&prd.dbg)
@@ -146,15 +166,16 @@ namespace vopat {
          ))
       return;
 
-    /* seems we DO have a hit we wank to store - do so, and report one
+    /* seems we DO have a hit we want to store - do so, and report one
        float-bit more distant to mmake sure we'll still get called for
        same-distance hits */
     prd.closestDist = t0;
     prd.closestRank = proxy.rankID;
+    float reported_t = aLittleBitBiggerThan(t0);
     if (dbg_next &&prd.dbg)
-      printf("(%i) -> ACCEPTING hit %i dist %f\n",
-             lp.rank,(int)prd.closestRank,prd.closestDist);
-    float reported_t = nextafterf(t0,CUDART_INF);
+      printf("(%i) -> ACCEPTING hit %i dist %f w/ reported dist %f\n",
+             lp.rank,(int)prd.closestRank,prd.closestDist,reported_t);
+    // float reported_t = nextafterf(t0,CUDART_INF);
     optixReportIntersection(reported_t,0);
   }
 
@@ -182,14 +203,14 @@ namespace vopat {
   {
     auto &lp = LaunchParams::get();
 
-    bool dbg_next = false;
+    bool dbg_next = true; //false;
     
     if (dbg_next && ray.dbg)
       printf("------------------ NEXT (on rank %i, spawn %i)-------------\n",
              lp.rank,ray.spawningRank);
     owl::Ray optix_ray(ray.origin,
                        ray.getDirection(),
-                       0.f,nextafterf(ray.tMax,CUDART_INF));
+                       0.f,aLittleBitBiggerThan(ray.tMax));
     NextDomainKernel::PRD prd;
     prd.dbg = ray.dbg;
     prd.alreadyTravedMask.clearBits();
@@ -207,18 +228,25 @@ namespace vopat {
 
       if (dbg_next && ray.dbg)
         printf("------------------ NEXT, phase 1 (find self, self being %i) -------------\n",lp.rank);
+      optix_ray.tmin = 0.f;
       optix_ray.tmax = CUDART_INF;
       prd.phase = NextDomainKernel::Phase_FindSelf;
       prd.closestRank = -1;
       prd.closestDist = CUDART_INF;
       if (dbg_next && ray.dbg)
         printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
-               ray.origin.x,
-               ray.origin.y,
-               ray.origin.z,
-               ray.getDirection().x,
-               ray.getDirection().y,
-               ray.getDirection().z,
+               optix_ray.origin.x,
+               optix_ray.origin.y,
+               optix_ray.origin.z,
+               optix_ray.direction.x,
+               optix_ray.direction.y,
+               optix_ray.direction.z,
+               // ray.origin.x,
+               // ray.origin.y,
+               // ray.origin.z,
+               // ray.getDirection().x,
+               // ray.getDirection().y,
+               // ray.getDirection().z,
                optix_ray.tmax);
       owl::traceRay(proxyBVH,optix_ray,prd);
       if (dbg_next && ray.dbg)
@@ -229,6 +257,7 @@ namespace vopat {
                  prd.closestRank,lp.rank);
         return -1;
       }
+      const float distanceToSelf = prd.closestDist;
 
       // ------------------------------------------------------------------
       // phase 2: trace ray again (up to ourselves), and mark all
@@ -241,15 +270,74 @@ namespace vopat {
         printf("------------------ NEXT, phase 2, find OTHERS before us -------------\n");
         printf("now adding rank %i\n",prd.closestRank);
       }
+#if 0
+      NextDomainKernel::PRD prd2;
+      prd2.dbg = ray.dbg;
+      prd2.phase = NextDomainKernel::Phase_FindOthers;
+      prd2.closestRank = lp.rank;
+      prd2.closestDist = distanceToSelf;
+      prd2.alreadyTravedMask.clearBits();
+      prd2.alreadyTravedMask.setBit(lp.rank);
+      prd2.alreadyTravedMask.setBit(ray.spawningRank);
+      owl::Ray optix_ray2(ray.origin,
+                          ray.getDirection(),
+                          0.f,aLittleBitBiggerThan(distanceToSelf));
+      if (dbg_next && ray.dbg)
+        printf("already trav mask BEFR 0x%08x\n",int(prd2.alreadyTravedMask.qwords[0]));
+      if (dbg_next && ray.dbg)
+        printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
+               optix_ray2.origin.x,
+               optix_ray2.origin.y,
+               optix_ray2.origin.z,
+               optix_ray2.direction.x,
+               optix_ray2.direction.y,
+               optix_ray2.direction.z,
+               // ray.origin.x,
+               // ray.origin.y,
+               // ray.origin.z,
+               // ray.getDirection().x,
+               // ray.getDirection().y,
+               // ray.getDirection().z,
+               optix_ray2.tmax);
+      if (dbg_next && ray.dbg) {
+        printf("tracing ray max_t %f stored hit %i @ %f\n",optix_ray2.tmax,
+               prd2.closestRank,
+               prd2.closestDist);
+      }
+      owl::traceRay(proxyBVH,optix_ray2,prd2);
+      prd.alreadyTravedMask = prd2.alreadyTravedMask;
+#else
       prd.phase = NextDomainKernel::Phase_FindOthers;
       prd.alreadyTravedMask.setBit(prd.closestRank);
-      // prd.closestRank = lp.rank;
-      //prd.closestDist = nextafterf(prd.closestDist,CUDART_INF);
-      optix_ray.tmax = nextafterf(prd.closestDist,CUDART_INF);
+      prd.closestRank = lp.rank;
+      prd.closestDist = distanceToSelf;
+      prd.dbg = ray.dbg;
+      optix_ray.tmax = aLittleBitBiggerThan(distanceToSelf);
       if (dbg_next && ray.dbg)
-        printf("tracing ray max_t %f\n",optix_ray.tmax);
+        printf("already trav mask BEFR 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
+      if (dbg_next && ray.dbg)
+        printf("tracing ray (%f %f %f)(%f %f %f) max_t %f\n",
+               optix_ray.origin.x,
+               optix_ray.origin.y,
+               optix_ray.origin.z,
+               optix_ray.direction.x,
+               optix_ray.direction.y,
+               optix_ray.direction.z,
+               // ray.origin.x,
+               // ray.origin.y,
+               // ray.origin.z,
+               // ray.getDirection().x,
+               // ray.getDirection().y,
+               // ray.getDirection().z,
+               optix_ray.tmax);
+      if (dbg_next && ray.dbg) {
+        printf("tracing ray max_t %f stored hit %i @ %f\n",optix_ray.tmax,
+               prd.closestRank,
+               prd.closestDist);
+      }
       owl::traceRay(proxyBVH,optix_ray,prd);
-      if (dbg_next && ray.dbg)
+#endif
+      if (dbg_next && ray.dbg)        
         printf("already trav mask AFTR 0x%08x\n",int(prd.alreadyTravedMask.qwords[0]));
     }
 
@@ -259,19 +347,30 @@ namespace vopat {
     // phase 3: find next closest proxy (up to ray.tmax) that belongs
     // on a rank that has _not_ yet been traversed
     // ------------------------------------------------------------------
-    prd.phase = NextDomainKernel::Phase_FindNext;
-    prd.closestRank = -1;
-    prd.closestDist = ray.tMax;
-    optix_ray.tmax  = ray.tMax;
+    
+    NextDomainKernel::PRD prd3;
+    prd3.alreadyTravedMask = prd.alreadyTravedMask;
+    prd3.phase = NextDomainKernel::Phase_FindNext;
+    prd3.dbg = prd.dbg;
+    prd3.closestRank = -1;
+    prd3.closestDist = ray.tMax;
+    owl::Ray optix_ray3(ray.origin,
+                        ray.getDirection(),
+                        0.f,ray.tMax);
     if (dbg_next && ray.dbg)
       printf("tracing ray max_t %f\n",optix_ray.tmax);
-    owl::traceRay(proxyBVH,optix_ray,prd);
+    owl::traceRay(proxyBVH,optix_ray3,prd3
+                  // ,
+                  // OPTIX_RAY_FLAG_DISABLE_ANYHIT
+                  //  // | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT
+                  //  | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
+                  );
     
-    return prd.closestRank;
+    return prd3.closestRank;
   }
 
   // ##################################################################
-  // Surface Mesh Geometry Shared-face Sampler Code
+  // Surface Mesh Geometry Code
   // ##################################################################
   
   /*! closest-hit program for triangle mesh surface geometry */
@@ -652,7 +751,10 @@ namespace vopat {
         printf("forwarding to ourselves!?\n");
         return;
       }
-      // if (lp.emergency) printf("emergency ray: %i\n",ray.pixelID);
+      if (lp.emergency > 20) {
+        printf("emergency ray: %i\n",ray.pixelID);
+        ray.dbg = true;
+      }
       lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
       return;
     }
@@ -665,7 +767,7 @@ namespace vopat {
       if (ray.dbg) printf("shadow ray died UN-occluded -> adding frag %f %f %f\n",
                           frag.x,frag.y,frag.z);
       // if we reach here we cannot have had any occlusion, else this
-      // ray would ahve dies already...
+      // ray would have died already...
       lp.fbLayer.addPixelContribution(ray.pixelID,frag);
       return;
     }

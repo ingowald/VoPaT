@@ -57,7 +57,7 @@ add_executable(vopatHeadlessViewer
   qtViewer.cpp
   AppInterface.cpp
   AppInterface.h
-  headless.cpp
+#  headless.cpp
   )
 target_link_libraries(vopatHeadlessViewer
   PUBLIC

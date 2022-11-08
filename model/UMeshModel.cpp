@@ -43,7 +43,7 @@ namespace vopat {
     // ------------------------------------------------------------------
     std::vector<ShardNode> nodes;
     nodes.resize(1);
-    (umesh::box3f&)nodes[0].domain = umesh->getBounds();
+    nodes[0].domain = this->domain;//umesh->getBounds();
     nodes[0].childID = -1;
     nodes[0].numShards = init_numShards;
     {
@@ -104,7 +104,7 @@ namespace vopat {
         }
       }
     }
-    
+
     // ------------------------------------------------------------------
     // gather the leaves
     // ------------------------------------------------------------------

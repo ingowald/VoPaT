@@ -31,7 +31,7 @@ namespace vopat {
     enum { MAX_RANKS = 64 };
     
     // enum { RETRY = 1<<30 };
-    enum { Phase_FindFirst, Phase_FindSelf, Phase_FindOthers, Phase_FindNext };
+    enum { Phase_FindFirst=0, Phase_FindSelf, Phase_FindOthers, Phase_FindNext };
           
     struct Proxy {
       box3f domain;
@@ -45,16 +45,16 @@ namespace vopat {
         { for (int i=0;i<(MAX_RANKS+63)/64;i++) qwords[i] = 0; }
         
         inline __device__ void setBit(int rank)
-        { qwords[rank/64] |= (1<<(rank%64)); }
+        { qwords[rank/64] |= (1ull<<(rank%64)); }
         
         inline __device__ bool hasBitSet(int rank)
-        { return qwords[rank/64] & (1<<(rank%64)); }
+        { return qwords[rank/64] & (1ull<<(rank%64)); }
         
         uint64_t   qwords[(MAX_RANKS+63)/64];
       } alreadyTravedMask;
       
       uint32_t   dbg:1;
-      uint32_t   phase:2;
+      uint32_t   phase:3;
       int32_t    closestRank:20;
       float      closestDist;
     };

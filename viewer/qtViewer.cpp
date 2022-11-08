@@ -16,9 +16,13 @@
 
 // #include "brix/mpi/MPIMaster.h"
 
-#include "viewer/headless.h"
-#ifndef HEADLESS
-#include "viewer/isoDialog.h"
+// #include "viewer/headless.h"
+#include <string>
+#include "owl/common/math/vec.h"
+#if HEADLESS
+#else
+# include "qtOWL/Camera.h"
+# include "viewer/isoDialog.h"
 #endif
 // #include "common/mpi/MPIMaster.h"
 // #include "common/mpi/MPIWorker.h"
@@ -28,8 +32,11 @@
 #include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
 
+#if HEADLESS
+#else
 #include "submodules/cuteeOWL/qtOWL/OWLViewer.h"
 #include "submodules/cuteeOWL/qtOWL/XFEditor.h"
+#endif
 #include "common/mpi/MPIBackend.h"
 
 //#include "samples/common/owlViewer/OWLViewer.h"
@@ -38,7 +45,7 @@ namespace vopat {
 
   std::string rendererName = "wc";
     
-  using qtOWL::range1f;
+  // using qtOWL::range1f;
   
   struct {
     int spp = 1; //4;
@@ -53,17 +60,12 @@ namespace vopat {
     exit(msg != "");
   }
 
-#ifdef HEADLESS
-  struct VoPaTViewer : public Headless
-  {
-  public:
-    typedef Headless inherited;
+#if HEADLESS
 #else
   struct VoPaTViewer : public qtOWL::OWLViewer
   {
   public:
     typedef qtOWL::OWLViewer inherited;
-#endif
 
     AppInterface &master;
     Model::SP model;
@@ -235,9 +237,7 @@ namespace vopat {
                        modelConfig->lights.directional);
     }
    
-#ifndef HEADLESS
     vec2i fbSize { -1,-1 };
-#endif
     bool  displayFPS = true;
 
     // signals:
@@ -312,7 +312,8 @@ namespace vopat {
     qtOWL::XFEditor *xfEditor;
     ModelConfig::SP modelConfig;
   };
-
+#endif
+  
   extern "C" int main(int argc, char **argv)
   {
     cudaFree(0);
@@ -426,6 +427,10 @@ namespace vopat {
         exit(0);
       }
       CUDA_SYNC_CHECK();
+#if HEADLESS
+      // will never get here...
+      return 0;
+#else
 
       // ******************************************************************
       // initialize all not-yet-set values in our model config from model
@@ -448,7 +453,6 @@ namespace vopat {
 
       QApplication app(argc,argv);
       
-#ifndef HEADLESS
       // ******************************************************************
       // this is the master - set up window
       // ******************************************************************
@@ -523,36 +527,37 @@ namespace vopat {
       isoDialog.show();
       
       return app.exec();
-#else
-      // Headless viewer
-      VoPaTViewer viewer(appInterface,model,modelConfig,NULL);
-      viewer.setCameraOrientation(modelConfig->camera.from,
-                                  modelConfig->camera.at,
-                                  modelConfig->camera.up,
-                                  modelConfig->camera.fovy);
-      viewer.camera.setUpVector(modelConfig->camera.up);
-
-      viewer.setWorldScale(.1f*length(sceneBounds.span()));
-      viewer.resize(cmdline.windowSize);
-      viewer.updateLights();
-
-      // Emulate what slots do initially, when xfeditor is initialized..
-      {
-        appInterface.setTransferFunction(modelConfig->xf.colorMap,
-                                   modelConfig->xf.getRange(),
-                                   modelConfig->xf.getDensity());
-
-        int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
-                                           modelConfig->iso.active.end(),
-                                           [](int i) { return i!=0; });
-        appInterface.setISO(numActive,
-                      modelConfig->iso.active,
-                      modelConfig->iso.values,
-                      modelConfig->iso.colors);
-      }
-      viewer.run();
-      return 0;
 #endif
+// #else
+//       // Headless viewer
+//       VoPaTViewer viewer(appInterface,model,modelConfig,NULL);
+//       viewer.setCameraOrientation(modelConfig->camera.from,
+//                                   modelConfig->camera.at,
+//                                   modelConfig->camera.up,
+//                                   modelConfig->camera.fovy);
+//       viewer.camera.setUpVector(modelConfig->camera.up);
+
+//       viewer.setWorldScale(.1f*length(sceneBounds.span()));
+//       viewer.resize(cmdline.windowSize);
+//       viewer.updateLights();
+
+//       // Emulate what slots do initially, when xfeditor is initialized..
+//       {
+//         appInterface.setTransferFunction(modelConfig->xf.colorMap,
+//                                    modelConfig->xf.getRange(),
+//                                    modelConfig->xf.getDensity());
+
+//         int numActive = (int)std::count_if(modelConfig->iso.active.begin(),
+//                                            modelConfig->iso.active.end(),
+//                                            [](int i) { return i!=0; });
+//         appInterface.setISO(numActive,
+//                       modelConfig->iso.active,
+//                       modelConfig->iso.values,
+//                       modelConfig->iso.colors);
+//       }
+//       viewer.run();
+//       return 0;
+// #endif
     } catch (std::exception &e) {
       std::cout << "Fatal runtime error: " << e.what() << std::endl;
       exit(1);
