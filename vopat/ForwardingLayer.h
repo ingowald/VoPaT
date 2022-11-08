@@ -24,20 +24,14 @@
 namespace vopat {
 
   struct ForwardingLayer {
-    
+
+    /*! device-data (ie, what's stored in the optix launch params) for
+        the forwarding layer */
     struct DD {
       /*! mark ray at input queue position `rayID` to be forwarded to
           rank with given ID. This will overwrite the ray at input queue pos rayID */
       inline __device__ void forwardRay(const Ray &ray, int destRank) const;
       
-      // int          myRank, numWorkers;
-      // int          islandRank, islandSize, islandIndex, islandCount;
-      // int          sampleID;
-      // Camera       camera;
-
-      // vec2i        worldFbSize, islandFbSize;
-      // vec3f       *accumBuffer;
-
       /*! for compaction - where in the output queue to write rays for
           a given target rank */
       int         *perRankSendOffsets = 0;
@@ -96,13 +90,17 @@ namespace vopat {
     CUDAArray<int>         perRankSendCounts;
     CUDAArray<int>         perRankSendOffsets;
     std::vector<int>       host_sendCounts;
+    
     /*! a single int, just to allow atomically counting where to next
         append to the queue */
     CUDAArray<int>         allSendCounts;
     
-    DD dd;
+    DD           dd;
     /*! number of rays currently in the "in" queue */
-    int numRaysIn;
+    int          numRaysIn;
+
+    /*! pointer to the comm backend we can use to communicate w/ our
+        peers */
     CommBackend *comm;
 
   private:
@@ -111,15 +109,15 @@ namespace vopat {
   
 
 #ifdef __CUDA_ARCH__
+  /*! mark ray at input queue position `rayID` to be forwarded to
+    rank with given ID. This will overwrite the ray at input queue pos rayID */
   inline __device__
-  void ForwardingLayer::DD::forwardRay
-  (const Ray &ray, int nextRankForThisRay)
+  void ForwardingLayer::DD::forwardRay(const Ray &ray, int nextRankForThisRay)
     const
   {
     atomicAdd(&perRankSendCounts[nextRankForThisRay],1);
     int outID = atomicAdd(pNumRaysOut,1);
     rayQueueOut[outID] = ray;
-    rayQueueOut[outID].dbg_destRank = nextRankForThisRay;
     rayNextRank[outID] = nextRankForThisRay;
   }
 #endif

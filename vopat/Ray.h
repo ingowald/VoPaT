@@ -53,7 +53,7 @@ namespace vopat {
     inline __device__ vec3f getOrigin() const { return origin; }
     inline __device__ void setOrigin(vec3f org) { origin = org; }
     
-#if 0
+#if 1
     inline __device__ void setDirection(vec3f v) { direction = to_half(fixDir(normalize(v))); }
     inline __device__ vec3f getDirection() const { return from_half(direction); }
     small_vec3f direction;
@@ -67,10 +67,10 @@ namespace vopat {
     /* node that spawned this ray, so later stages can reconstruct
        where this ray has already been */
     int16_t spawningRank;
-    int16_t dbg_destRank;
+    // int16_t dbg_destRank;
     union {
       struct { small_vec3f color; } volume;
-      struct { small_vec3f N; float ior; } surf_glass;
+      struct { small_vec3f N; half ior; } surf_glass;
       struct { small_vec3f N; small_vec3f color; } surf_diffuse;
     } hit;
 
