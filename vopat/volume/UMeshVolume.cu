@@ -317,7 +317,8 @@ namespace vopat {
            mcGrid.dd.dims.x,
            mcGrid.dd.dims.y,
            mcGrid.dd.dims.z);
-      
+
+    double t0 = getCurrentTime();
     mcGrid.cells.resize(volume(mcGrid.dd.dims));
     mcGrid.dd.cells = mcGrid.cells.get();
     CUDA_SYNC_CHECK();
@@ -342,8 +343,9 @@ namespace vopat {
        (umesh::UMesh::Tet*)owlBufferGetPointer(tetsBuffer,0),
        myBrick->umesh->tets.size());
     CUDA_SYNC_CHECK();
+    double t1 = getCurrentTime();
     std::cout << OWL_TERMINAL_GREEN
-              << "#vopat.umesh: done building macro cells .."
+              << "#vopat.umesh: done building macro cells; took " << prettyDouble(t1-t0) << "s..."
               << OWL_TERMINAL_DEFAULT
               << std::endl;
     affine3f toMcGrid
