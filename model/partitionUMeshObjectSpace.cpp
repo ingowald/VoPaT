@@ -331,6 +331,9 @@ namespace umesh {
          out->perVertex = std::make_shared<Attribute>();
          out->perVertex->name = in->perVertex->name;
          out->perVertex->values = in->perVertex->values;
+         out->vertexTags.resize(out->vertices.size());
+         for (size_t i=0;i<out->vertices.size();i++)
+           out->vertexTags[i] = i;
          for (auto primRef : brick->prims) {
            switch (primRef.type) {
            case UMesh::TRI: {
@@ -366,7 +369,7 @@ namespace umesh {
          // parallelReIndexing(out);
          removeUnusedVertices(out);
 #else
-         RemeshHelper indexer(*out);
+         RemeshHelper indexer(*out,true);
          for (auto prim : brick->prims) 
            indexer.add(in,prim);
 #endif

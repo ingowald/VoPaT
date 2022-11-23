@@ -114,7 +114,7 @@ namespace umesh {
                   range1f &valueRange)
   {
     UMesh::SP out = std::make_shared<UMesh>();
-    RemeshHelper indexer(*out);
+    RemeshHelper indexer(*out,true);
 
     valueRange = range1f();
     for (auto pr : brick->prims)
