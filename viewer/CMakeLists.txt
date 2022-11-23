@@ -68,3 +68,4 @@ set_property(TARGET vopatHeadlessViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86
 set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
 target_compile_definitions(vopatHeadlessViewer PUBLIC HEADLESS)
 
+add_dependencies(vopatQTViewer fun3DExtractVariable umeshImportLanderFun3D)
