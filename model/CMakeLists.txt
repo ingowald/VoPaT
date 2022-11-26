@@ -51,7 +51,7 @@ target_link_libraries(vopatSplitRaw
 
 # ==================================================================
 add_executable(vopatPartitionUMeshSpatially
-  partitionUMesh.cpp
+  partitionUMeshSpatially.cpp
   )
 target_link_libraries(vopatPartitionUMeshSpatially
   vopat_model

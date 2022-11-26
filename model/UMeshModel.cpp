@@ -129,6 +129,7 @@ namespace vopat {
     write(out,domain);
 
     std::cout << " .... writing umesh to " << (fileName+".umesh") << std::endl;
+    umesh->finalize();
     umesh->saveTo(fileName+".umesh");
   }
   

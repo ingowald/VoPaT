@@ -214,6 +214,7 @@ namespace umesh {
     
     std::vector<box3f> brickDomains;
     std::vector<range1f> valueRanges;
+    std::cout << "done splitting, writing bricks" << std::endl;
     for (int brickID=0;!bricks.empty();brickID++) {
       Brick *brick = bricks.top().second;
       bricks.pop();

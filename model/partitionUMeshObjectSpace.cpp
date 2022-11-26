@@ -82,14 +82,19 @@ namespace umesh {
 
 
 #if 1
+  std::mutex outputMutex;
+  
   void splitAt(int dim,
                float pos,
                UMesh::SP mesh,
                Brick *in,
                Brick *out[2])
   {
+    {
+    std::lock_guard<std::mutex> lock(outputMutex);
     std::cout << "splitting brick\tw/ bounds " << in->bounds << " cent " << in->centBounds << std::endl;
     std::cout << "splitting at " << char('x'+dim) << "=" << pos << std::endl;
+    }
 
     out[0] = new Brick;
     out[1] = new Brick;
@@ -126,9 +131,12 @@ namespace umesh {
       out[side]->centBounds.extend(pb.center());
     }
 #endif
+    {
+    std::lock_guard<std::mutex> lock(outputMutex);
     std::cout << "done splitting " << prettyNumber(in->prims.size()) << " prims\tw/ bounds " << in->bounds << std::endl;
     std::cout << "into L = " << prettyNumber(out[0]->prims.size()) << " prims\tw/ bounds " << out[0]->bounds << std::endl;
     std::cout << " and R = " << prettyNumber(out[1]->prims.size()) << " prims\tw/ bounds " << out[1]->bounds << std::endl;
+    }
   }
   
   void split(UMesh::SP mesh,
