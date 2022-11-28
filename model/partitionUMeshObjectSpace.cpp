@@ -405,6 +405,7 @@ namespace umesh {
          std::cout << "got umesh brick " << out->toString() << std::endl;
          char suffix[100];
          sprintf(suffix,"_part-%04i.umesh",(int)brickID);
+         out->finalize();
          out->saveTo(outFileName+suffix);
 #endif
          // Model::Part::SP part = std::make_shared<Model::Part>();
