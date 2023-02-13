@@ -65,8 +65,9 @@ namespace vopat {
 
     void setLights(float ambient,
                    const std::vector<DirectionalLight> &dirLights) 
-    {// volume.setLights(ambient,dirLights);
-      // PING;
+    {
+      volume.setLights(ambient,dirLights);
+      PING;
     }
 
     int myRank() const { return comm->islandRank(); }

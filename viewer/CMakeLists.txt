@@ -69,3 +69,15 @@ set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(vopatHeadlessViewer PUBLIC HEADLESS)
 
 add_dependencies(vopatQTViewer fun3DExtractVariable umeshImportLanderFun3D)
+
+
+
+
+# ==================================================================
+add_executable(vopatStackTifs
+  stackTifs.cpp
+  )
+target_link_libraries(vopatStackTifs
+  PUBLIC
+  vopat_render
+  )

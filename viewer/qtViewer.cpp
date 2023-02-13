@@ -176,6 +176,7 @@ namespace vopat {
                                       vec3f(+1.f,+1.f,+1.f),
       };
       vec3f lightDir = lightDirs[lightID % lightDirs.size()];
+      PRINT(lightDir);
       modelConfig->lights.directional.resize(1);
       modelConfig->lights.directional[0].dir = lightDir;
       updateLights();
@@ -185,7 +186,8 @@ namespace vopat {
     virtual void key(char key, const vec2i &where)
     {
       static uint32_t keyLightID = 0;
-      
+
+      PING; PRINT((int)key);
       switch (key) {
       case 'l':
         setKeyLight(++keyLightID);
