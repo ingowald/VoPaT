@@ -20,6 +20,7 @@ std::vector<float> readTif(const std::string &fileName,
   std::vector<float> ret;
   for (int i=0;i<size.x*size.y;i++)
     ret.push_back(data[i*n]/256.f);
+  free(data);
   return ret;
 }
 
