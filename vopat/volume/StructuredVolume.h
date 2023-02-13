@@ -42,8 +42,6 @@ namespace vopat {
       vec3f    origin;
       vec3i    numVoxels;
       vec3i    numCells;
-
-      box3f    dbg_domain;
     };
     
     void buildMCs(MCGrid &mcGrid) override;

@@ -65,7 +65,7 @@ namespace vopat {
     // cuda block size:
     const vec3i bs = 4;
     // cuda num blocks
-    const vec3i nb = divRoundUp(dd.dims,bs);
+    const vec3i nb = divRoundUp((vec3i)dd.dims,bs);
     mapMacroCell
       <<<(dim3)nb,(dim3)bs>>>
       (dd.cells,dd.dims,d_xfValues,xfSize,xfDomain);

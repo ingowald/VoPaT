@@ -164,7 +164,6 @@ namespace vopat {
       = affine3f::translate(vec3f(brickDomain.lower))
       * affine3f::scale(vec3f(brickDomain.size()));
     globals.origin = vec3f(myBrick->cellRange.lower);
-    globals.dbg_domain = brickDomain;
   }
   
   void StructuredVolume::setDD(OWLLaunchParams lp) 
