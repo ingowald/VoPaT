@@ -636,7 +636,11 @@ namespace vopat {
     
     int rayID = owl::getLaunchIndex().x;
 
+#if VOPAT_USE_RAFI
+    Ray ray = lp.forwardGlobals.getIncoming(rayID);
+#else
     Ray ray = lp.forwardGlobals.rayQueueIn[rayID];
+#endif
     Random rng((ray.pixelID*2+ray.isShadow)*16+ray.numBounces,
                0x2345678 + (lp.rank*13+lp.sampleID));
     traceRayLocally(rng,ray);
@@ -763,7 +767,11 @@ namespace vopat {
         printf("emergency ray: %i\n",ray.pixelID);
         ray.dbg = true;
       }
+#if VOPAT_USE_RAFI
+      lp.forwardGlobals.emitOutgoing(ray,nextRankToSendTo);
+#else
       lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
+#endif
       return;
     }
 
@@ -806,7 +814,11 @@ namespace vopat {
       }
       ray.setDirection(lightDir);
       ray.tMax = CUDART_INF;
+#if VOPAT_USE_RAFI
+      lp.forwardGlobals.emitOutgoing(ray,lp.rank);
+#else
       lp.forwardGlobals.forwardRay(ray,lp.rank);
+#endif
 #else
       // this was a volume hit; let's just store that color
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
@@ -841,7 +853,11 @@ namespace vopat {
                     +.1f*lightDir);
       ray.setDirection(lightDir);
       ray.tMax = CUDART_INF;
+#if VOPAT_USE_RAFI
+      lp.forwardGlobals.emitOutgoing(ray,lp.rank);
+#else
       lp.forwardGlobals.forwardRay(ray,lp.rank);
+#endif
 #else
       if (ray.crosshair) frag = 1.f - frag;
       lp.fbLayer.addPixelContribution(ray.pixelID,frag);

@@ -31,7 +31,7 @@
 
 namespace vopat {
 
-  typedef ForwardingLayer::DD ForwardGlobals;
+  // typedef ForwardingLayer::DD ForwardGlobals;
   
   struct VopatRenderer
   {
@@ -114,7 +114,11 @@ namespace vopat {
       float fovy = 30.f;
       Camera dd;
     } camera;
+// #if VOPAT_USE_RAFI
+//     rafi::HostContext<vopat::Ray> *forwardingLayer = 0;
+// #else
     ForwardingLayer  forwardingLayer;
+// #endif
     AddLocalFBsLayer fbLayer;
     MCGrid           mcGrid;
     vec2i islandFbSize;

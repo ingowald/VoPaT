@@ -34,7 +34,11 @@ namespace vopat {
   using namespace owl::common;
   using Random = owl::common::LCG<8>;
 
+#if VOPAT_USE_RAFI
+  using ForwardGlobals = rafi::DeviceInterface<vopat::Ray>;
+#else
   using ForwardGlobals = typename ForwardingLayer::DD;
+#endif
   // using VolumeGlobals  = typename VolumeRenderer::Globals;
   // using SurfaceGlobals = typename SurfaceIntersector::Globals;
     

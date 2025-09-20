@@ -154,12 +154,20 @@ namespace vopat {
     if (forwardingLayer.numRaysIn == 0)
       return;
 
+#if VOPAT_USE_RAFI
+    auto forward = forwardingLayer.rafi->getDeviceInterface();
+#else
     auto &forward = forwardingLayer.dd;
+#endif
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
 
     volume->setDD(lp);
-    
+
+#if VOPAT_USE_RAFI
+    owlLaunch2D(traceLocallyRG,forwardingLayer.numRaysIn,1,lp);
+#else
     owlLaunch2D(traceLocallyRG,forward.numRaysIn,1,lp);
+#endif
     CUDA_SYNC_CHECK();
   }
 
@@ -173,8 +181,11 @@ namespace vopat {
     int thisFrameID = accumID++;
     owlParamsSet1i(lp,"sampleID",thisFrameID);
     
-    
+#if VOPAT_USE_RAFI
+    auto forward = forwardingLayer.rafi->getDeviceInterface();
+#else
     auto &forward = forwardingLayer.dd;
+#endif
     owlParamsSetRaw(lp,"forwardGlobals",&forward);
     AddLocalFBsLayer::DD &fbLayerDD = fbLayer.dd;
     owlParamsSetRaw(lp,"fbLayer",&fbLayerDD);
@@ -248,14 +259,25 @@ namespace vopat {
     // resetAccumulation();
     
     if (!isMaster()) {
-      
+      PING;
       owlParamsSet1i(lp,"emergency",0);
+      PING;
       forwardingLayer.clearQueue();
+      PING;
       generatePrimaryWave();
+      PING;
       
       int numExchanged;
       int numIts = 0;
-      while ((numExchanged = forwardingLayer.exchangeRays()) > 0) {
+      PING;
+      while (1) {
+        PING; PRINT(numIts);
+        numExchanged = forwardingLayer.exchangeRays();
+        PRINT(numExchanged);
+        if (numExchanged == 0) {
+          PING;
+          break;
+        }
         if (++numIts > 20) {
           if (myRank() == 0)
             std::cout << "fishy num forwards - done " << numIts << " rounds of forwarding already, now doing another with " << numExchanged << "rays ..." << std::endl;

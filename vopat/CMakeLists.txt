@@ -22,6 +22,7 @@ embed_ptx(
   owl::owl
   umesh
   miniScene
+  vopat_common
   
   SOURCES
   deviceCode.cu
@@ -59,7 +60,13 @@ add_library(vopat_render
   Woodcock.cu
 #  IntentionallyWrong.cu
 #  CellMarchRenderer.cu
-  )
+)
+if (VOPAT_USE_RAFI)
+  target_compile_definitions(deviceCode-ptx PUBLIC -DVOPAT_USE_RAFI=1)
+  target_compile_definitions(deviceCode-ptx_ptx PUBLIC -DVOPAT_USE_RAFI=1)
+  target_link_libraries(deviceCode-ptx PUBLIC rafi)
+  target_link_libraries(deviceCode-ptx_ptx PUBLIC rafi)
+endif()
 
 
 target_include_directories(deviceCode-ptx PUBLIC ${PROJECT_SOURCE_DIR})

@@ -17,6 +17,9 @@
 #pragma once
 
 #include "common/vopat.h"
+#if VOPAT_USE_RAFI
+# include <mpi.h>
+#endif
 
 /*! \file Comms.h Describes an abstraction for a master/worker/islands
     setup, describing which functsion master and/or workers can use to
@@ -42,6 +45,9 @@ namespace vopat {
   };
 
   struct IntraIslandComm {
+#if VOPAT_USE_RAFI
+    virtual MPI_Comm getMPI() = 0;
+#endif
     template<typename T>
     void allGather(std::vector<T> &result,
                    const T &ours)

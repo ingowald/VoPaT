@@ -46,6 +46,11 @@ add_subdirectory(submodules/miniScene EXCLUDE_FROM_ALL)
 
 option(VOPAT_VOXELS_AS_TEXTURE "Use a CUDA texture to access voxels on the device" ON)
 
+option(VOPAT_USE_RAFI "Use RAFI infrastructure" ON)
+if (VOPAT_USE_RAFI)
+  add_subdirectory(submodules/rafi)
+endif()
+
 set(CMAKE_CUDA_ARCHITECTURES "75") 
 add_subdirectory(common)
 add_subdirectory(model)

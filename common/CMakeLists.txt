@@ -34,6 +34,12 @@ target_link_libraries(vopat_common
 target_include_directories(vopat_common
   PUBLIC
   ${PROJECT_SOURCE_DIR}
-  )
+)
+
+if (VOPAT_USE_RAFI)
+  target_compile_definitions(vopat_common PUBLIC -DVOPAT_USE_RAFI=1)
+  target_link_libraries(vopat_common PUBLIC rafi)
+endif()
+
 
 

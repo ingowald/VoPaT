@@ -17,9 +17,31 @@
 #include "vopat/ForwardingLayer.h"
 #include "owl/owl_device.h"
 #include <sstream>
+#if VOPAT_USE_RAFI
+# include "rafi/implementation.h"
+RAFI_INSTANTIATE(vopat::Ray);
+#endif
 
 namespace vopat {
 
+#if VOPAT_USE_RAFI
+  ForwardingLayer::ForwardingLayer(CommBackend *comm)
+    : rafi(comm->isWorker
+           ? rafi::createContext<vopat::Ray>(comm->worker.withinIsland->getMPI())
+           : nullptr)
+  {}
+
+  int ForwardingLayer::exchangeRays()
+  {
+    assert(rafi);
+    PING;
+    rafi::ForwardResult result = rafi->forwardRays();
+    PING;
+    numRaysIn = result.numRaysInIncomingQueueThisRank;
+    return result.numRaysAliveAcrossAllRanks;
+  }
+  
+#else
   __global__ void computeCompactionOffsets(int rank,
                                            ForwardingLayer::DD globals)
   {
@@ -381,5 +403,5 @@ namespace vopat {
       dd.rayNextRank = rayNextRank.get();
     }
   }
-   
+#endif   
 }

@@ -41,6 +41,10 @@ namespace vopat {
   };
 
   struct MPIIntraIslandComm : public IntraIslandComm {
+#if VOPAT_USE_RAFI
+    MPI_Comm getMPI() override { return comm; }
+#endif
+    
     void barrier() override;
     void allGather(void *destArray,
                            const void *ours,

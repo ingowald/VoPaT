@@ -20,9 +20,27 @@
 #include "common/mpi/Comms.h"
 #include "vopat/Ray.h"
 #include <sstream>
+#if VOPAT_USE_RAFI
+# include "rafi/rafi.h"
+#endif
 
 namespace vopat {
 
+#if VOPAT_USE_RAFI
+  struct ForwardingLayer {
+    // using DD = rafi::DeviceInterface<vopat::Ray>;
+
+    ForwardingLayer(CommBackend *comm);
+    int  exchangeRays();
+    void clearQueue() { numRaysIn = 0; }
+    void resizeQueues(int howMany)
+    { if (rafi) rafi->resizeRayQueues(howMany); }
+    
+    rafi::HostContext<vopat::Ray> *rafi = 0;
+    int numRaysIn = 0;
+    // DD dd;
+  };
+#else
   struct ForwardingLayer {
 
     /*! device-data (ie, what's stored in the optix launch params) for
@@ -122,4 +140,5 @@ namespace vopat {
   }
 #endif
   
+#endif
 }
