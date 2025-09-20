@@ -19,11 +19,6 @@
 // #include "viewer/headless.h"
 #include <string>
 #include "owl/common/math/vec.h"
-#if HEADLESS
-#else
-# include "qtOWL/Camera.h"
-# include "viewer/isoDialog.h"
-#endif
 // #include "common/mpi/MPIMaster.h"
 // #include "common/mpi/MPIWorker.h"
 #include "viewer/AppInterface.h"
@@ -34,8 +29,10 @@
 
 #if HEADLESS
 #else
-#include "submodules/cuteeOWL/qtOWL/OWLViewer.h"
-#include "submodules/cuteeOWL/qtOWL/XFEditor.h"
+# include "qtOWL/Camera.h"
+# include "viewer/isoDialog.h"
+# include "submodules/cuteeOWL/qtOWL/OWLViewer.h"
+# include "submodules/cuteeOWL/qtOWL/XFEditor.h"
 #endif
 #include "common/mpi/MPIBackend.h"
 

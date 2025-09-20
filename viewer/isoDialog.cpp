@@ -15,9 +15,9 @@
 // ======================================================================== //
 
 #include <cassert>
-#include <QColorDialog>
-#include "isoDialog.h"
 #include "model/Config.h"
+#include "isoDialog.h"
+#include <QColorDialog>
 
 namespace vopat {
 
