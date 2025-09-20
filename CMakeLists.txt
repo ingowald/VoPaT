@@ -31,10 +31,10 @@ include(cmake/configure_build_type.cmake)
 add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
-target_compile_definitions(owl_viewer
-  PUBLIC
-  -DOWL_FORCE_SLOW_DISPLAY=1
-  )
+#target_compile_definitions(owl_viewer
+#  PUBLIC
+#  -DOWL_FORCE_SLOW_DISPLAY=1
+#  )
 
 add_subdirectory(submodules/cuteeOWL EXCLUDE_FROM_ALL)
 target_compile_definitions(qtOWL
