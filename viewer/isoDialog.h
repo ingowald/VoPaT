@@ -17,8 +17,8 @@
 #pragma once
 
 #include <memory>
-#include <QDialog>
 #include "common/vopat.h"
+#include <QDialog>
 #include "ui_isoDialog.h"
 
 namespace vopat {

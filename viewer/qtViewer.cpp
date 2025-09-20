@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#define HAVE_ISO 1
 // #include "brix/mpi/MPIMaster.h"
 
 // #include "viewer/headless.h"
@@ -29,20 +30,27 @@
 
 #if HEADLESS
 #else
-# include "qtOWL/Camera.h"
+# include "cutee/Camera.h"
+#if HAVE_ISO
 # include "viewer/isoDialog.h"
-# include "submodules/cuteeOWL/qtOWL/OWLViewer.h"
-# include "submodules/cuteeOWL/qtOWL/XFEditor.h"
+#endif
+# include "submodules/cuteeOWL/cutee/OWLViewer.h"
+# include "submodules/cuteeOWL/cutee/XFEditor.h"
 #endif
 #include "common/mpi/MPIBackend.h"
 
 //#include "samples/common/owlViewer/OWLViewer.h"
 
+namespace viewer {
+  using namespace ::cutee::common;
+  using range1f = cutee::common::interval<float>;
+}
+
 namespace vopat {
 
   std::string rendererName = "wc";
     
-  // using qtOWL::range1f;
+  // using cutee::range1f;
   
   struct {
     int spp = 1; //4;
@@ -59,10 +67,10 @@ namespace vopat {
 
 #if HEADLESS
 #else
-  struct VoPaTViewer : public qtOWL::OWLViewer
+  struct VoPaTViewer : public cutee::OWLViewer
   {
   public:
-    typedef qtOWL::OWLViewer inherited;
+    typedef cutee::OWLViewer inherited;
 
     AppInterface &master;
     Model::SP model;
@@ -71,8 +79,8 @@ namespace vopat {
     VoPaTViewer(AppInterface &master,
                 Model::SP model,
                 ModelConfig::SP _modelConfig,
-                qtOWL::XFEditor *xfEditor)
-      : inherited("",cmdline.windowSize),
+                cutee::XFEditor *xfEditor)
+      : inherited("",(const viewer::vec2i &)cmdline.windowSize),
         master(master),
         model(model),
         xfEditor(xfEditor),
@@ -92,9 +100,10 @@ namespace vopat {
       inherited::cameraChanged();
       auto &camera = inherited::getCamera();
 
-      const vec3f from = camera.position;
-      const vec3f at = camera.getPOI();
-      const vec3f up = camera.upVector;
+      const vec3f from = (const vec3f&)camera.position;
+      auto _at = camera.getPOI();
+      const vec3f at = (const vec3f&)_at;
+      const vec3f up = (const vec3f&)camera.upVector;
       const float fovy = camera.fovyInDegrees;
       
       modelConfig->camera.from = from;
@@ -107,11 +116,11 @@ namespace vopat {
     }
     
     /*! window notifies us that we got resized */
-    virtual void resize(const vec2i &newSize) override
+    virtual void resize(const viewer::vec2i &newSize) override
     {
-      this->fbSize = newSize;
+      this->fbSize = (const vec2i&)newSize;
       cudaDeviceSynchronize();
-      master.resizeFrameBuffer(newSize);
+      master.resizeFrameBuffer((const vec2i&)newSize);
       // optix->resizeFrameBuffer(newSize);
       
       // ... tell parent to resize (also resizes the pbo in the window)
@@ -225,7 +234,7 @@ namespace vopat {
                   << std::endl;
       } break;
       default:
-        inherited::key(key,where);
+        inherited::key(key,(const viewer::vec2i&)where);
       }
     }
 
@@ -241,17 +250,17 @@ namespace vopat {
     // signals:
     //   ;
   public slots:
-    void colorMapChanged(qtOWL::XFEditor *xf)
+    void colorMapChanged(cutee::XFEditor *xf)
     {
-      modelConfig->xf.colorMap = xf->getColorMap();
+      (std::vector<viewer::vec4f> &)modelConfig->xf.colorMap = xf->getColorMap();
       master.setTransferFunction(modelConfig->xf.colorMap,
                                  modelConfig->xf.getRange(),
                                  modelConfig->xf.getDensity());
     };
-    void rangeChanged(range1f r) 
+    void rangeChanged(viewer::range1f r) 
     {
-      modelConfig->xf.relDomain = xfEditor->getRelDomain();
-      modelConfig->xf.absDomain = xfEditor->getAbsDomain();
+      (viewer::range1f&)modelConfig->xf.relDomain = xfEditor->getRelDomain();
+      (viewer::range1f&)modelConfig->xf.absDomain = xfEditor->getAbsDomain();
       master.setTransferFunction(modelConfig->xf.colorMap,
                                  modelConfig->xf.getRange(),
                                  modelConfig->xf.getDensity());
@@ -264,6 +273,7 @@ namespace vopat {
                                  modelConfig->xf.getRange(),
                                  modelConfig->xf.getDensity());
     };
+#if HAVE_ISO
     void isoToggled(int iso, bool enabled)
     {
       if (iso>=0 && iso<ModelConfig::maxISOs) {
@@ -305,9 +315,9 @@ namespace vopat {
                     modelConfig->iso.values,
                     modelConfig->iso.colors);
     }
-                                     
+#endif                                 
   public:
-    qtOWL::XFEditor *xfEditor;
+    cutee::XFEditor *xfEditor;
     ModelConfig::SP modelConfig;
   };
 #endif
@@ -436,8 +446,8 @@ namespace vopat {
       if (modelConfig->xf.absDomain.is_empty())
         modelConfig->xf.absDomain = model->valueRange;
       if (modelConfig->xf.colorMap.empty()) {
-        auto cm = qtOWL::ColorMapLibrary().getMap(0);
-        modelConfig->xf.colorMap = cm;
+        auto cm = cutee::ColorMapLibrary().getMap(0);
+        (std::vector<viewer::vec4f>&)modelConfig->xf.colorMap = cm;
       }
       box3f sceneBounds = model->getBounds();
       if (modelConfig->camera.up == vec3f(0.f)) {
@@ -455,7 +465,7 @@ namespace vopat {
       // this is the master - set up window
       // ******************************************************************
       QMainWindow guiWindow;
-      qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor(model->valueRange);
+      cutee::XFEditor *xfEditor = new cutee::XFEditor((viewer::interval<float>&)model->valueRange);
 
       // -------------------------------------------------------
       // set up the main viewer class
@@ -463,11 +473,11 @@ namespace vopat {
       VoPaTViewer viewer(appInterface,model,modelConfig,xfEditor);
       viewer.enableFlyMode();
       viewer.enableInspectMode();
-      viewer.setCameraOrientation(modelConfig->camera.from,
-                                  modelConfig->camera.at,
-                                  modelConfig->camera.up,
+      viewer.setCameraOrientation((const viewer::vec3f&)modelConfig->camera.from,
+                                  (const viewer::vec3f&)modelConfig->camera.at,
+                                  (const viewer::vec3f&)modelConfig->camera.up,
                                   modelConfig->camera.fovy);
-      viewer.camera.setUpVector(modelConfig->camera.up);
+      viewer.camera.setUpVector((const viewer::vec3f&)modelConfig->camera.up);
 
       viewer.setWorldScale(.1f*length(sceneBounds.span()));
 
@@ -476,11 +486,11 @@ namespace vopat {
       // -------------------------------------------------------
       guiWindow.setCentralWidget(xfEditor);
 
-      QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
+      QObject::connect(xfEditor,&cutee::XFEditor::colorMapChanged,
                        &viewer, &VoPaTViewer::colorMapChanged);
-      QObject::connect(xfEditor,&qtOWL::XFEditor::rangeChanged,
+      QObject::connect(xfEditor,&cutee::XFEditor::rangeChanged,
                        &viewer, &VoPaTViewer::rangeChanged);
-      QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
+      QObject::connect(xfEditor,&cutee::XFEditor::opacityScaleChanged,
                        &viewer, &VoPaTViewer::opacityScaleChanged);
 
       // save both here, because the first call to the set() function
@@ -489,10 +499,10 @@ namespace vopat {
       const interval<float> absDomain = modelConfig->xf.absDomain;
       const float opacityScale = modelConfig->xf.opacityScale;
       
-      xfEditor->setColorMap(modelConfig->xf.colorMap);
+      xfEditor->setColorMap((std::vector<viewer::vec4f> &)modelConfig->xf.colorMap);
       xfEditor->setOpacityScale(opacityScale);
-      xfEditor->setRelDomain(relDomain);
-      xfEditor->setAbsDomain(absDomain);
+      xfEditor->setRelDomain((const viewer::range1f&)relDomain);
+      xfEditor->setAbsDomain((const viewer::range1f&)absDomain);
 
       interval<float> isoRange = absDomain;
       if (const char *env = getenv("VOPAT_ISO_RANGE"))
@@ -500,7 +510,7 @@ namespace vopat {
       // xfEditor->cmSelectionChanged(0);
       // xfEditor->opacityScaleChanged(xfEditor->getOpacityScale());
 
-      
+#if HAVE_ISO
       IsoDialog isoDialog(isoRange);
       QObject::connect(&isoDialog,&IsoDialog::isoToggled,
                        &viewer, &VoPaTViewer::isoToggled);
@@ -513,7 +523,7 @@ namespace vopat {
       isoDialog.setISOs(modelConfig->iso.active,
                         modelConfig->iso.values,
                         modelConfig->iso.colors);
-
+#endif
       // -------------------------------------------------------
       // and create the window ...
       // -------------------------------------------------------
@@ -521,9 +531,10 @@ namespace vopat {
       viewer.updateLights();
       
       guiWindow.show();
+#if HAVE_ISO
       isoDialog.raise();
       isoDialog.show();
-      
+#endif      
       return app.exec();
 #endif
 // #else

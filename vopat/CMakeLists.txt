@@ -76,7 +76,7 @@ target_link_libraries(vopat_render
   PUBLIC
   vopat_common
   vopat_model
-  owl_viewer
+#  owl_viewer
   deviceCode-ptx
   )
 #set_property(TARGET vopat_render PROPERTY CUDA_ARCHITECTURES "80")

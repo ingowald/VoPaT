@@ -24,21 +24,22 @@
 #   )
 #set_property(TARGET vopatViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
 
+set(CMAKE_AUTOMOC ON)
 
 # ==================================================================
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
-find_package(Qt5Core)
-find_package(Qt5Gui)
-find_package(Qt5Widgets)
-qt5_wrap_cpp(WRAPPED_HEADERS isoDialog.h)
-qt5_wrap_ui(WRAPPED_UI isoDialog.ui)
+#find_package(Qt5Core)
+#find_package(Qt5Gui)
+#find_package(Qt5Widgets)
+#qt5_wrap_cpp(WRAPPED_HEADERS isoDialog.h)
+#qt5_wrap_ui(WRAPPED_UI isoDialog.ui)
 add_executable(vopatQTViewer
   AppInterface.cpp
   AppInterface.h
   qtViewer.cpp
   isoDialog.cpp
-  ${WRAPPED_UI}
-  ${WRAPPED_HEADERS}
+#  ${WRAPPED_UI}
+#  ${WRAPPED_HEADERS}
   )
 # moc'd headers:
 target_include_directories(vopatQTViewer PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
@@ -53,20 +54,22 @@ set_property(TARGET vopatQTViewer PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # ==================================================================
 set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
-add_executable(vopatHeadlessViewer
-  qtViewer.cpp
-  AppInterface.cpp
-  AppInterface.h
-#  headless.cpp
+if (OFF)
+  add_executable(vopatHeadlessViewer
+    qtViewer.cpp
+    AppInterface.cpp
+    AppInterface.h
+    #  headless.cpp
   )
-target_link_libraries(vopatHeadlessViewer
-  PUBLIC
-  vopat_render
-#  qtOWL
+  target_link_libraries(vopatHeadlessViewer
+    PUBLIC
+    vopat_render
+    #  qtOWL
   )
-set_property(TARGET vopatHeadlessViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
-set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
-target_compile_definitions(vopatHeadlessViewer PUBLIC HEADLESS)
+  set_property(TARGET vopatHeadlessViewer PROPERTY CUDA_ARCHITECTURES "70;75;80;86") 
+  set_property(TARGET vopatHeadlessViewer PROPERTY POSITION_INDEPENDENT_CODE ON) 
+  target_compile_definitions(vopatHeadlessViewer PUBLIC HEADLESS)
+endif()
 
 add_dependencies(vopatQTViewer fun3DExtractVariable umeshImportLanderFun3D)
 
