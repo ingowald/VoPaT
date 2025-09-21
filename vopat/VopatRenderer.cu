@@ -272,19 +272,10 @@ namespace vopat {
       int numExchanged;
       int numIts = 0;
       while (1) {
-        PING;
-        fflush(0);
-        comm->worker.withinIsland->barrier();
-        usleep(20);
-        numExchanged = forwardingLayer.exchangeRays("begin of it");
-
-        PING;
-        fflush(0);
-        comm->worker.withinIsland->barrier();
-        usleep(20);
+        // comm->worker.withinIsland->barrier();
+        numExchanged = forwardingLayer.exchangeRays();
 
         if (numExchanged == 0) {
-          PING;
           break;
         }
         if (++numIts > 20) {
@@ -307,22 +298,12 @@ namespace vopat {
               exit(1);
             }
         }
-#if 0
-        std::cout << "==================================================================" << std::endl; fflush(0);
-        comm->worker.withinIsland->barrier();
-        usleep(50);
-        // sleep(1);
-#endif
-        OWL_CUDA_SYNC_CHECK();
         forwardingLayer.clearQueue();
-        OWL_CUDA_SYNC_CHECK();
+        printf("[%i] tracing secondary rays\n",myRank());
         traceLocally();
-        OWL_CUDA_SYNC_CHECK();
       }
     }
-        OWL_CUDA_SYNC_CHECK();
     fbLayer.addLocalFBs(fbPointer);
-        OWL_CUDA_SYNC_CHECK();
     comm->barrierAll();
   }
 

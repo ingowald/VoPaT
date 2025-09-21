@@ -31,7 +31,7 @@ namespace vopat {
     // using DD = rafi::DeviceInterface<vopat::Ray>;
 
     ForwardingLayer(CommBackend *comm);
-    int  exchangeRays(const char *dbgMessage);
+    int  exchangeRays();
     void clearQueue() { numRaysIn = 0; rafi->clearQueue(); }
     void resizeQueues(int howMany)
     { if (rafi) rafi->resizeRayQueues(howMany); }

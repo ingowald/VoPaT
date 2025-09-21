@@ -74,6 +74,9 @@ namespace vopat {
       struct { small_vec3f N; small_vec3f color; } surf_diffuse;
     } hit;
 
+    int dbg_srcRank;
+    int dbg_dstRank;
+    int dbg_srcIndex;
   };
 
   // ==================================================================

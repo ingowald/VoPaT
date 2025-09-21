@@ -31,10 +31,10 @@ namespace vopat {
            : nullptr)
   {}
 
-  int ForwardingLayer::exchangeRays(const char *dbgMessage)
+  int ForwardingLayer::exchangeRays()
   {
     assert(rafi);
-    rafi::ForwardResult result = rafi->forwardRays(dbgMessage);
+    rafi::ForwardResult result = rafi->forwardRays();
     numRaysIn = result.numRaysInIncomingQueueThisRank;
     return result.numRaysAliveAcrossAllRanks;
   }
@@ -47,7 +47,6 @@ namespace vopat {
     int ofs = 0;
     for (int i=0;i<globals.islandSize;i++) {
       globals.perRankSendOffsets[i] = ofs;
-      // printf("(%i) compact offset %i = %i\n",rank,i,ofs);
       ofs += globals.perRankSendCounts[i];
     }
   }
