@@ -37,6 +37,8 @@ namespace vopat {
            comm->islandIndex(),comm->islandRank());
     
     if (comm->islandRank() >= 0) {
+      PING;
+      PRINT(comm->worker.gpuID);
       owl = owlContextCreate(&comm->worker.gpuID,1);
       owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
 

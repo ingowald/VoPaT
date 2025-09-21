@@ -324,6 +324,7 @@ namespace vopat {
   
   extern "C" int main(int argc, char **argv)
   {
+    cudaSetDevice(0);
     cudaFree(0);
     CUDA_SYNC_CHECK();
     
@@ -430,6 +431,7 @@ namespace vopat {
 
       AppInterface appInterface(&mpiBackend,renderer);
       if (!isMaster) {
+        PRINT(mpiBackend.worker.gpuID);
         CUDA_CALL(SetDevice(mpiBackend.worker.gpuID));
         appInterface.runWorker();
         exit(0);
