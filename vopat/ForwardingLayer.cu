@@ -27,7 +27,8 @@ namespace vopat {
 #if VOPAT_USE_RAFI
   ForwardingLayer::ForwardingLayer(CommBackend *comm)
     : rafi(comm->isWorker
-           ? rafi::createContext<vopat::Ray>(comm->worker.withinIsland->getMPI())
+           ? rafi::createContext<vopat::Ray>(comm->worker.withinIsland->getMPI(),
+                                             comm->worker.gpuID)
            : nullptr)
   {}
 
@@ -57,9 +58,6 @@ namespace vopat {
     if (tid >= numRays) return;
 
     int dest = globals.rayNextRank[tid];
-    // if (globals.rayQueueIn[tid].dbg_destRank != dest)
-    //   printf("bad dest in out queue\n");
-    // if (dest < 0) return;
 
     int slot = atomicAdd(&globals.perRankSendOffsets[dest],1);
     auto ray = globals.rayQueueIn[tid];

@@ -106,7 +106,6 @@ namespace vopat {
     OWLRayGen traceLocallyRG;
     OWLRayGen generatePrimaryWaveRG;
 
-    //    OWLGroup  nextDomainGroup;
     NextDomainKernel nextDomainKernel;
 
     struct {
@@ -114,11 +113,7 @@ namespace vopat {
       float fovy = 30.f;
       Camera dd;
     } camera;
-// #if VOPAT_USE_RAFI
-//     rafi::HostContext<vopat::Ray> *forwardingLayer = 0;
-// #else
     ForwardingLayer  forwardingLayer;
-// #endif
     AddLocalFBsLayer fbLayer;
     MCGrid           mcGrid;
     vec2i islandFbSize;
