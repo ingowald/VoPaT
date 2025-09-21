@@ -32,7 +32,7 @@ namespace vopat {
 
     ForwardingLayer(CommBackend *comm);
     int  exchangeRays();
-    void clearQueue() { numRaysIn = 0; rafi->clearQueue(); }
+    void clearQueue() { rafi->clearQueue(); }
     void resizeQueues(int howMany)
     { if (rafi) rafi->resizeRayQueues(howMany); }
     

@@ -153,6 +153,8 @@ namespace vopat {
 
   void VopatRenderer::traceLocally()
   {
+    printf("(%i) tracing locally %i\n",
+           myRank(),forwardingLayer.numRaysIn);
     if (forwardingLayer.numRaysIn == 0)
       return;
 
