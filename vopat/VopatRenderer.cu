@@ -164,10 +164,14 @@ namespace vopat {
     volume->setDD(lp);
 
 #if VOPAT_USE_RAFI
+    CUDA_SYNC_CHECK();
+    std::cout << "##################################################################" << std::endl;
+    PING; PRINT(forwardingLayer.numRaysIn);
     owlLaunch2D(traceLocallyRG,forwardingLayer.numRaysIn,1,lp);
 #else
     owlLaunch2D(traceLocallyRG,forward.numRaysIn,1,lp);
 #endif
+    owlLaunchSync(lp);
     CUDA_SYNC_CHECK();
   }
 
@@ -259,21 +263,24 @@ namespace vopat {
     // resetAccumulation();
     
     if (!isMaster()) {
-      PING;
       owlParamsSet1i(lp,"emergency",0);
-      PING;
       forwardingLayer.clearQueue();
-      PING;
       generatePrimaryWave();
-      PING;
       
       int numExchanged;
       int numIts = 0;
-      PING;
       while (1) {
-        PING; PRINT(numIts);
-        numExchanged = forwardingLayer.exchangeRays();
-        PRINT(numExchanged);
+        PING;
+        fflush(0);
+        comm->worker.withinIsland->barrier();
+        usleep(20);
+        numExchanged = forwardingLayer.exchangeRays("begin of it");
+
+        PING;
+        fflush(0);
+        comm->worker.withinIsland->barrier();
+        usleep(20);
+
         if (numExchanged == 0) {
           PING;
           break;
@@ -304,11 +311,16 @@ namespace vopat {
         usleep(50);
         // sleep(1);
 #endif
+        OWL_CUDA_SYNC_CHECK();
         forwardingLayer.clearQueue();
+        OWL_CUDA_SYNC_CHECK();
         traceLocally();
+        OWL_CUDA_SYNC_CHECK();
       }
     }
+        OWL_CUDA_SYNC_CHECK();
     fbLayer.addLocalFBs(fbPointer);
+        OWL_CUDA_SYNC_CHECK();
     comm->barrierAll();
   }
 

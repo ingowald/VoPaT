@@ -682,11 +682,11 @@ namespace vopat {
     Ray ray = generateRay(pixelID,pixelSample);
     auto &fullFbSize = lp.fbLayer.fullFbSize;
 
-    //vec2i dbgPixel(540,1016-600);
+    // vec2i dbgPixel(512,512);//540,1016-600);
     vec2i dbgPixel = fullFbSize/2;
     ray.dbg = (pixelID == dbgPixel);
     // ray.dbg = (ray.pixelID == 540106);
-    ray.dbg = 0;
+    // ray.dbg = 0;
 
     ray.crosshair
       = !ray.dbg && ((pixelID.x == dbgPixel.x) || (pixelID.y == dbgPixel.y));
@@ -717,7 +717,7 @@ namespace vopat {
     if (pixelOwner != lp.rank)
       // we don't own the closest proxy - let somebody else deal with it ...
       return;
-
+    
     traceRayLocally(rng,ray);
   }
   
@@ -728,6 +728,7 @@ namespace vopat {
   void traceRayLocally(Random &rng, Ray &ray)
   {
     auto &lp = LaunchParams::get();
+    if (ray.dbg) printf("(%i) tracerayslocally, spawned on %i\n",lp.rank,ray.spawningRank);
 
     if (ray.spawningRank == lp.rank)
       traceAgainstReplicatedGeometry(ray);
@@ -744,7 +745,7 @@ namespace vopat {
       return;
     }
 
-    bool dbg_this = 0;
+    bool dbg_this = 1;
     if (dbg_this && ray.dbg)
       printf("(%i) ray hit type %i at %f\n",
              lp.rank,
@@ -754,8 +755,13 @@ namespace vopat {
     // check if ray needs futher processing on another node
     // ==================================================================
     int nextRankToSendTo = lp.nextDomainKernel.computeNextRank(ray);
-    if (dbg_this && ray.dbg)
-      printf("next rank: %i\n",nextRankToSendTo);
+    bool funky = false;
+    if (dbg_this && ray.dbg) {
+      printf("next rank: %i ishadow %i hittype %i \n",nextRankToSendTo,
+             (int)ray.isShadow,
+             (int)ray.hitType);
+      funky = true;
+    }
     if (nextRankToSendTo >= 0) {
       if (dbg_this && ray.dbg)
         printf("---> forwarding to %i\n",nextRankToSendTo);
@@ -768,13 +774,16 @@ namespace vopat {
         ray.dbg = true;
       }
 #if VOPAT_USE_RAFI
-      lp.forwardGlobals.emitOutgoing(ray,nextRankToSendTo);
+      if (ray.dbg || (nextRankToSendTo != 0 && nextRankToSendTo != 1))
+        printf("EMITTING generated ray %i\n",nextRankToSendTo);
+      lp.forwardGlobals.emitOutgoing(ray,nextRankToSendTo,ray.dbg);
 #else
       lp.forwardGlobals.forwardRay(ray,nextRankToSendTo);
 #endif
       return;
     }
 
+    if (funky) printf("funky\n");
     // ==================================================================
     // ray doesn't need forwarding; it's done and can be shaded here!
     // ==================================================================
@@ -790,7 +799,7 @@ namespace vopat {
 
     if (ray.hitType == Ray::HitType_Volume) {
 #if 1
-      float ambient = .1f;
+      float ambient = .8f;
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
       if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
@@ -829,6 +838,7 @@ namespace vopat {
 #endif
     }
     else if (ray.hitType == Ray::HitType_Surf_Diffuse) {
+      printf("SURF\n");
       // ray didn't hit anything; but we KNOW it's not a shadow ray -
       // see do abckground
       vec3f N = from_half(ray.hit.surf_diffuse.N);
@@ -864,6 +874,8 @@ namespace vopat {
 #endif
     }
     else if (ray.hitType == Ray::HitType_None) {
+      if (funky) printf("funky nohit pixel %i\n",
+                        (int)ray.pixelID);
       // ray didn't hit anything; but we KNOW it's not a shadow ray -
       // see do abckground
       vec3f frag = backgroundColor(ray);

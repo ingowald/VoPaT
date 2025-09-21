@@ -31,12 +31,10 @@ namespace vopat {
            : nullptr)
   {}
 
-  int ForwardingLayer::exchangeRays()
+  int ForwardingLayer::exchangeRays(const char *dbgMessage)
   {
     assert(rafi);
-    PING;
-    rafi::ForwardResult result = rafi->forwardRays();
-    PING;
+    rafi::ForwardResult result = rafi->forwardRays(dbgMessage);
     numRaysIn = result.numRaysInIncomingQueueThisRank;
     return result.numRaysAliveAcrossAllRanks;
   }

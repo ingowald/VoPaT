@@ -29,7 +29,7 @@ namespace vopat {
   
   struct NextDomainKernel {
     enum { MAX_RANKS = 64 };
-    
+    enum { NUM_WORDS = (MAX_RANKS+15)/16 };
     // enum { RETRY = 1<<30 };
     enum { Phase_FindFirst=0, Phase_FindSelf, Phase_FindOthers, Phase_FindNext };
           
@@ -42,15 +42,25 @@ namespace vopat {
     struct PRD {
       struct {
         inline __device__ void clearBits()
-        { for (int i=0;i<(MAX_RANKS+15)/16;i++) words[i] = 0; }
+        {
+          for (int i=0;i<NUM_WORDS;i++) {
+            words[i] = 0;
+          }
+        }
         
         inline __device__ void setBit(int rank)
-        { words[rank/16] |= (1<<(rank%16)); }
+        {
+          if (rank != 0 && rank != 1) { printf("hasbit %i\n",rank); return; }
+          words[rank/16] |= (1<<(rank%16));
+        }
         
         inline __device__ bool hasBitSet(int rank)
-        { return words[rank/16] & (1<<(rank%16)); }
+        {
+          if (rank != 0 && rank != 1) { printf("hasbit %i\n",rank); return false; }
+          return words[rank/16] & (1<<(rank%16));
+        }
         
-        uint16_t   words[(MAX_RANKS+15)/16];
+        uint16_t   words[NUM_WORDS];
       } alreadyTravedMask;
       
       float      closestDist;
