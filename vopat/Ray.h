@@ -62,21 +62,17 @@ namespace vopat {
     inline __device__ vec3f getDirection() const { return direction; }
     vec3f direction;
 #endif
+    inline __device__ vec3f getThroughput() const { return from_half(throughput); }
     small_vec3f throughput;
     
     /* node that spawned this ray, so later stages can reconstruct
        where this ray has already been */
     int16_t spawningRank;
-    // int16_t dbg_destRank;
     union {
       struct { small_vec3f color; } volume;
       struct { small_vec3f N; half ior; } surf_glass;
       struct { small_vec3f N; small_vec3f color; } surf_diffuse;
     } hit;
-
-    int dbg_srcRank;
-    int dbg_dstRank;
-    int dbg_srcIndex;
   };
 
   // ==================================================================

@@ -794,7 +794,7 @@ namespace vopat {
 
     if (ray.hitType == Ray::HitType_Volume) {
 #if 1
-      float ambient = .8f;
+      float ambient = .2f;
       vec3f frag = from_half(ray.throughput)*from_half(ray.hit.volume.color);
       if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
@@ -811,10 +811,17 @@ namespace vopat {
                     +.1f*lightDir);
       if (dbg_this && ray.dbg) {
         printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
-        printf("SHADOW ray at %f %f %f\n",
+        printf("SHADOW ray at %f %f %f dir %f %f %f tp %f %f %f\n",
                ray.getOrigin().x,
                ray.getOrigin().y,
-               ray.getOrigin().z);
+               ray.getOrigin().z,
+               ray.getDirection().x,
+               ray.getDirection().y,
+               ray.getDirection().z,
+               ray.getThroughput().x,
+               ray.getThroughput().y,
+               ray.getThroughput().z
+               );
       }
       ray.setDirection(lightDir);
       ray.tMax = CUDART_INF;
@@ -842,7 +849,7 @@ namespace vopat {
       vec3f frag = from_half(ray.throughput) * scale * rd;
       
 #if 1
-      float ambient = .1f;
+      float ambient = .2f;
       if (dbg_this && ray.dbg)
         printf("(%i) adding frag %f %f %f\n",
                lp.rank,frag.x,frag.y,frag.z);

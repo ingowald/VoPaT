@@ -37,8 +37,6 @@ namespace vopat {
            comm->islandIndex(),comm->islandRank());
     
     if (comm->islandRank() >= 0) {
-      PING;
-      PRINT(comm->worker.gpuID);
       owl = owlContextCreate(&comm->worker.gpuID,1);
       owlDevCode = owlModuleCreate(owl,deviceCode_ptx);
 
@@ -168,15 +166,11 @@ namespace vopat {
     volume->setDD(lp);
 
 #if VOPAT_USE_RAFI
-    CUDA_SYNC_CHECK();
-    std::cout << "##################################################################" << std::endl;
-    PING; PRINT(forwardingLayer.numRaysIn);
     owlLaunch2D(traceLocallyRG,forwardingLayer.numRaysIn,1,lp);
 #else
     owlLaunch2D(traceLocallyRG,forward.numRaysIn,1,lp);
 #endif
     owlLaunchSync(lp);
-    CUDA_SYNC_CHECK();
   }
 
   void VopatRenderer::generatePrimaryWave()
