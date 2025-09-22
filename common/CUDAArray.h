@@ -108,12 +108,14 @@ namespace vopat {
     this->N = N;
     if (devMem) CUDA_CALL(Free(devMem));
     devMem = 0;
+    if (N > 0) {
 #if 1
-    CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
+      CUDA_CALL(Malloc(&devMem,N*sizeof(T)));
 #else
-    CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
+      CUDA_CALL(MallocManaged(&devMem,N*sizeof(T)));
 #endif
-    assert(devMem);
+      assert(devMem);
+    }
   }
 
   /*! allocates a host-vector of the same size, downloads device

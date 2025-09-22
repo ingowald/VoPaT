@@ -294,7 +294,7 @@ namespace vopat {
               exit(1);
             }
         }
-        forwardingLayer.clearQueue();
+        // forwardingLayer.clearQueue();
         printf("[%i] tracing secondary rays\n",myRank());
         traceLocally();
       }

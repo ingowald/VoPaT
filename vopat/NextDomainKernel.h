@@ -50,13 +50,11 @@ namespace vopat {
         
         inline __device__ void setBit(int rank)
         {
-          if (rank != 0 && rank != 1) { printf("hasbit %i\n",rank); return; }
           words[rank/16] |= (1<<(rank%16));
         }
         
         inline __device__ bool hasBitSet(int rank)
         {
-          if (rank != 0 && rank != 1) { printf("hasbit %i\n",rank); return false; }
           return words[rank/16] & (1<<(rank%16));
         }
         

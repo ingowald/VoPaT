@@ -91,10 +91,13 @@ namespace vopat {
   void AddLocalFBsLayer::resize(const vec2i &newSize)
   {
     this->fullFbSize = newSize;
-    
+    PING;
     if (comm->isMaster) {
+    PING;
       masterFB.resize(fullFbSize.x*fullFbSize.y);
+    PING;
     } else {
+    PING;
     // ==================================================================
       // this upper part should be per node, shared among all threads
       // ==================================================================
@@ -148,7 +151,9 @@ namespace vopat {
       this->dd.islandScale = numIslands;
       this->dd.islandBias  = islandIdx;
       this->dd.accumBuffer = localAccumBuffer.get();//(vec3f*)owlBufferGetPointer(localAccumBuffer,0);
+    PING;
     }
+    PING;
   }
   
   void AddLocalFBsLayer::addLocalFBs(uint32_t *fbPointer)

@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#define HAVE_ISO 1
+#define HAVE_ISO 0
 // #include "brix/mpi/MPIMaster.h"
 
 // #include "viewer/headless.h"
@@ -118,22 +118,27 @@ namespace vopat {
     /*! window notifies us that we got resized */
     virtual void resize(const viewer::vec2i &newSize) override
     {
+      PING;
       this->fbSize = (const vec2i&)newSize;
       cudaDeviceSynchronize();
       master.resizeFrameBuffer((const vec2i&)newSize);
       // optix->resizeFrameBuffer(newSize);
       
       // ... tell parent to resize (also resizes the pbo in the window)
+      PING;
       inherited::resize(newSize);
+      PING;
       
       // ... and finally: update the camera's aspect
       setAspect(newSize.x/float(newSize.y));
+      PING;
 
       cameraChanged();
       // update camera as well, since resize changed both aspect and
       // u/v pixel delta vectors ...
       updateCamera();
       cudaDeviceSynchronize();
+      PING;
     }
     
     /*! gets called whenever the viewer needs us to re-render out widget */
