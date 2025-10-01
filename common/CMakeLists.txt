@@ -27,7 +27,7 @@ add_library(vopat_common
 
 target_link_libraries(vopat_common
   PUBLIC
-  owl::owl
+  owl::owl_static
 #  MPI::MPI_CXX
   MPI::MPI_C
   )

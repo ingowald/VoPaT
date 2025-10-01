@@ -19,7 +19,7 @@ embed_ptx(
   deviceCode-ptx
   
   PTX_LINK_LIBRARIES
-  owl::owl
+#  owl::owl_static
   umesh
   miniScene
   vopat_common
