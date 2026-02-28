@@ -138,7 +138,7 @@ namespace vopat {
     std::vector<affine3f> transforms;
     std::vector<OWLGroup> groups;
     for (auto inst : scene->instances) {
-      transforms.push_back(inst->xfm);
+      transforms.push_back((const affine3f &)inst->xfm);
       groups.push_back(objectGroups[inst->object]);
     }
     OWLGroup world = owlInstanceGroupCreate(owl,groups.size(),
