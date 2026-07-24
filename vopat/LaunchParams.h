@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022-2022 Ingo Wald                                            //
+// Copyright 2022-2026 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -19,9 +19,6 @@
 #include "common/vopat.h"
 #include "vopat/ForwardingLayer.h"
 #include "vopat/AddLocalFBsLayer.h"
-// #include "vopat/volume/StructuredVolume.h"
-// #include "vopat/volume/UMeshVolume.h"
-// #include "vopat/SurfaceIntersector.h"
 #include "vopat/NextDomainKernel.h"
 
 #include "vopat/volume/UMeshVolume.h"
@@ -39,16 +36,6 @@ namespace vopat {
 #else
   using ForwardGlobals = typename ForwardingLayer::DD;
 #endif
-  // using VolumeGlobals  = typename VolumeRenderer::Globals;
-  // using SurfaceGlobals = typename SurfaceIntersector::Globals;
-    
-  /*! "triangle mesh" geometry type for shared-faces method */
-  // struct UMeshGeom {
-  //   vec4i *tets;
-  //   vec3f *vertices;
-  //   float *scalars;
-  //   vec2i *tetsOnFace;
-  // };
 
   struct LaunchParams {
     static inline __device__ const LaunchParams &get();
@@ -56,8 +43,6 @@ namespace vopat {
     MCGrid::DD mcGrid;
     AddLocalFBsLayer::DD     fbLayer;
     ForwardGlobals           forwardGlobals;
-    // VolumeGlobals            volumeGlobals;
-    // SurfaceGlobals           surfaceGlobals;
     NextDomainKernel::LPData nextDomainKernel;
     Camera                   camera;
     struct{
