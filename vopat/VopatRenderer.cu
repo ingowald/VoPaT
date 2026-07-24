@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022++ Ingo Wald                                               //
+// Copyright 2022-2026 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -22,10 +22,7 @@ namespace vopat {
   
   VopatRenderer::VopatRenderer(CommBackend *comm,
                                Volume::SP volume,
-                               mini::Scene::SP replicatedGeom//,
-                               // Model::SP model,
-                               // const std::string &baseFileName
-                               )
+                               mini::Scene::SP replicatedGeom)
     : comm(comm),
       volume(volume),
       replicatedGeom(replicatedGeom),
