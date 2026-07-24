@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022++ Ingo Wald                                               //
+// Copyright 2022-2026 Ingo Wald                                            //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -28,8 +28,6 @@ namespace vopat {
 
 #if VOPAT_USE_RAFI
   struct ForwardingLayer {
-    // using DD = rafi::DeviceInterface<vopat::Ray>;
-
     ForwardingLayer(CommBackend *comm);
     int  exchangeRays();
     void clearQueue() { rafi->clearQueue(); }
@@ -38,7 +36,6 @@ namespace vopat {
     
     rafi::HostContext<vopat::Ray> *rafi = 0;
     int numRaysIn = 0;
-    // DD dd;
   };
 #else
   struct ForwardingLayer {
@@ -85,7 +82,6 @@ namespace vopat {
     void clearQueue();
     void resizeQueues(int maxRaysPerQueue);
     
-    // void traceRaysLocally();
     int  exchangeRays();
 
     int myRank() const { return comm->myRank(); }
